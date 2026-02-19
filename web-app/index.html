@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CimBar — Encrypt &amp; Encode</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap">
+
+<style>
+:root {
+  --bg:       #f5f3ef;
+  --surface:  #ffffff;
+  --surface2: #f9f8f5;
+  --border:   #e2ddd6;
+  --border2:  #cdc8be;
+  --text:     #1a1714;
+  --text2:    #6b6459;
+  --text3:    #a09890;
+  --accent:   #2d6a4f;        /* forest green */
+  --accent-l: #d8f0e5;
+  --accent-d: #1b4332;
+  --warn:     #c0392b;
+  --warn-l:   #fde8e6;
+  --info:     #1a5276;
+  --info-l:   #d6eaf8;
+  --radius:   14px;
+  --radius-sm: 8px;
+  --shadow:   0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ── Layout ── */
+.page {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+/* ── Header ── */
+header {
+  text-align: center;
+  padding: 40px 0 36px;
+}
+
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(36px, 6vw, 56px);
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1;
+}
+
+.logo em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.tagline {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--text2);
+  font-weight: 300;
+  letter-spacing: 0.01em;
+}
+
+.badge-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  letter-spacing: 0.03em;
+}
+
+/* ── Tabs ── */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  flex: 1;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.tab-btn:hover { background: var(--surface2); color: var(--text); }
+
+.tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 6px rgba(45,106,79,0.25);
+}
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Form ── */
+.field { margin-bottom: 20px; }
+.field:last-child { margin-bottom: 0; }
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 7px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 5px;
+}
+
+/* Drop zone */
+.drop-zone {
+  position: relative;
+  border: 2px dashed var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--surface2);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--accent);
+  background: var(--accent-l);
+}
+
+.drop-zone input[type=file] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.drop-icon {
+  font-size: 28px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.drop-text {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.drop-text strong { color: var(--accent); }
+
+.file-pill {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-l);
+  border: 1px solid var(--accent);
+  border-radius: 100px;
+  padding: 5px 14px 5px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-d);
+  margin-top: 12px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.file-pill.show { display: inline-flex; }
+
+/* Inputs */
+input[type=password],
+input[type=text],
+select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  appearance: none;
+}
+
+input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* Strength meter */
+.strength-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+  background: var(--warn);
+}
+
+/* Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px 24px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.12s, box-shadow 0.18s;
+  width: 100%;
+  letter-spacing: 0.01em;
+}
+
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(45,106,79,0.25);
+}
+.btn-primary:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(45,106,79,0.35); }
+
+.btn-danger {
+  background: var(--warn);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(192,57,43,0.2);
+}
+.btn-danger:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(192,57,43,0.32); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+.btn-outline:hover:not(:disabled) { background: var(--accent-l); }
+
+.btn + .btn { margin-top: 10px; }
+
+/* Progress */
+.progress-section {
+  display: none;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 8px;
+  font-family: 'DM Mono', monospace;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.35s ease-out;
+}
+
+.log {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  line-height: 2;
+  color: var(--text2);
+  max-height: 90px;
+  overflow-y: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.log-line { display: block; }
+.log-ok   { color: var(--accent); }
+.log-err  { color: var(--warn); }
+.log-info { color: var(--info); }
+
+/* Stats */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+}
+
+.stat {
+  background: var(--surface2);
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.stat-val {
+  font-family: 'DM Serif Display', serif;
+  font-size: 24px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.stat-lbl {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Output */
+.output-section {
+  display: none;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.preview-frame {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: #111;
+}
+
+.preview-frame img {
+  display: block;
+  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 280px;
+}
+
+/* Callout */
+.callout {
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 16px;
+}
+
+.callout-info {
+  background: var(--info-l);
+  border-left: 3px solid var(--info);
+  color: var(--info);
+}
+
+.callout-warn {
+  background: var(--warn-l);
+  border-left: 3px solid var(--warn);
+  color: var(--warn);
+}
+
+.callout strong { font-weight: 600; }
+
+/* About cards */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.about-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18px 14px;
+}
+
+.about-num {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  color: var(--border2);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.about-icon { font-size: 22px; margin-bottom: 8px; }
+
+.about-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.about-text { font-size: 12px; color: var(--text2); line-height: 1.6; }
+
+/* Divider */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Hidden canvas */
+.hidden { display: none !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--surface2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Footer */
+footer {
+  text-align: center;
+  padding: 24px 0 0;
+  font-size: 12px;
+  color: var(--text3);
+}
+
+@media (max-width: 480px) {
+  .two-col { grid-template-columns: 1fr; }
+  .stats   { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header>
+    <div class="logo">Cim<em>Bar</em></div>
+    <div class="tagline">Encrypt any file. Encode it into an animated image.</div>
+    <div class="badge-row">
+      <span class="badge">AES-256-GCM</span>
+      <span class="badge">Reed-Solomon ECC</span>
+      <span class="badge">100% client-side</span>
+      <span class="badge">no upload, no tracking</span>
+    </div>
+  </header>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(event,'encode')">Encode</button>
+    <button class="tab-btn" onclick="switchTab(event,'decode')">Decode GIF</button>
+    <button class="tab-btn" onclick="switchTab(event,'import')">Import Binary</button>
+    <button class="tab-btn" onclick="switchTab(event,'about')">About</button>
+  </div>
+
+  <!-- ═══════════════════ ENCODE ═══════════════════ -->
+  <div class="tab-panel active" id="tab-encode">
+    <div class="card">
+
+      <div class="field">
+        <label>File to encrypt</label>
+        <div class="drop-zone" id="dropEnc">
+          <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
+          <div class="drop-icon">📄</div>
+          <div class="drop-text">Drop a file here, or <strong>click to browse</strong></div>
+          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)">
+            Recommended max ≈ 80 KB for fast GIF output
+          </div>
+        </div>
+        <div class="file-pill" id="pillEnc">
+          <span>✓</span><span id="pillEncText"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Passphrase</label>
+        <input type="password" id="passEnc" placeholder="Enter a strong passphrase…" oninput="updateStrength(this.value,'strengthFillEnc')">
+        <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
+        <div class="field-hint">Used for AES-256-GCM encryption via PBKDF2 (150 000 iterations)</div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label>Frame size</label>
+          <select id="frameSize">
+            <option value="128">128 × 128 px — fast</option>
+            <option value="192">192 × 192 px</option>
+            <option value="256" selected>256 × 256 px — balanced</option>
+            <option value="384">384 × 384 px — dense</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Frame delay</label>
+          <select id="frameDelay">
+            <option value="8">80 ms (fast)</option>
+            <option value="10" selected>100 ms</option>
+            <option value="20">200 ms (slow)</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="encBtn" onclick="startEncode()">
+        Encrypt &amp; Encode to GIF
+      </button>
+
+      <!-- Progress -->
+      <div class="progress-section" id="progEnc">
+        <div class="progress-header">
+          <span id="progEncLabel">Processing…</span>
+          <span id="progEncPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progEncFill"></div>
+        </div>
+        <div class="log" id="logEnc"></div>
+      </div>
+
+      <!-- Output -->
+      <div class="output-section" id="outEnc">
+        <div class="stats" id="statsEnc">
+          <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl">Frames</div></div>
+          <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl">Encoded bytes</div></div>
+          <div class="stat"><div class="stat-val" id="sCells">—</div><div class="stat-lbl">Cells/frame</div></div>
+        </div>
+        <div class="preview-frame" style="margin-top:16px;">
+          <img id="gifOut" alt="Encoded GIF">
+        </div>
+        <button class="btn btn-primary" onclick="downloadGif()">Download GIF</button>
+        <button class="btn btn-outline" onclick="downloadBin()" id="dlBinBtn">Download encrypted binary <span style="font-size:11px;opacity:0.7">(for external CimBar decoders)</span></button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════ DECODE ═══════════════════ -->
+  <div class="tab-panel" id="tab-decode">
+    <div class="card">
+
+      <div class="field">
+        <label>Encoded GIF</label>
+        <div class="drop-zone" id="dropDec">
+          <input type="file" id="fileDec" accept="image/gif,.gif" onchange="onFileSelect(this,'dec')">
+          <div class="drop-icon">🎞️</div>
+          <div class="drop-text">Drop your <strong>.gif</strong> here, or click to browse</div>
+        </div>
+        <div class="file-pill" id="pillDec">
+          <span>✓</span><span id="pillDecText"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Passphrase</label>
+        <input type="password" id="passDec" placeholder="Enter the decryption passphrase…">
+      </div>
+
+      <button class="btn btn-danger" id="decBtn" onclick="startDecode()">
+        Decode &amp; Decrypt
+      </button>
+
+      <div class="progress-section" id="progDec">
+        <div class="progress-header">
+          <span id="progDecLabel">Decoding…</span>
+          <span id="progDecPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progDecFill" style="background:var(--warn)"></div>
+        </div>
+        <div class="log" id="logDec"></div>
+      </div>
+
+      <div class="callout callout-info" style="margin-top:20px;">
+        <strong>How decoding works:</strong> The GIF is parsed frame-by-frame in your browser,
+        pixels are decoded back to bytes via color + symbol detection,
+        Reed-Solomon error correction is applied per block, then AES-256-GCM decryption
+        restores the original file. Nothing leaves your device.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════ IMPORT BINARY ═══════════════════ -->
+  <div class="tab-panel" id="tab-import">
+    <div class="card">
+
+      <p style="font-size:14px;line-height:1.8;color:var(--text2);margin-bottom:20px;">
+        If you decoded a CimBar GIF using an <strong style="color:var(--text)">external decoder</strong>
+        (e.g. the open-source C++ <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">cimbar</code> tool),
+        it will produce a raw binary file containing the encrypted payload.
+        Upload that binary here to decrypt and recover the original file.
+      </p>
+
+      <div class="callout callout-info" style="margin-bottom:20px;">
+        <strong>What the binary contains:</strong> The encrypted payload starts with a 4-byte
+        magic header (<code style="font-family:'DM Mono',monospace">CB 42 01 00</code>), followed by a 16-byte
+        PBKDF2 salt, a 12-byte AES-GCM IV, and the ciphertext. This tool reads that format directly.
+      </div>
+
+      <div class="field">
+        <label>Encrypted binary file</label>
+        <div class="drop-zone" id="dropBin">
+          <input type="file" id="fileBin" onchange="onFileSelect(this,'bin')">
+          <div class="drop-icon">🗜️</div>
+          <div class="drop-text">Drop the <strong>.bin</strong> file from your external decoder here</div>
+          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)">
+            Any file extension accepted — only the magic bytes are validated
+          </div>
+        </div>
+        <div class="file-pill" id="pillBin">
+          <span>✓</span><span id="pillBinText"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Passphrase</label>
+        <input type="password" id="passBin" placeholder="Enter the decryption passphrase…">
+        <div class="field-hint">Must match the passphrase used when the GIF was encoded</div>
+      </div>
+
+      <button class="btn btn-danger" id="binBtn" onclick="decryptBinary()">
+        Decrypt Binary &amp; Download
+      </button>
+
+      <div class="progress-section" id="progBin">
+        <div class="progress-header">
+          <span id="progBinLabel">Decrypting…</span>
+          <span id="progBinPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progBinFill" style="background:var(--warn)"></div>
+        </div>
+        <div class="log" id="logBin"></div>
+      </div>
+
+      <hr class="divider">
+
+      <div style="font-size:13px;color:var(--text2);line-height:1.8;">
+        <strong style="color:var(--text)">Typical workflow with an external decoder:</strong><br>
+        1. Encode a file here → download the GIF<br>
+        2. Show the GIF on a screen (or send it)<br>
+        3. Scan with a real CimBar scanner (camera + C++ tool) → get a <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">.bin</code> file<br>
+        4. Upload the <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">.bin</code> here → decrypt → recover original file
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════ ABOUT ═══════════════════ -->
+  <div class="tab-panel" id="tab-about">
+    <div class="card">
+      <p style="font-size:14px;line-height:1.8;color:var(--text2)">
+        <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
+        of colored geometric symbols. This tool uses a simplified variant:
+        each cell encodes <strong style="color:var(--accent)">7 bits</strong> —
+        3 bits for color (8 colors) and 4 bits for symbol shape (16 icons).
+        Before encoding, your file is encrypted with
+        <strong style="color:var(--accent)">AES-256-GCM</strong>,
+        and each frame's data is protected by
+        <strong style="color:var(--accent)">Reed-Solomon</strong> error correction
+        (32 ECC bytes per 255-byte block, correcting up to 16 byte errors per block).
+      </p>
+
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="about-num">01</div>
+          <div class="about-title">Encrypt</div>
+          <div class="about-text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-num">02</div>
+          <div class="about-title">ECC</div>
+          <div class="about-text">Reed-Solomon RS(255, 223) applied to each 255-byte block. Corrects up to 16 byte errors per block.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-num">03</div>
+          <div class="about-title">Map</div>
+          <div class="about-text">ECC'd bytes mapped to cells: 3 bits → color (8), 4 bits → symbol (16) = 7 bits per cell.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-num">04</div>
+          <div class="about-title">Animate</div>
+          <div class="about-text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-num">05</div>
+          <div class="about-title">Transmit</div>
+          <div class="about-text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-num">06</div>
+          <div class="about-title">Private</div>
+          <div class="about-text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div style="font-size:13px;color:var(--text2);line-height:1.8;">
+        <strong style="color:var(--text)">Capacity example (256×256 frame):</strong><br>
+        32×32 cells = 1 024 cells. Minus 18 finder cells = 1 006 usable.
+        1 006 × 7 bits = 7 042 bits = 880 raw bytes.
+        After RS(255,223): ~770 data bytes per frame.
+        A 50 KB file needs ≈ 67 frames.
+      </div>
+
+      <div class="callout callout-warn" style="margin-top:16px;">
+        <strong>GIF palette limitation:</strong> GIF supports only 256 colors per frame.
+        The palette is tuned for CimBar's 8 base colors and their variants,
+        so color fidelity is good but not pixel-perfect.
+        Reed-Solomon corrects the resulting quantization errors during decode.
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    CimBar Encoder · Client-side only · AES-256-GCM + Reed-Solomon ECC
+  </footer>
+</div>
+
+<!-- Hidden canvas for rendering frames -->
+<canvas id="workCanvas" class="hidden"></canvas>
+
+<script src="rs.js"></script>
+<script src="cimbar.js"></script>
+<script src="crypto.js"></script>
+<script src="gif-encoder.js"></script>
+<script src="gif-decoder.js"></script>
+
+<script>
+// ── Tab switching ─────────────────────────────────────────
+function switchTab(evt, name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  evt.currentTarget.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── File selection ────────────────────────────────────────
+let encFile = null, decFile = null, binFile = null;
+
+function onFileSelect(input, side) {
+  const file = input.files[0];
+  if (!file) return;
+  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); }
+  else if (side === 'dec') { decFile = file; showPill('pillDec','pillDecText', file.name, file.size); }
+  else if (side === 'bin') { binFile = file; showPill('pillBin','pillBinText', file.name, file.size); }
+}
+
+function showPill(pillId, textId, name, size) {
+  const el = document.getElementById(pillId);
+  document.getElementById(textId).textContent = `${name} (${fmtBytes(size)})`;
+  el.classList.add('show');
+}
+
+function fmtBytes(b) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
+  return `${(b/1048576).toFixed(2)} MB`;
+}
+
+// Drag-and-drop
+['dropEnc','dropDec','dropBin'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); }
+    else if (id === 'dropDec') { decFile = f; showPill('pillDec','pillDecText', f.name, f.size); }
+    else if (id === 'dropBin') { binFile = f; showPill('pillBin','pillBinText', f.name, f.size); }
+  });
+});
+
+// ── Passphrase strength ───────────────────────────────────
+function updateStrength(val, fillId) {
+  const score = window.CimbarCrypto ? CimbarCrypto.passphraseStrength(val) : 0;
+  const fill = document.getElementById(fillId);
+  fill.style.width = score + '%';
+  fill.style.background = score < 40 ? 'var(--warn)' : score < 70 ? '#e67e22' : 'var(--accent)';
+}
+
+// ── Logging & progress ────────────────────────────────────
+function log(msg, cls, panelId) {
+  const el = document.getElementById(panelId);
+  const line = document.createElement('span');
+  line.className = 'log-line' + (cls ? ' log-' + cls : '');
+  line.textContent = '› ' + msg;
+  el.appendChild(line);
+  el.appendChild(document.createTextNode('\n'));
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(pct, label, fillId, pctId, labelId) {
+  document.getElementById(fillId).style.width = pct + '%';
+  document.getElementById(pctId).textContent  = Math.round(pct) + '%';
+  if (label) document.getElementById(labelId).textContent = label;
+}
+
+// ── ENCODE ────────────────────────────────────────────────
+let outputBlob = null;
+
+async function startEncode() {
+  if (!encFile) { alert('Please select a file first.'); return; }
+  const pass = document.getElementById('passEnc').value.trim();
+  if (!pass)   { alert('Please enter a passphrase.'); return; }
+
+  const frameSize  = parseInt(document.getElementById('frameSize').value);
+  const frameDelay = parseInt(document.getElementById('frameDelay').value);
+
+  const btn = document.getElementById('encBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processing…';
+
+  document.getElementById('progEnc').style.display = 'block';
+  document.getElementById('outEnc').style.display  = 'none';
+  document.getElementById('logEnc').innerHTML = '';
+  outputBlob = null;
+  encryptedPayload = null;
+
+  try {
+    // 1. Read file
+    log('Reading file…', 'info', 'logEnc');
+    setProgress(5, 'Reading file', 'progEncFill', 'progEncPct', 'progEncLabel');
+    const raw = new Uint8Array(await encFile.arrayBuffer());
+
+    // Build header: [4-byte nameLen][nameBytes][fileBytes]
+    const nameBytes = new TextEncoder().encode(encFile.name);
+    const header = new Uint8Array(4 + nameBytes.length);
+    new DataView(header.buffer).setUint32(0, nameBytes.length, false);
+    header.set(nameBytes, 4);
+    const payload = concat(header, raw);
+    log(`File: ${encFile.name} (${fmtBytes(raw.length)})`, 'ok', 'logEnc');
+
+    // 2. Encrypt
+    log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
+    setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
+    const encrypted = await CimbarCrypto.encryptBytes(payload, pass);
+    encryptedPayload = encrypted; // save for binary download
+    log(`Encrypted: ${fmtBytes(encrypted.length)}`, 'ok', 'logEnc');
+
+    // Prepend 4-byte big-endian length so decoder can strip RS zero-padding
+    const lengthPrefix = new Uint8Array(4);
+    new DataView(lengthPrefix.buffer).setUint32(0, encrypted.length, false);
+    const framedData = concat(lengthPrefix, encrypted);
+
+    // 3. Calculate frame layout
+    const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
+    const dpf = Cimbar.dataBytesPerFrame(frameSize);
+    const rpf = Cimbar.rawBytesPerFrame(frameSize);
+    const numFrames = Math.ceil(framedData.length / dpf);
+    log(`Frame ${frameSize}×${frameSize}: ${dpf} data bytes/frame, ${numFrames} frame(s)`, 'info', 'logEnc');
+
+    // Update stats
+    document.getElementById('sFrames').textContent = numFrames;
+    document.getElementById('sBytes').textContent  = fmtBytes(encrypted.length);
+    document.getElementById('sCells').textContent  = Cimbar.usableCells(frameSize);
+
+    // 4. Render frames
+    const canvas = document.getElementById('workCanvas');
+    canvas.width  = frameSize;
+    canvas.height = frameSize;
+    const ctx = canvas.getContext('2d');
+
+    const gif = new GifEncoder(frameSize, frameSize, frameDelay);
+
+    for (let f = 0; f < numFrames; f++) {
+      const pct = 25 + (f / numFrames) * 65;
+      setProgress(pct, `Encoding frame ${f+1} / ${numFrames}`, 'progEncFill', 'progEncPct', 'progEncLabel');
+
+      const start = f * dpf;
+      const chunk = framedData.slice(start, start + dpf);
+
+      // RS-encode this chunk to fill one frame's raw byte capacity
+      const rsFrame = Cimbar.encodeRSFrame(chunk, frameSize, rs);
+
+      // Draw frame
+      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf);
+
+      gif.addFrame(canvas);
+
+      // Yield to keep UI responsive
+      if (f % 4 === 0) await sleep(0);
+    }
+
+    log('Compiling GIF…', 'info', 'logEnc');
+    setProgress(93, 'Compiling GIF', 'progEncFill', 'progEncPct', 'progEncLabel');
+    await sleep(10); // let progress render
+
+    outputBlob = gif.finish();
+    const url = URL.createObjectURL(outputBlob);
+    document.getElementById('gifOut').src = url;
+    document.getElementById('outEnc').style.display = 'block';
+
+    setProgress(100, 'Done', 'progEncFill', 'progEncPct', 'progEncLabel');
+    log(`GIF ready: ${fmtBytes(outputBlob.size)}`, 'ok', 'logEnc');
+
+  } catch (err) {
+    log('Error: ' + err.message, 'err', 'logEnc');
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Encrypt &amp; Encode to GIF';
+}
+
+function downloadGif() {
+  if (!outputBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(outputBlob);
+  a.download = 'cimbar_' + Date.now() + '.gif';
+  a.click();
+}
+
+// ── DECODE ────────────────────────────────────────────────
+async function startDecode() {
+  if (!decFile) { alert('Please select a GIF file.'); return; }
+  const pass = document.getElementById('passDec').value.trim();
+  if (!pass)   { alert('Please enter a passphrase.'); return; }
+
+  const btn = document.getElementById('decBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Decoding…';
+
+  document.getElementById('progDec').style.display = 'block';
+  document.getElementById('logDec').innerHTML = '';
+
+  try {
+    log('Loading GIF…', 'info', 'logDec');
+    setProgress(5, 'Loading', 'progDecFill', 'progDecPct', 'progDecLabel');
+
+    const gifBytes = new Uint8Array(await decFile.arrayBuffer());
+    const decoder  = new GifDecoder(gifBytes);
+
+    log('Parsing frames…', 'info', 'logDec');
+    setProgress(15, 'Parsing frames', 'progDecFill', 'progDecPct', 'progDecLabel');
+
+    const frames = decoder.decode();
+    if (!frames.length) throw new Error('No frames found in GIF');
+    log(`Found ${frames.length} frame(s), size ${frames[0].width}×${frames[0].height}`, 'ok', 'logDec');
+
+    const frameSize = frames[0].width;
+    const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
+    const rpf = Cimbar.rawBytesPerFrame(frameSize);
+    const dpf = Cimbar.dataBytesPerFrame(frameSize);
+
+    // Collect raw bytes from each frame, RS-decode per frame
+    const allData = [];
+
+    for (let f = 0; f < frames.length; f++) {
+      const pct = 20 + (f / frames.length) * 55;
+      setProgress(pct, `Decoding frame ${f+1} / ${frames.length}`, 'progDecFill', 'progDecPct', 'progDecLabel');
+
+      const rawBytes = Cimbar.decodeFramePixels(frames[f].imageData, frameSize);
+      const dataBytes = Cimbar.decodeRSFrame(rawBytes, frameSize, rs);
+
+      for (let i = 0; i < dataBytes.length; i++) allData.push(dataBytes[i]);
+      if (f % 4 === 0) await sleep(0);
+    }
+
+    const allBytes = new Uint8Array(allData);
+
+    // Strip RS zero-padding: read the 4-byte length prefix written by the encoder
+    const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
+    if (payloadLength < 32 || payloadLength > allBytes.length - 4)
+      throw new Error(`Header corrupt: payload length ${payloadLength} is invalid`);
+    const encryptedBytes = allBytes.slice(4, 4 + payloadLength);
+
+    log('Decrypting…', 'info', 'logDec');
+    setProgress(80, 'Decrypting', 'progDecFill', 'progDecPct', 'progDecLabel');
+
+    const decrypted = await CimbarCrypto.decryptBytes(encryptedBytes, pass);
+
+    // Parse header
+    const view = new DataView(decrypted.buffer);
+    const nameLen = view.getUint32(0, false);
+    if (nameLen > 512) throw new Error('Header corrupt: filename length invalid');
+    const filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
+    const fileData = decrypted.slice(4 + nameLen);
+
+    log(`Decrypted: ${filename} (${fmtBytes(fileData.length)})`, 'ok', 'logDec');
+    setProgress(100, 'Done', 'progDecFill', 'progDecPct', 'progDecLabel');
+
+    // Download the file
+    const blob = new Blob([fileData]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    log('File saved to Downloads ✓', 'ok', 'logDec');
+
+  } catch (err) {
+    log('Error: ' + err.message, 'err', 'logDec');
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Decode &amp; Decrypt';
+}
+
+// ── Utilities ─────────────────────────────────────────────
+function concat(...arrays) {
+  const len = arrays.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(len);
+  let off = 0;
+  for (const a of arrays) { out.set(a, off); off += a.length; }
+  return out;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Binary export (for external CimBar decoders) ──────────
+// Stored during encode so we can offer it as a download
+let encryptedPayload = null;
+
+function downloadBin() {
+  if (!encryptedPayload) { alert('Please encode a file first.'); return; }
+  const blob = new Blob([encryptedPayload], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cimbar_payload_' + Date.now() + '.bin';
+  a.click();
+}
+
+// ── Import Binary: decrypt raw payload from external decoder ─
+async function decryptBinary() {
+  if (!binFile) { alert('Please select a binary file first.'); return; }
+  const pass = document.getElementById('passBin').value.trim();
+  if (!pass)   { alert('Please enter a passphrase.'); return; }
+
+  const btn = document.getElementById('binBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Decrypting…';
+
+  document.getElementById('progBin').style.display = 'block';
+  document.getElementById('logBin').innerHTML = '';
+
+  try {
+    log('Reading binary file…', 'info', 'logBin');
+    setProgress(10, 'Reading', 'progBinFill', 'progBinPct', 'progBinLabel');
+
+    const raw = new Uint8Array(await binFile.arrayBuffer());
+    log(`Binary: ${fmtBytes(raw.length)}`, 'ok', 'logBin');
+
+    // Validate magic bytes
+    if (raw.length < 32) throw new Error('File too small — not a valid CimBar payload');
+    if (raw[0] !== 0xCB || raw[1] !== 0x42) {
+      throw new Error(
+        `Invalid magic bytes (got ${raw[0].toString(16).padStart(2,'0')} ${raw[1].toString(16).padStart(2,'0')}, expected CB 42). ` +
+        'Make sure this is a binary produced by a CimBar decoder, not a raw GIF.'
+      );
+    }
+
+    log('Magic bytes OK (CB 42 01 00) — decrypting…', 'info', 'logBin');
+    setProgress(40, 'Decrypting', 'progBinFill', 'progBinPct', 'progBinLabel');
+
+    const decrypted = await CimbarCrypto.decryptBytes(raw, pass);
+
+    // Parse our filename header
+    setProgress(80, 'Parsing header', 'progBinFill', 'progBinPct', 'progBinLabel');
+    const view    = new DataView(decrypted.buffer);
+    const nameLen = view.getUint32(0, false);
+
+    let filename, fileData;
+
+    if (nameLen > 0 && nameLen < 512 && 4 + nameLen < decrypted.length) {
+      // Has our embedded header
+      filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
+      fileData = decrypted.slice(4 + nameLen);
+      log(`Filename recovered: ${filename}`, 'ok', 'logBin');
+    } else {
+      // No recognisable header — could be a payload from a different encoder
+      // Just offer the raw decrypted bytes
+      filename = binFile.name.replace(/\.(bin|dat|out)$/i, '') || 'decrypted_file';
+      fileData = decrypted;
+      log('No embedded filename header found — saving raw decrypted bytes', 'info', 'logBin');
+    }
+
+    log(`File: ${filename} (${fmtBytes(fileData.length)})`, 'ok', 'logBin');
+    setProgress(100, 'Done', 'progBinFill', 'progBinPct', 'progBinLabel');
+
+    const blob = new Blob([fileData]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    log('Saved to Downloads ✓', 'ok', 'logBin');
+
+  } catch (err) {
+    log('Error: ' + err.message, 'err', 'logBin');
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Decrypt Binary &amp; Download';
+}
+</script>
+</body>
+</html>
