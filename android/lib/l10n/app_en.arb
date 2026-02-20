@@ -152,5 +152,13 @@
   "cameraPermissionDenied": "Camera permission is required for live scanning",
   "@cameraPermissionDenied": { "description": "Error when camera permission is denied" },
   "noCameraAvailable": "No camera available on this device",
-  "@noCameraAvailable": { "description": "Error when no camera is found" }
+  "@noCameraAvailable": { "description": "Error when no camera is found" },
+
+  "liveScanFramesAnalyzed": "{count} frames analyzed",
+  "@liveScanFramesAnalyzed": {
+    "description": "Counter of camera frames processed during live scanning",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }

@@ -56,5 +56,6 @@
   "liveScanComplete": "Tüm kareler yakalandı!",
   "liveScanError": "Tarama başarısız",
   "cameraPermissionDenied": "Canlı tarama için kamera izni gerekli",
-  "noCameraAvailable": "Bu cihazda kamera yok"
+  "noCameraAvailable": "Bu cihazda kamera yok",
+  "liveScanFramesAnalyzed": "{count} kare analiz edildi"
 }

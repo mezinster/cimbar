@@ -56,5 +56,6 @@
   "liveScanComplete": "Все кадры захвачены!",
   "liveScanError": "Сканирование не удалось",
   "cameraPermissionDenied": "Для живого сканирования требуется разрешение камеры",
-  "noCameraAvailable": "На этом устройстве нет доступной камеры"
+  "noCameraAvailable": "На этом устройстве нет доступной камеры",
+  "liveScanFramesAnalyzed": "{count} кадров проанализировано"
 }

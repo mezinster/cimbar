@@ -62,39 +62,48 @@ class LiveScanner {
   /// Total number of frames expected (derived from frame 0's length prefix).
   int _totalFrames = 0;
 
+  /// Number of camera frames analyzed (including failures).
+  int _framesAnalyzed = 0;
+
   int get uniqueFrameCount => _uniqueFrames.length;
   int get totalFrames => _totalFrames;
   int? get detectedFrameSize => _frameSize;
+  int get framesAnalyzed => _framesAnalyzed;
 
   /// Process a single camera frame image.
   ///
   /// Returns [ScanProgress] with current state, or null if the frame
   /// could not be decoded (dark image, no barcode, etc.).
   ScanProgress? processFrame(img.Image photo) {
-    // 1. Locate barcode region
-    final img.Image cropped;
-    try {
-      cropped = FrameLocator.locate(photo);
-    } catch (_) {
-      return null; // no barcode found
-    }
+    _framesAnalyzed++;
 
-    // 2. Try to decode at known frame size, or try all sizes
+    // Try multiple crop strategies to find the barcode
     Uint8List? dataBytes;
     int? usedSize;
 
-    if (_frameSize != null) {
-      dataBytes = _tryDecode(cropped, _frameSize!);
-      if (dataBytes != null) usedSize = _frameSize;
-    } else {
-      for (final size in CimbarConstants.frameSizes) {
-        dataBytes = _tryDecode(cropped, size);
-        if (dataBytes != null) {
-          usedSize = size;
-          _frameSize = size;
-          break;
-        }
+    // Strategy 1: FrameLocator (bright-region detection)
+    try {
+      final cropped = FrameLocator.locate(photo);
+      // Only use if crop is meaningfully smaller than the original image.
+      // If the crop covers >80% of the area, FrameLocator found "everything"
+      // (e.g. well-lit room) and the crop is useless.
+      final cropArea = cropped.width * cropped.height;
+      final totalArea = photo.width * photo.height;
+      if (cropArea < totalArea * 0.8) {
+        (dataBytes, usedSize) = _tryDecodeImage(cropped);
       }
+    } catch (_) {
+      // No bright region found — try center crop below
+    }
+
+    // Strategy 2: Center square crop (user points camera directly at barcode)
+    if (dataBytes == null) {
+      final minDim = min(photo.width, photo.height);
+      final cropX = (photo.width - minDim) ~/ 2;
+      final cropY = (photo.height - minDim) ~/ 2;
+      final center = img.copyCrop(photo,
+          x: cropX, y: cropY, width: minDim, height: minDim);
+      (dataBytes, usedSize) = _tryDecodeImage(center);
     }
 
     if (dataBytes == null || usedSize == null) return null;
@@ -201,6 +210,25 @@ class LiveScanner {
     _adjacency.clear();
     _frame0Hash = null;
     _totalFrames = 0;
+    _framesAnalyzed = 0;
+  }
+
+  /// Try all candidate frame sizes on a cropped image.
+  /// Returns (dataBytes, frameSize) or (null, null).
+  (Uint8List?, int?) _tryDecodeImage(img.Image cropped) {
+    if (_frameSize != null) {
+      final data = _tryDecode(cropped, _frameSize!);
+      if (data != null) return (data, _frameSize!);
+      return (null, null);
+    }
+    for (final size in CimbarConstants.frameSizes) {
+      final data = _tryDecode(cropped, size);
+      if (data != null) {
+        _frameSize = size;
+        return (data, size);
+      }
+    }
+    return (null, null);
   }
 
   /// Try to decode a cropped image at a specific frame size.
@@ -215,6 +243,16 @@ class LiveScanner {
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
       if (dataBytes.isEmpty) return null;
+
+      // Quality check: if the first 64 bytes are all zero, every RS block
+      // failed and the decoded data is garbage — reject this frame.
+      var nonZero = 0;
+      final checkLen = min(64, dataBytes.length);
+      for (var i = 0; i < checkLen; i++) {
+        if (dataBytes[i] != 0) nonZero++;
+      }
+      if (nonZero == 0) return null;
+
       return dataBytes;
     } catch (_) {
       return null;

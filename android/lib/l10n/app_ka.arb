@@ -56,5 +56,6 @@
   "liveScanComplete": "ყველა კადრი დაფიქსირდა!",
   "liveScanError": "სკანირება ვერ მოხერხდა",
   "cameraPermissionDenied": "პირდაპირი სკანირებისთვის საჭიროა კამერის ნებართვა",
-  "noCameraAvailable": "ამ მოწყობილობაზე კამერა მიუწვდომელია"
+  "noCameraAvailable": "ამ მოწყობილობაზე კამერა მიუწვდომელია",
+  "liveScanFramesAnalyzed": "{count} კადრი გაანალიზებულია"
 }

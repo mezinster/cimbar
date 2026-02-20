@@ -1,7 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
@@ -29,6 +28,11 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Lock to portrait — camera preview dimensions don't survive rotation
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _initCamera();
     // Start scanning
     ref.read(liveScanControllerProvider.notifier).startScan();
@@ -39,6 +43,8 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.stopImageStream().catchError((_) {});
     _cameraController?.dispose();
+    // Restore all orientations
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
   }
 
@@ -142,9 +148,16 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       Future.microtask(() => controller.decrypt(widget.passphrase));
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _cameraController?.stopImageStream().catchError((_) {});
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
         children: [
           // Camera preview
           if (_cameraController != null &&
@@ -214,7 +227,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildStatusPanel(
@@ -320,6 +333,13 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
         const SizedBox(height: 12),
         Text(l10n.liveScanSearching,
             style: const TextStyle(color: Colors.white70, fontSize: 16)),
+        if (scanState.framesAnalyzed > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.liveScanFramesAnalyzed(scanState.framesAnalyzed),
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+        ],
       ],
     );
   }

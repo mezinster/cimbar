@@ -18,6 +18,7 @@ final liveScanControllerProvider =
 
 class LiveScanState {
   final bool isScanning;
+  final int framesAnalyzed;
   final int uniqueFrames;
   final int totalFrames;
   final int? detectedFrameSize;
@@ -27,6 +28,7 @@ class LiveScanState {
 
   const LiveScanState({
     this.isScanning = false,
+    this.framesAnalyzed = 0,
     this.uniqueFrames = 0,
     this.totalFrames = 0,
     this.detectedFrameSize,
@@ -37,6 +39,7 @@ class LiveScanState {
 
   LiveScanState copyWith({
     bool? isScanning,
+    int? framesAnalyzed,
     int? uniqueFrames,
     int? totalFrames,
     int? detectedFrameSize,
@@ -48,6 +51,7 @@ class LiveScanState {
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
+      framesAnalyzed: framesAnalyzed ?? this.framesAnalyzed,
       uniqueFrames: uniqueFrames ?? this.uniqueFrames,
       totalFrames: totalFrames ?? this.totalFrames,
       detectedFrameSize: detectedFrameSize ?? this.detectedFrameSize,
@@ -118,13 +122,14 @@ class LiveScanController extends StateNotifier<LiveScanState> {
 
       // Process through scanner
       final progress = _scanner.processFrame(image);
-      if (progress != null) {
-        state = state.copyWith(
-          uniqueFrames: progress.uniqueFrames,
-          totalFrames: progress.totalFrames,
-          detectedFrameSize: progress.detectedFrameSize,
-        );
-      }
+
+      // Always update framesAnalyzed so the UI shows activity
+      state = state.copyWith(
+        framesAnalyzed: _scanner.framesAnalyzed,
+        uniqueFrames: progress?.uniqueFrames ?? state.uniqueFrames,
+        totalFrames: progress?.totalFrames ?? state.totalFrames,
+        detectedFrameSize: progress?.detectedFrameSize ?? state.detectedFrameSize,
+      );
     } finally {
       _processing = false;
     }

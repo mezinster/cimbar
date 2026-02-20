@@ -87,6 +87,7 @@ class AppLocalizations {
   String get cameraPermissionDenied =>
       'Camera permission is required for live scanning';
   String get noCameraAvailable => 'No camera available on this device';
+  String liveScanFramesAnalyzed(int count) => '$count frames analyzed';
 }
 
 class _AppLocalizationsDelegate

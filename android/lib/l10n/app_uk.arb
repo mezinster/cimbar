@@ -56,5 +56,6 @@
   "liveScanComplete": "Усі кадри захоплено!",
   "liveScanError": "Сканування не вдалося",
   "cameraPermissionDenied": "Для живого сканування потрібен дозвіл камери",
-  "noCameraAvailable": "На цьому пристрої немає доступної камери"
+  "noCameraAvailable": "На цьому пристрої немає доступної камери",
+  "liveScanFramesAnalyzed": "{count} кадрів проаналізовано"
 }
