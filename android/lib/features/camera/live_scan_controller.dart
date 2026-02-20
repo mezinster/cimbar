@@ -123,14 +123,27 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       // Process through scanner
       final progress = _scanner.processFrame(image);
 
-      // Always update framesAnalyzed so the UI shows activity
-      state = state.copyWith(
-        framesAnalyzed: _scanner.framesAnalyzed,
-        uniqueFrames: progress?.uniqueFrames ?? state.uniqueFrames,
-        totalFrames: progress?.totalFrames ?? state.totalFrames,
-        detectedFrameSize: progress?.detectedFrameSize ?? state.detectedFrameSize,
-      );
-    } finally {
+      // Capture values before deferring — _scanner fields are stable until
+      // the next onCameraFrame call, which can't run until _processing is
+      // cleared after the microtask.
+      final analyzed = _scanner.framesAnalyzed;
+      final unique = progress?.uniqueFrames ?? state.uniqueFrames;
+      final total = progress?.totalFrames ?? state.totalFrames;
+      final fSize = progress?.detectedFrameSize ?? state.detectedFrameSize;
+
+      // Defer state update: the camera stream callback can fire while the
+      // widget tree is still building, and Riverpod forbids synchronous
+      // provider modifications during build.
+      Future.microtask(() {
+        state = state.copyWith(
+          framesAnalyzed: analyzed,
+          uniqueFrames: unique,
+          totalFrames: total,
+          detectedFrameSize: fSize,
+        );
+        _processing = false;
+      });
+    } catch (_) {
       _processing = false;
     }
   }
