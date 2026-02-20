@@ -7,7 +7,7 @@ Try it now at **https://nfcarchiver.com/cimbar/**
 This repo contains:
 
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or (future) live camera scanning.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
 
 Each cell in the grid carries 7 bits of data: 3 bits select one of 8 colors, and 4 bits select one of 16 symbol patterns. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
@@ -91,8 +91,20 @@ The `android/` directory contains a Flutter app that can decode CimBar GIFs on A
 
 - **Import GIF** — Pick a CimBar GIF file, enter the passphrase, decode and save the original file
 - **Import Binary** — Decrypt raw binary output from the C++ `cimbar` scanner
-- **Camera** — Coming soon (placeholder in MVP)
+- **Camera** — Single-photo capture for single-frame barcodes, plus live multi-frame scanning for animated barcodes
 - **Settings** — Language selection (English, Russian, Turkish, Ukrainian, Georgian)
+
+### Live Camera Scanning
+
+For multi-frame CimBar barcodes (animated GIFs), the app supports live camera scanning:
+
+1. Go to the **Camera** tab and enter the passphrase.
+2. Tap **Live Scan** to open the full-screen camera.
+3. Point the camera at the cycling animated GIF on another screen.
+4. The overlay shows progress: "Scanning... X/Y frames captured".
+5. When all frames are captured, the app auto-decrypts and shows the result.
+
+The scanner handles multi-cycle capture — it can pick up different frames across multiple animation loops and reassemble them in the correct order using adjacency-chain tracking. CimBar frames have no sequence numbers, so the scanner identifies frame order by observing which frame follows which during live capture, and detects frame 0 by its 4-byte length prefix.
 
 ### Building
 
@@ -113,7 +125,7 @@ cd android
 flutter test
 ```
 
-The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,223), CimBar pixel decoding, and AES-256-GCM decryption — all with matching unit tests.
+The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,223), CimBar pixel decoding, AES-256-GCM decryption, and live camera scanning — all with matching unit tests.
 
 ---
 
@@ -171,7 +183,7 @@ cd android
 flutter test
 ```
 
-Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip, AES-GCM crypto, and the full RS frame pipeline.
+Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip, AES-GCM crypto, the full RS frame pipeline, YUV→RGB conversion, and live scanner logic (deduplication, adjacency-chain ordering, frame 0 detection, multi-frame assembly).
 
 ---
 

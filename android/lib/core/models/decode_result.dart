@@ -14,6 +14,8 @@ class DecodeProgress {
 }
 
 enum DecodeState {
+  locatingBarcode,
+  detectingFrameSize,
   parsingGif,
   decodingFrames,
   reedSolomonDecode,

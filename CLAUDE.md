@@ -19,7 +19,7 @@ No npm, no compilation, no install step.
 This repo has two components:
 
 - **`web-app/`** — A single-page browser app that encodes any file into an animated GIF where each frame is a grid of colored geometric symbols (Color Icon Matrix Barcode), and decodes it back. Everything runs client-side; there is no server.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or (future) camera scanning. Ports the full decode pipeline to Dart.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning. Ports the full decode pipeline to Dart.
 
 ### Web App
 
@@ -63,10 +63,12 @@ The visible result is colored squares with 0–4 small black dots at the corners
 
 **Flutter project** in `android/` (the Flutter root; native Android config is at `android/android/`).
 
-**Decoding pipeline (Dart ports of the web-app JS modules):**
+**Decoding pipelines (Dart ports of the web-app JS modules):**
 
 ```
-GIF → parse frames (image pkg) → decode pixels (cimbar_decoder.dart) → RS decode (reed_solomon.dart) → decrypt (crypto_service.dart) → File
+GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder.dart) → RS decode (reed_solomon.dart) → decrypt (crypto_service.dart) → File
+Camera photo:  Photo → locate barcode (frame_locator.dart) → try frame sizes → RS decode → decrypt → File
+Live scan:     Camera stream → YUV→RGB (yuv_converter.dart) → locate + decode per-frame (live_scanner.dart) → adjacency-chain assembly → decrypt → File
 ```
 
 **Module responsibilities (all in `android/lib/core/services/`):**
@@ -76,7 +78,21 @@ GIF → parse frames (image pkg) → decode pixels (cimbar_decoder.dart) → RS 
 - `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance, symbol detection via quadrant luma thresholding, RS frame splitting (port of cimbar.js decode side)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
-- `decode_pipeline.dart` — full orchestration with `Stream<DecodeProgress>` for UI updates
+- `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
+- `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
+- `frame_locator.dart` — finds the CimBar barcode region in a camera photo via luma thresholding and bounding-box extraction, returns a cropped square image
+- `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
+- `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete
+
+**Feature controllers (all in `android/lib/features/camera/`):**
+
+- `camera_controller.dart` — Riverpod StateNotifier for single-photo capture (Take Photo / Gallery) + decode via `CameraDecodePipeline`
+- `live_scan_controller.dart` — Riverpod StateNotifier for live scanning: throttled frame processing (~4fps / 250ms interval), YUV→RGB conversion, delegates to `LiveScanner`, handles decrypt + file header parsing after assembly
+
+**Feature screens (all in `android/lib/features/camera/`):**
+
+- `camera_screen.dart` — Camera tab: passphrase field, Take Photo / Gallery buttons, Live Scan button (requires passphrase), photo preview + decode
+- `live_scan_screen.dart` — Full-screen camera preview pushed via `Navigator.push`: `CameraController` with `ResolutionPreset.medium` + `startImageStream`, overlay with progress ("X/Y frames captured"), auto-decrypt on completion, `WidgetsBindingObserver` for camera lifecycle
 
 **State management:** flutter_riverpod. **Navigation:** go_router with ShellRoute for bottom nav.
 
@@ -94,15 +110,21 @@ flutter test
 
 Requires Flutter 3.24+ and Java 17.
 
-**Features (MVP):**
+**Features:**
 - Import GIF — pick a CimBar GIF, enter passphrase, decode and save the file
 - Import Binary — decrypt raw binary from C++ scanner
-- Camera — placeholder ("coming soon")
+- Camera — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes
 - Settings — language selection, about with web app link
+
+**Live scanning architecture:** CimBar frames have no per-frame identifiers. Frames are distinguished only by content. The live scanner uses:
+- **Content-based deduplication** — FNV-1a hash of first 64 decoded bytes
+- **Adjacency-chain ordering** — tracks frame-to-frame transitions (A→B) to reconstruct correct sequence across multiple animation cycles
+- **Frame 0 detection** — identifies the frame whose first 4 bytes form a valid big-endian length prefix (payload ≥ 32 bytes, 1–255 total frames)
+- **Completion condition** — all unique frames captured AND adjacency chain from frame 0 is complete (N-1 links for N frames)
 
 ## Interoperability
 
-The encrypted binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import) or scanned with a physical camera and decrypted via the "Import Binary" tab in either app.
+The encrypted binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning) or scanned with a physical camera and decrypted via the "Import Binary" tab in either app.
 
 The web app is available at https://nfcarchiver.com/cimbar/
 
@@ -156,9 +178,15 @@ flutter test
 | `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
+| `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, rectangular input, dark image (no barcode). |
+| `test/core/services/yuv_converter_test.dart` | YUV420→RGB conversion: pure white/black, UV subsampling correctness, stride configurations (padded Y rows), semi-planar UV (uvPixelStride=2). |
+| `test/core/services/live_scanner_test.dart` | Multi-frame scanning logic via `processDecodedData`: single-frame complete scan, 5-frame progressive capture with assembly, duplicate handling, out-of-order adjacency-chain resolution ([2,3,4,0,1] → correct [0,1,2,3,4]), frame 0 detection, dark image graceful handling, reset. |
 
 ### Known subtleties
 
 - `decodeFramePixels` returns `ceil(usableCells × 7 / 8)` bytes, but `rawBytesPerFrame` is `floor(...)`. `decodeRSFrame` explicitly uses `rawBytesPerFrame(frameSize)` as the byte limit so block boundaries match the encoder exactly.
 - `MockCanvas.getImageData` must return a copy (`_pixels.slice()`), not a reference — the real DOM API always copies, and GifEncoder stores the returned object by reference.
 - The 4-byte big-endian length prefix in frame data (written by the encoder, read by the decoder) is the only mechanism that strips RS zero-padding before AES-GCM decryption.
+- `live_scanner_test.dart` tests scanning logic via `processDecodedData(dataBytes, frameSize)` rather than `processFrame(image)`, because FrameLocator's crop+resize of synthetically generated barcode images introduces enough subpixel interpolation error to corrupt RS decoding. The camera decode pipeline (FrameLocator → CimbarDecoder → RS) is already tested independently in `decode_pipeline_test.dart` and `frame_locator_test.dart`.
+- `CameraImage` plane bytes in `startImageStream` callbacks are ephemeral — they're only valid during the callback. `live_scan_screen.dart` copies them with `Uint8List.fromList(plane.bytes)` before passing to the controller.
+- The live scan controller throttles frame processing to ~4fps (250ms interval) to avoid CPU overload from the 30fps camera stream. Throttling uses a timestamp check, not a Timer, to avoid frame queue buildup.

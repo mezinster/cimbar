@@ -60,9 +60,16 @@ class AppLocalizations {
   String get errorInvalidGif => 'Invalid or unsupported GIF file';
   String get errorNoFrames => 'GIF contains no frames';
   String get errorFileTooLarge => 'File is too large to process';
-  String get cameraComingSoon => 'Camera scanning coming soon!';
-  String get cameraDescription =>
-      'Live camera scanning will be added in a future update. For now, use Import GIF to decode files.';
+  String get cameraScanInstruction =>
+      'Take a photo of a CimBar barcode to decode it';
+  String get cameraTakePhoto => 'Take Photo';
+  String get cameraFromGallery => 'Gallery';
+  String get cameraRetake => 'Retake';
+  String get progressLocatingBarcode => 'Locating barcode...';
+  String get progressDetectingFrameSize => 'Detecting frame size...';
+  String get errorBarcodeNotFound => 'No barcode found in photo';
+  String get errorNoFrameSizeMatch =>
+      'Could not decode barcode at any supported frame size';
   String get language => 'Language';
   String get systemDefault => 'System Default';
   String get about => 'About';
@@ -71,6 +78,15 @@ class AppLocalizations {
   String get webAppLabel => 'Web App';
   String get webAppUrl => 'https://nfcarchiver.com/cimbar/';
   String version(String version) => 'Version $version';
+  String get liveScanButton => 'Live Scan';
+  String liveScanProgress(int captured, int total) =>
+      'Scanning... $captured/$total frames captured';
+  String get liveScanSearching => 'Scanning for CimBar barcode...';
+  String get liveScanComplete => 'All frames captured!';
+  String get liveScanError => 'Scan failed';
+  String get cameraPermissionDenied =>
+      'Camera permission is required for live scanning';
+  String get noCameraAvailable => 'No camera available on this device';
 }
 
 class _AppLocalizationsDelegate

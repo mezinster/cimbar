@@ -96,10 +96,22 @@
   "errorFileTooLarge": "File is too large to process",
   "@errorFileTooLarge": { "description": "File size error" },
 
-  "cameraComingSoon": "Camera scanning coming soon!",
-  "@cameraComingSoon": { "description": "Placeholder for camera feature" },
-  "cameraDescription": "Live camera scanning will be added in a future update. For now, use Import GIF to decode files.",
-  "@cameraDescription": { "description": "Camera placeholder description" },
+  "cameraScanInstruction": "Take a photo of a CimBar barcode to decode it",
+  "@cameraScanInstruction": { "description": "Instruction text on camera screen" },
+  "cameraTakePhoto": "Take Photo",
+  "@cameraTakePhoto": { "description": "Button to capture photo with camera" },
+  "cameraFromGallery": "Gallery",
+  "@cameraFromGallery": { "description": "Button to pick photo from gallery" },
+  "cameraRetake": "Retake",
+  "@cameraRetake": { "description": "Button to discard photo and take a new one" },
+  "progressLocatingBarcode": "Locating barcode...",
+  "@progressLocatingBarcode": { "description": "Progress status while scanning photo for barcode" },
+  "progressDetectingFrameSize": "Detecting frame size...",
+  "@progressDetectingFrameSize": { "description": "Progress status while trying frame sizes" },
+  "errorBarcodeNotFound": "No barcode found in photo",
+  "@errorBarcodeNotFound": { "description": "Error when barcode region cannot be located" },
+  "errorNoFrameSizeMatch": "Could not decode barcode at any supported frame size",
+  "@errorNoFrameSizeMatch": { "description": "Error when no frame size produces valid decode" },
 
   "language": "Language",
   "@language": { "description": "Language setting label" },
@@ -119,5 +131,26 @@
     "placeholders": {
       "version": { "type": "String" }
     }
-  }
+  },
+
+  "liveScanButton": "Live Scan",
+  "@liveScanButton": { "description": "Button to start live camera scanning" },
+  "liveScanProgress": "Scanning... {captured}/{total} frames captured",
+  "@liveScanProgress": {
+    "description": "Progress during live scanning",
+    "placeholders": {
+      "captured": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "liveScanSearching": "Scanning for CimBar barcode...",
+  "@liveScanSearching": { "description": "Status while searching for barcode in camera feed" },
+  "liveScanComplete": "All frames captured!",
+  "@liveScanComplete": { "description": "Status when all frames have been captured" },
+  "liveScanError": "Scan failed",
+  "@liveScanError": { "description": "Error during live scanning" },
+  "cameraPermissionDenied": "Camera permission is required for live scanning",
+  "@cameraPermissionDenied": { "description": "Error when camera permission is denied" },
+  "noCameraAvailable": "No camera available on this device",
+  "@noCameraAvailable": { "description": "Error when no camera is found" }
 }

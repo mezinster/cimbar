@@ -1,0 +1,326 @@
+import 'dart:typed_data';
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../l10n/generated/app_localizations.dart';
+import '../../shared/widgets/result_card.dart';
+import 'live_scan_controller.dart';
+
+/// Full-screen camera preview for live multi-frame CimBar scanning.
+class LiveScanScreen extends ConsumerStatefulWidget {
+  final String passphrase;
+
+  const LiveScanScreen({super.key, required this.passphrase});
+
+  @override
+  ConsumerState<LiveScanScreen> createState() => _LiveScanScreenState();
+}
+
+class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
+    with WidgetsBindingObserver {
+  CameraController? _cameraController;
+  bool _initializing = false;
+  String? _cameraError;
+  bool _decryptTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initCamera();
+    // Start scanning
+    ref.read(liveScanControllerProvider.notifier).startScan();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController?.stopImageStream().catchError((_) {});
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      _cameraController?.stopImageStream().catchError((_) {});
+      _cameraController?.dispose();
+      _cameraController = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _initCamera();
+    }
+  }
+
+  Future<void> _initCamera() async {
+    if (_initializing) return;
+    _initializing = true;
+
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        if (mounted) {
+          setState(() => _cameraError = 'no_camera');
+        }
+        return;
+      }
+
+      // Prefer back camera
+      final camera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+
+      await controller.initialize();
+
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+
+      _cameraController = controller;
+      setState(() {});
+
+      // Start image stream for live scanning
+      await controller.startImageStream(_onCameraImage);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _cameraError = e.toString());
+      }
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  void _onCameraImage(CameraImage image) {
+    if (image.planes.length < 3) return;
+
+    // Copy plane bytes — they're only valid during this callback
+    final yPlane = Uint8List.fromList(image.planes[0].bytes);
+    final uPlane = Uint8List.fromList(image.planes[1].bytes);
+    final vPlane = Uint8List.fromList(image.planes[2].bytes);
+
+    ref.read(liveScanControllerProvider.notifier).onCameraFrame(
+          width: image.width,
+          height: image.height,
+          yPlane: yPlane,
+          uPlane: uPlane,
+          vPlane: vPlane,
+          yRowStride: image.planes[0].bytesPerRow,
+          uvRowStride: image.planes[1].bytesPerRow,
+          uvPixelStride: image.planes[1].bytesPerPixel ?? 1,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scanState = ref.watch(liveScanControllerProvider);
+    final controller = ref.read(liveScanControllerProvider.notifier);
+
+    // Auto-decrypt when scan is complete
+    if (controller.scanComplete &&
+        !_decryptTriggered &&
+        !scanState.isDecrypting &&
+        scanState.result == null &&
+        scanState.errorMessage == null) {
+      _decryptTriggered = true;
+      // Stop the image stream before decrypting
+      _cameraController?.stopImageStream().catchError((_) {});
+      Future.microtask(() => controller.decrypt(widget.passphrase));
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Camera preview
+          if (_cameraController != null &&
+              _cameraController!.value.isInitialized)
+            Positioned.fill(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _cameraController!.value.previewSize!.height,
+                  height: _cameraController!.value.previewSize!.width,
+                  child: CameraPreview(_cameraController!),
+                ),
+              ),
+            )
+          else if (_cameraError != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  _cameraError == 'no_camera'
+                      ? l10n.noCameraAvailable
+                      : l10n.cameraPermissionDenied,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else
+            const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+
+          // Top: cancel button
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 8,
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black54,
+              ),
+            ),
+          ),
+
+          // Bottom: status panel
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                MediaQuery.of(context).padding.bottom + 16,
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black87],
+                ),
+              ),
+              child: _buildStatusPanel(l10n, scanState, controller),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusPanel(
+    AppLocalizations l10n,
+    LiveScanState scanState,
+    LiveScanController controller,
+  ) {
+    // Result state
+    if (scanState.result != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ResultCard(
+            result: scanState.result!,
+            onSave: () async {
+              final path = await controller.saveResult();
+              if (path != null && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.fileSaved)),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancel,
+                style: const TextStyle(color: Colors.white70)),
+          ),
+        ],
+      );
+    }
+
+    // Error state
+    if (scanState.errorMessage != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, color: Colors.red.shade300, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            scanState.errorMessage!,
+            style: TextStyle(color: Colors.red.shade300, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancel,
+                style: const TextStyle(color: Colors.white70)),
+          ),
+        ],
+      );
+    }
+
+    // Decrypting state
+    if (scanState.isDecrypting) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: Colors.white),
+          const SizedBox(height: 12),
+          Text(l10n.progressDecrypting,
+              style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ],
+      );
+    }
+
+    // Scanning state
+    if (scanState.totalFrames > 0) {
+      final progress = scanState.uniqueFrames / scanState.totalFrames;
+      final statusText = scanState.uniqueFrames >= scanState.totalFrames
+          ? l10n.liveScanComplete
+          : l10n.liveScanProgress(scanState.uniqueFrames, scanState.totalFrames);
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.white24,
+            valueColor: const AlwaysStoppedAnimation(Colors.greenAccent),
+          ),
+          const SizedBox(height: 12),
+          Text(statusText,
+              style: const TextStyle(color: Colors.white, fontSize: 16)),
+          if (scanState.detectedFrameSize != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${scanState.detectedFrameSize}px',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // Searching state
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const CircularProgressIndicator(color: Colors.white54),
+        const SizedBox(height: 12),
+        Text(l10n.liveScanSearching,
+            style: const TextStyle(color: Colors.white70, fontSize: 16)),
+      ],
+    );
+  }
+}
