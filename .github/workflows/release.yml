@@ -47,10 +47,14 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_BRANCH: ${{ github.event.inputs.branch }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-            BRANCH="${{ github.event.inputs.branch }}"
+          if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+            BRANCH="$INPUT_BRANCH"
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
             BRANCH=$(git branch -r --contains HEAD | head -1 | sed 's|.*origin/||' || echo "unknown")
@@ -129,9 +133,12 @@ jobs:
         run: flutter gen-l10n
 
       - name: Update version in pubspec.yaml
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BUILD: ${{ needs.version.outputs.build_number }}
         run: |
-          sed -i "s/^version: .*/version: ${{ needs.version.outputs.version }}+${{ needs.version.outputs.build_number }}/" pubspec.yaml
-          cat pubspec.yaml | grep "^version:"
+          sed -i "s/^version: .*/version: ${VERSION}+${BUILD}/" pubspec.yaml
+          grep "^version:" pubspec.yaml
 
       - name: Build release APK
         run: flutter build apk --release
@@ -140,14 +147,15 @@ jobs:
         run: flutter build appbundle --release
 
       - name: Rename artifacts with version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BUILD: ${{ needs.version.outputs.build_number }}
         run: |
-          VERSION="${{ needs.version.outputs.version }}"
-          BUILD="${{ needs.version.outputs.build_number }}"
           mkdir -p artifacts
           cp build/app/outputs/flutter-apk/app-release.apk \
-             artifacts/cimbar-scanner-${VERSION}+${BUILD}.apk
+             "artifacts/cimbar-scanner-${VERSION}+${BUILD}.apk"
           cp build/app/outputs/bundle/release/app-release.aab \
-             artifacts/cimbar-scanner-${VERSION}+${BUILD}.aab
+             "artifacts/cimbar-scanner-${VERSION}+${BUILD}.aab"
 
       - name: Generate checksums
         run: |
@@ -208,13 +216,14 @@ jobs:
 
       - name: Generate release notes
         id: release_notes
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BUILD: ${{ needs.version.outputs.build_number }}
+          BRANCH: ${{ needs.version.outputs.branch }}
+          CUSTOM_NOTES: ${{ github.event.inputs.release_notes }}
+          FL_VERSION: ${{ env.FLUTTER_VERSION }}
         run: |
-          VERSION="${{ needs.version.outputs.version }}"
-          BUILD="${{ needs.version.outputs.build_number }}"
-          BRANCH="${{ needs.version.outputs.branch }}"
-          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
-
-          cat << 'HEADER' > release-notes.md
+          cat > release-notes.md << HEADER
           ## CimBar Scanner v${VERSION}
 
           ### Downloads
@@ -226,16 +235,13 @@ jobs:
           ### What's New
           HEADER
 
-          # Replace version placeholder
-          sed -i "s/\${VERSION}/${VERSION}/g" release-notes.md
-
           if [ -n "$CUSTOM_NOTES" ]; then
-            echo "$CUSTOM_NOTES" >> release-notes.md
+            printf '%s\n' "$CUSTOM_NOTES" >> release-notes.md
           else
             echo "See commit history for detailed changes." >> release-notes.md
           fi
 
-          cat << EOF >> release-notes.md
+          cat >> release-notes.md << EOF
 
           ### Checksums (SHA-256)
           \`\`\`
@@ -246,18 +252,21 @@ jobs:
           - Version: ${VERSION}
           - Build Number: ${BUILD}
           - Branch: ${BRANCH}
-          - Flutter: ${{ env.FLUTTER_VERSION }}
+          - Flutter: ${FL_VERSION}
           EOF
 
           cat release-notes.md
 
       - name: Create or update tag
         if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_BRANCH: ${{ needs.version.outputs.branch }}
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git tag -fa "${{ needs.version.outputs.tag }}" -m "Release ${{ needs.version.outputs.tag }} from branch ${{ needs.version.outputs.branch }}"
-          git push origin "${{ needs.version.outputs.tag }}" --force
+          git tag -fa "$RELEASE_TAG" -m "Release $RELEASE_TAG from branch $RELEASE_BRANCH"
+          git push origin "$RELEASE_TAG" --force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
