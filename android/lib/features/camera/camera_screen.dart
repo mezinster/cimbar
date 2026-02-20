@@ -21,10 +21,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   final _passphraseController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _passphraseController.addListener(_onPassphraseChanged);
+  }
+
+  @override
   void dispose() {
+    _passphraseController.removeListener(_onPassphraseChanged);
     _passphraseController.dispose();
     super.dispose();
   }
+
+  void _onPassphraseChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
