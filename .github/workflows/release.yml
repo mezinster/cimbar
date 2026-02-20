@@ -10,6 +10,11 @@ on:
         description: 'Version number (e.g., 1.0.0)'
         required: true
         type: string
+      branch:
+        description: 'Branch to build from'
+        required: true
+        type: string
+        default: 'master'
 
 jobs:
   version:
@@ -17,14 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      branch: ${{ steps.version.outputs.branch }}
     steps:
       - id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "branch=${{ github.event.inputs.branch }}" >> "$GITHUB_OUTPUT"
           else
             TAG="${{ github.ref_name }}"
             echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+            echo "branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
   test:
@@ -35,6 +43,8 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - uses: subosito/flutter-action@v2
         with:
@@ -63,6 +73,8 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - uses: actions/setup-java@v4
         with:
@@ -112,6 +124,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -124,7 +138,19 @@ jobs:
         with:
           tag_name: v${{ needs.version.outputs.version }}
           name: CimBar Scanner v${{ needs.version.outputs.version }}
+          body: |
+            ## CimBar Scanner v${{ needs.version.outputs.version }}
+
+            **Version:** `${{ needs.version.outputs.version }}`
+            **Branch:** `${{ needs.version.outputs.branch }}`
+            **Commit:** `${{ github.sha }}`
+
+            ### Assets
+            - `app-release.apk` — Android APK (direct install)
+            - `app-release.aab` — Android App Bundle (Play Store upload)
+            - `.sha256` — SHA-256 checksums for integrity verification
           generate_release_notes: true
+          append_body: true
           files: |
             artifacts/android/build/app/outputs/flutter-apk/app-release.apk
             artifacts/android/build/app/outputs/flutter-apk/app-release.apk.sha256
