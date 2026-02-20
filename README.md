@@ -2,10 +2,12 @@
 
 CimBar encodes any file into an animated GIF where each frame is a grid of colored squares, then decodes it back.
 
+Try it now at **https://nfcarchiver.com/cimbar/**
+
 This repo contains:
 
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
-- **`android/`** — (planned) An Android app that uses the camera to scan and decode CimBar GIFs in real time.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or (future) live camera scanning.
 
 Each cell in the grid carries 7 bits of data: 3 bits select one of 8 colors, and 4 bits select one of 16 symbol patterns. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
@@ -81,6 +83,40 @@ The **Import Binary** tab accepts the raw encrypted binary that the open-source 
 
 ---
 
+## Android App
+
+The `android/` directory contains a Flutter app that can decode CimBar GIFs on Android devices.
+
+### Features
+
+- **Import GIF** — Pick a CimBar GIF file, enter the passphrase, decode and save the original file
+- **Import Binary** — Decrypt raw binary output from the C++ `cimbar` scanner
+- **Camera** — Coming soon (placeholder in MVP)
+- **Settings** — Language selection (English, Russian, Turkish, Ukrainian, Georgian)
+
+### Building
+
+Requires Flutter 3.24+ and Java 17:
+
+```bash
+cd android
+flutter pub get
+flutter gen-l10n
+flutter build apk --debug      # debug APK
+flutter build apk --release    # release APK
+```
+
+### Running tests
+
+```bash
+cd android
+flutter test
+```
+
+The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,223), CimBar pixel decoding, and AES-256-GCM decryption — all with matching unit tests.
+
+---
+
 ## Error correction
 
 Each frame uses Reed-Solomon RS(255, 223) coding: up to 16 byte errors per 255-byte block can be corrected automatically. This makes the GIF resilient to minor pixel corruption (e.g., from re-encoding or screenshots), though lossless transfer is strongly preferred.
@@ -106,6 +142,8 @@ Inside the GIF frames, the frame stream begins with a 4-byte big-endian `uint32`
 
 ## Running the tests
 
+### Web App
+
 Tests require only Node.js (no npm). Run from the `web-app/` directory:
 
 ```bash
@@ -124,8 +162,21 @@ python tests/test_gif.py path/to/output.gif 256   # GIF structure (needs Pillow)
 python tests/test_pipeline.py                     # Python orchestrator
 ```
 
+### Android App
+
+Requires Flutter SDK:
+
+```bash
+cd android
+flutter test
+```
+
+Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip, AES-GCM crypto, and the full RS frame pipeline.
+
 ---
 
-## Browser compatibility
+## Compatibility
 
-Requires Web Crypto API (`crypto.subtle`). Works in all modern browsers on HTTPS or `localhost`. Does not work on `file://` in Firefox (use the local server method above).
+**Web App:** Requires Web Crypto API (`crypto.subtle`). Works in all modern browsers on HTTPS or `localhost`. Does not work on `file://` in Firefox (use the local server method above).
+
+**Android App:** Requires Android 7.0+ (API 24). Built with Flutter 3.24+.

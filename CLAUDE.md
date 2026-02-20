@@ -19,7 +19,7 @@ No npm, no compilation, no install step.
 This repo has two components:
 
 - **`web-app/`** — A single-page browser app that encodes any file into an animated GIF where each frame is a grid of colored geometric symbols (Color Icon Matrix Barcode), and decodes it back. Everything runs client-side; there is no server.
-- **`android/`** — (planned) An Android app that uses the camera to scan and decode CimBar GIFs.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or (future) camera scanning. Ports the full decode pipeline to Dart.
 
 ### Web App
 
@@ -59,17 +59,62 @@ bit 0 → BR corner at (size-q-h, size-q-h)
 
 The visible result is colored squares with 0–4 small black dots at the corners. `symIdx=15` (all bits 1) has no dots — a plain solid square. `symIdx=0` (all bits 0) has all four corners dotted.
 
+### Android App
+
+**Flutter project** in `android/` (the Flutter root; native Android config is at `android/android/`).
+
+**Decoding pipeline (Dart ports of the web-app JS modules):**
+
+```
+GIF → parse frames (image pkg) → decode pixels (cimbar_decoder.dart) → RS decode (reed_solomon.dart) → decrypt (crypto_service.dart) → File
+```
+
+**Module responsibilities (all in `android/lib/core/services/`):**
+
+- `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
+- `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance, symbol detection via quadrant luma thresholding, RS frame splitting (port of cimbar.js decode side)
+- `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
+- `gif_parser.dart` — wrapper around `image` package GifDecoder
+- `decode_pipeline.dart` — full orchestration with `Stream<DecodeProgress>` for UI updates
+
+**State management:** flutter_riverpod. **Navigation:** go_router with ShellRoute for bottom nav.
+
+**Localization:** 5 languages (en, ru, tr, uk, ka) via ARB files in `android/lib/l10n/`.
+
+**Build:**
+
+```bash
+cd android
+flutter pub get
+flutter gen-l10n
+flutter build apk --debug
+flutter test
+```
+
+Requires Flutter 3.24+ and Java 17.
+
+**Features (MVP):**
+- Import GIF — pick a CimBar GIF, enter passphrase, decode and save the file
+- Import Binary — decrypt raw binary from C++ scanner
+- Camera — placeholder ("coming soon")
+- Settings — language selection, about with web app link
+
 ## Interoperability
 
-The encrypted binary wire format is compatible with the open-source C++ `cimbar` scanner. A GIF encoded here can be scanned with a physical camera and the resulting binary decrypted via the "Import Binary" tab in the UI.
+The encrypted binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import) or scanned with a physical camera and decrypted via the "Import Binary" tab in either app.
 
-## Key Constants (web-app/cimbar.js)
+The web app is available at https://nfcarchiver.com/cimbar/
+
+## Key Constants (web-app/cimbar.js and android/lib/core/constants/cimbar_constants.dart)
 
 - `CELL_SIZE = 8` (pixels per cell)
 - `ECC_BYTES = 32` (RS parity bytes per 255-byte block)
-- 8-color palette embedded in both `web-app/cimbar.js` and `web-app/gif-encoder.js` — must stay in sync
+- 8-color palette embedded in `web-app/cimbar.js`, `web-app/gif-encoder.js`, and `android/lib/core/constants/cimbar_constants.dart` — must stay in sync across all three
 
 ## Test Suite
+
+### Web App Tests
 
 All tests live in `web-app/tests/`. Run from the `web-app/` directory (no install needed beyond Node.js):
 
@@ -94,6 +139,23 @@ python tests/test_gif.py path/to/output.gif [size]   # standalone GIF check (nee
 | `tests/test_gif.py` | Structural check on a real GIF file: `GIF89a` magic, correct dimensions, global color table, frame count, and palette slots 0–7 matching the 8 CimBar base colors. Requires `pip install pillow`. |
 | `tests/test_pipeline.py` | Python subprocess orchestrator: runs `test_symbols.js`, `test_rs.js`, and optionally `test_gif.py`, prints a PASS/FAIL summary. |
 | `tests/mock_canvas.js` | Node.js mock of the browser Canvas 2D API (`fillStyle`, `fillRect`, `getImageData`). `getImageData` returns a copy of the pixel buffer (matching browser behavior — avoids shared-buffer bugs in multi-frame tests). |
+
+### Android App Tests
+
+Tests live in `android/test/`. Run from the `android/` directory (requires Flutter SDK):
+
+```bash
+cd android
+flutter test
+```
+
+| File | What it tests |
+|------|--------------|
+| `test/core/services/galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic identities. |
+| `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 16-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (223-byte) round-trips. |
+| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. |
+| `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
+| `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 
 ### Known subtleties
 
