@@ -1,10 +1,8 @@
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
-import 'package:cimbar_scanner/core/services/cimbar_decoder.dart';
 
 /// Draw one symbol on an image, matching web-app/cimbar.js drawSymbol.
 void drawSymbol(img.Image image, int symIdx, List<int> colorRGB, int ox, int oy, int size) {
@@ -86,8 +84,8 @@ void main() {
           drawSymbol(image, symIdx, CimbarConstants.colors[colorIdx], 0, 0, cs);
 
           // Color detection: sample center pixel
-          final cx = cs ~/ 2;
-          final cy = cs ~/ 2;
+          const cx = cs ~/ 2;
+          const cy = cs ~/ 2;
           final pixel = image.getPixel(cx, cy);
           final detectedColor =
               nearestColorIdx(pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt());

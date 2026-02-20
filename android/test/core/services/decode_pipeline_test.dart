@@ -18,7 +18,6 @@ const _frameSize = 256;
 
 final _rs = ReedSolomon(CimbarConstants.eccBytes);
 final _dpf = CimbarConstants.dataBytesPerFrame(_frameSize);
-final _rpf = CimbarConstants.rawBytesPerFrame(_frameSize);
 final _decoder = CimbarDecoder(_rs);
 
 /// Draw one symbol on an image (matches cimbar.js drawSymbol).
@@ -91,7 +90,7 @@ Uint8List _encodeRSFrame(Uint8List dataChunk, int frameSize) {
 
 /// Encode a frame onto an image (matching encodeFrame in cimbar.js).
 img.Image _encodeFrame(Uint8List rsData, int frameSize) {
-  final cs = CimbarConstants.cellSize;
+  const cs = CimbarConstants.cellSize;
   final cols = frameSize ~/ cs;
   final rows = frameSize ~/ cs;
   final image = img.Image(width: frameSize, height: frameSize);
@@ -140,7 +139,7 @@ img.Image _encodeFrame(Uint8List rsData, int frameSize) {
 void main() {
   group('Decode pipeline (RS frame round-trip)', () {
     test('length prefix round-trip (non-dpf-aligned payload)', () {
-      final fakeEncLen = 37345;
+      const fakeEncLen = 37345;
       final fakeEnc = Uint8List(fakeEncLen);
       for (var i = 0; i < fakeEncLen; i++) {
         fakeEnc[i] = (i * 7 + 13) & 0xFF;
@@ -216,7 +215,7 @@ void main() {
     });
 
     test('length prefix round-trip (tiny payload, single frame)', () {
-      final fakeEncLen = 100;
+      const fakeEncLen = 100;
       final fakeEnc = Uint8List(fakeEncLen);
       for (var i = 0; i < fakeEncLen; i++) {
         fakeEnc[i] = (i * 11 + 3) & 0xFF;

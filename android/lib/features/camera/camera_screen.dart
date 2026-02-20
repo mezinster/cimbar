@@ -21,7 +21,7 @@ class CameraScreen extends StatelessWidget {
               Icon(
                 Icons.camera_alt_outlined,
                 size: 96,
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
               ),
               const SizedBox(height: 24),
               Text(

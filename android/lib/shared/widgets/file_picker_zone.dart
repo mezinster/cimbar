@@ -28,7 +28,7 @@ class FilePickerZone extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.5),
+            color: theme.colorScheme.outline.withOpacity(0.5),
             width: 2,
             strokeAlign: BorderSide.strokeAlignInside,
           ),

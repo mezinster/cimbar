@@ -2,7 +2,6 @@
 // After running `flutter gen-l10n`, the real generated file replaces this.
 // To regenerate: flutter gen-l10n
 
-import 'dart:ui';
 import 'package:flutter/widgets.dart';
 
 class AppLocalizations {

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 /// Constants matching web-app/cimbar.js for interoperability.
 class CimbarConstants {
   CimbarConstants._();

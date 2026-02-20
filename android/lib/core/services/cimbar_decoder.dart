@@ -16,7 +16,7 @@ class CimbarDecoder {
   /// Decode raw bytes from a frame image.
   /// [frame] must be a square image of [frameSize] pixels.
   Uint8List decodeFramePixels(img.Image frame, int frameSize) {
-    final cs = CimbarConstants.cellSize;
+    const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
     final rows = frameSize ~/ cs;
     final totalBits = CimbarConstants.usableCells(frameSize) * 7;

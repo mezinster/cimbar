@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-import '../constants/cimbar_constants.dart';
 import '../models/decode_result.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
