@@ -1,0 +1,123 @@
+{
+  "@@locale": "en",
+  "appTitle": "CimBar Scanner",
+  "@appTitle": { "description": "Application title" },
+
+  "tabImport": "Import GIF",
+  "@tabImport": { "description": "Bottom navigation tab for GIF import" },
+  "tabBinary": "Import Binary",
+  "@tabBinary": { "description": "Bottom navigation tab for binary import" },
+  "tabCamera": "Camera",
+  "@tabCamera": { "description": "Bottom navigation tab for camera scanning" },
+  "tabSettings": "Settings",
+  "@tabSettings": { "description": "Bottom navigation tab for settings" },
+
+  "importTitle": "Import CimBar GIF",
+  "@importTitle": { "description": "Title for GIF import screen" },
+  "importBinaryTitle": "Import Binary File",
+  "@importBinaryTitle": { "description": "Title for binary import screen" },
+  "cameraTitle": "Camera Scanner",
+  "@cameraTitle": { "description": "Title for camera screen" },
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Title for settings screen" },
+
+  "selectFile": "Select File",
+  "@selectFile": { "description": "Button to open file picker" },
+  "dropFileHere": "Tap to select or drop a file here",
+  "@dropFileHere": { "description": "Hint text in file picker zone" },
+  "selectGifFile": "Select a CimBar GIF file to decode",
+  "@selectGifFile": { "description": "Instruction for GIF import" },
+  "selectBinaryFile": "Select a binary file from C++ scanner",
+  "@selectBinaryFile": { "description": "Instruction for binary import" },
+
+  "passphrase": "Passphrase",
+  "@passphrase": { "description": "Label for passphrase field" },
+  "passphraseHint": "Enter decryption passphrase",
+  "@passphraseHint": { "description": "Hint for passphrase field" },
+  "passphraseRequired": "Passphrase is required",
+  "@passphraseRequired": { "description": "Error when passphrase is empty" },
+
+  "decode": "Decode",
+  "@decode": { "description": "Button to start decoding" },
+  "decoding": "Decoding...",
+  "@decoding": { "description": "Status while decoding" },
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel button" },
+
+  "progressParsingGif": "Parsing GIF...",
+  "@progressParsingGif": { "description": "Progress status" },
+  "progressDecodingFrames": "Decoding frames...",
+  "@progressDecodingFrames": { "description": "Progress status" },
+  "progressDecodingFrame": "Decoding frame {current}/{total}",
+  "@progressDecodingFrame": {
+    "description": "Progress status with frame number",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "progressReedSolomon": "Reed-Solomon decoding...",
+  "@progressReedSolomon": { "description": "Progress status" },
+  "progressDecrypting": "Decrypting...",
+  "@progressDecrypting": { "description": "Progress status" },
+
+  "decodeSuccess": "Successfully decoded!",
+  "@decodeSuccess": { "description": "Success message" },
+  "decodedFile": "File: {filename}",
+  "@decodedFile": {
+    "description": "Decoded filename display",
+    "placeholders": {
+      "filename": { "type": "String" }
+    }
+  },
+  "decodedSize": "Size: {size}",
+  "@decodedSize": {
+    "description": "Decoded file size display",
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+
+  "saveFile": "Save File",
+  "@saveFile": { "description": "Button to save decoded file" },
+  "shareFile": "Share File",
+  "@shareFile": { "description": "Button to share decoded file" },
+  "fileSaved": "File saved successfully",
+  "@fileSaved": { "description": "Success message after saving" },
+
+  "errorGeneric": "An error occurred",
+  "@errorGeneric": { "description": "Generic error message" },
+  "errorDecryption": "Decryption failed — wrong passphrase or corrupted data",
+  "@errorDecryption": { "description": "Decryption error message" },
+  "errorInvalidGif": "Invalid or unsupported GIF file",
+  "@errorInvalidGif": { "description": "GIF parsing error" },
+  "errorNoFrames": "GIF contains no frames",
+  "@errorNoFrames": { "description": "Empty GIF error" },
+  "errorFileTooLarge": "File is too large to process",
+  "@errorFileTooLarge": { "description": "File size error" },
+
+  "cameraComingSoon": "Camera scanning coming soon!",
+  "@cameraComingSoon": { "description": "Placeholder for camera feature" },
+  "cameraDescription": "Live camera scanning will be added in a future update. For now, use Import GIF to decode files.",
+  "@cameraDescription": { "description": "Camera placeholder description" },
+
+  "language": "Language",
+  "@language": { "description": "Language setting label" },
+  "systemDefault": "System Default",
+  "@systemDefault": { "description": "System default language option" },
+  "about": "About",
+  "@about": { "description": "About section label" },
+  "aboutDescription": "CimBar Scanner decodes Color Icon Matrix Barcodes. Compatible with the CimBar web encoder at nfcarchiver.com/cimbar.",
+  "@aboutDescription": { "description": "About section description" },
+  "webAppLabel": "Web App",
+  "@webAppLabel": { "description": "Label for the web app link" },
+  "webAppUrl": "https://nfcarchiver.com/cimbar/",
+  "@webAppUrl": { "description": "URL of the CimBar web app" },
+  "version": "Version {version}",
+  "@version": {
+    "description": "Version display",
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  }
+}
