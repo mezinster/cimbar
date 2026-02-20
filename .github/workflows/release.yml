@@ -1,4 +1,5 @@
 name: Release
+run-name: "Release v${{ inputs.version || github.ref_name }} from ${{ inputs.branch || 'tag' }}"
 
 on:
   push:
@@ -7,52 +8,82 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g., 1.0.0)'
+        description: 'Version to release (e.g., 1.0.0)'
         required: true
         type: string
       branch:
-        description: 'Branch to build from'
-        required: true
+        description: 'Branch to release from'
+        required: false
         type: string
         default: 'master'
+      release_notes:
+        description: 'Release notes (what changed in this version)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  FLUTTER_VERSION: '3.24.0'
 
 jobs:
   version:
-    name: Extract Version
+    name: Determine Version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+      tag: ${{ steps.version.outputs.tag }}
       branch: ${{ steps.version.outputs.branch }}
     steps:
-      - id: version
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
+
+      - name: Determine version
+        id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "branch=${{ github.event.inputs.branch }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            BRANCH="${{ github.event.inputs.branch }}"
           else
-            TAG="${{ github.ref_name }}"
-            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-            echo "branch=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            BRANCH=$(git branch -r --contains HEAD | head -1 | sed 's|.*origin/||' || echo "unknown")
           fi
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+          echo "Build Number: ${BUILD_NUMBER}"
+          echo "Branch: ${BRANCH}"
 
   test:
-    name: Test
+    name: Run Tests
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: android
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.x'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Install dependencies
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Generate localizations
@@ -65,56 +96,85 @@ jobs:
         run: flutter test
 
   build-android:
-    name: Build Release
+    name: Build Android
     needs: [version, test]
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: android
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
 
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.x'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Install dependencies
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Generate localizations
         run: flutter gen-l10n
 
+      - name: Update version in pubspec.yaml
+        run: |
+          sed -i "s/^version: .*/version: ${{ needs.version.outputs.version }}+${{ needs.version.outputs.build_number }}/" pubspec.yaml
+          cat pubspec.yaml | grep "^version:"
+
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Build release AAB
+      - name: Build release App Bundle
         run: flutter build appbundle --release
+
+      - name: Rename artifacts with version
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          BUILD="${{ needs.version.outputs.build_number }}"
+          mkdir -p artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             artifacts/cimbar-scanner-${VERSION}+${BUILD}.apk
+          cp build/app/outputs/bundle/release/app-release.aab \
+             artifacts/cimbar-scanner-${VERSION}+${BUILD}.aab
 
       - name: Generate checksums
         run: |
-          cd build/app/outputs
-          sha256sum flutter-apk/app-release.apk > flutter-apk/app-release.apk.sha256
-          sha256sum bundle/release/app-release.aab > bundle/release/app-release.aab.sha256
+          cd artifacts
+          sha256sum * > checksums-sha256.txt
+          cat checksums-sha256.txt
 
-      - name: Upload release artifacts
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
-          path: |
-            android/build/app/outputs/flutter-apk/app-release.apk
-            android/build/app/outputs/flutter-apk/app-release.apk.sha256
-            android/build/app/outputs/bundle/release/app-release.aab
-            android/build/app/outputs/bundle/release/app-release.aab.sha256
-          retention-days: 30
+          name: android-apk
+          path: android/artifacts/*.apk
+          retention-days: 90
+
+      - name: Upload App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: android/artifacts/*.aab
+          retention-days: 90
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: android/artifacts/checksums-sha256.txt
+          retention-days: 90
 
   create-release:
     name: Create GitHub Release
@@ -123,36 +183,93 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref }}
 
-      - name: Download artifacts
+      - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: release-artifacts
-          path: artifacts
+          name: android-apk
+          path: release-artifacts/
 
-      - name: Create release
+      - name: Download App Bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: release-artifacts/
+
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: checksums
+          path: release-artifacts/
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          BUILD="${{ needs.version.outputs.build_number }}"
+          BRANCH="${{ needs.version.outputs.branch }}"
+          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
+
+          cat << 'HEADER' > release-notes.md
+          ## CimBar Scanner v${VERSION}
+
+          ### Downloads
+
+          **Android**
+          - **APK** — Direct install on Android devices
+          - **AAB** — For Google Play Store upload
+
+          ### What's New
+          HEADER
+
+          # Replace version placeholder
+          sed -i "s/\${VERSION}/${VERSION}/g" release-notes.md
+
+          if [ -n "$CUSTOM_NOTES" ]; then
+            echo "$CUSTOM_NOTES" >> release-notes.md
+          else
+            echo "See commit history for detailed changes." >> release-notes.md
+          fi
+
+          cat << EOF >> release-notes.md
+
+          ### Checksums (SHA-256)
+          \`\`\`
+          $(cat release-artifacts/checksums-sha256.txt)
+          \`\`\`
+
+          ### Build Info
+          - Version: ${VERSION}
+          - Build Number: ${BUILD}
+          - Branch: ${BRANCH}
+          - Flutter: ${{ env.FLUTTER_VERSION }}
+          EOF
+
+          cat release-notes.md
+
+      - name: Create or update tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -fa "${{ needs.version.outputs.tag }}" -m "Release ${{ needs.version.outputs.tag }} from branch ${{ needs.version.outputs.branch }}"
+          git push origin "${{ needs.version.outputs.tag }}" --force
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.version.outputs.version }}
+          tag_name: ${{ needs.version.outputs.tag }}
           name: CimBar Scanner v${{ needs.version.outputs.version }}
-          body: |
-            ## CimBar Scanner v${{ needs.version.outputs.version }}
-
-            **Version:** `${{ needs.version.outputs.version }}`
-            **Branch:** `${{ needs.version.outputs.branch }}`
-            **Commit:** `${{ github.sha }}`
-
-            ### Assets
-            - `app-release.apk` — Android APK (direct install)
-            - `app-release.aab` — Android App Bundle (Play Store upload)
-            - `.sha256` — SHA-256 checksums for integrity verification
-          generate_release_notes: true
-          append_body: true
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
           files: |
-            artifacts/android/build/app/outputs/flutter-apk/app-release.apk
-            artifacts/android/build/app/outputs/flutter-apk/app-release.apk.sha256
-            artifacts/android/build/app/outputs/bundle/release/app-release.aab
-            artifacts/android/build/app/outputs/bundle/release/app-release.aab.sha256
+            release-artifacts/*.apk
+            release-artifacts/*.aab
+            release-artifacts/checksums-sha256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
