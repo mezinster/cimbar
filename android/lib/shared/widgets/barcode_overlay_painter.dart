@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../core/models/barcode_rect.dart';
@@ -70,7 +68,7 @@ class BarcodeOverlayPainter extends CustomPainter {
 
     // 5. Draw semi-transparent fill.
     final fillPaint = Paint()
-      ..color = Colors.green.withValues(alpha: 0.15)
+      ..color = Colors.green.withOpacity(0.15)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(
       RRect.fromRectAndRadius(screenRect, const Radius.circular(8)),
