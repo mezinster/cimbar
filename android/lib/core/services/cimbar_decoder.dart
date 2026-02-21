@@ -62,6 +62,7 @@ class CimbarDecoder {
   }
 
   /// RS-decode one frame's raw bytes back to data bytes.
+  /// Matches web-app/cimbar.js decodeRSFrame exactly.
   Uint8List decodeRSFrame(Uint8List rawBytes, int frameSize) {
     final raw = CimbarConstants.rawBytesPerFrame(frameSize);
     final result = <int>[];
@@ -73,15 +74,11 @@ class CimbarDecoder {
 
       final blockTotal = min(CimbarConstants.blockTotal, spaceLeft);
       final blockData = blockTotal - CimbarConstants.eccBytes;
-      final block = rawBytes.sublist(off, min(off + blockTotal, rawBytes.length));
+      final block = rawBytes.sublist(off, off + blockTotal);
       off += blockTotal;
 
-      // Pad block if needed (rawBytes might be shorter)
-      final paddedBlock = Uint8List(blockTotal);
-      paddedBlock.setRange(0, min(block.length, blockTotal), block);
-
       try {
-        final decoded = _rs.decode(paddedBlock);
+        final decoded = _rs.decode(block);
         result.addAll(decoded);
       } catch (_) {
         // If RS decode fails, push zeros
