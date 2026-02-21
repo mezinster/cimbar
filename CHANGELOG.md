@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-02-21
+
+### Fixed
+- Language switching: replace English-only stub with real `flutter gen-l10n` output so picking a language actually switches the UI
+- Import GIF and camera decode failures (`decodeRSFrame` now exactly matches the JS reference — removes erroneous `paddedBlock` intermediary)
+
+### Changed
+- Settings tab renamed to About; language selector moved exclusively to the globe icon in the AppBar
+- About page now shows Privacy Policy, MIT License, and Source Code links
+
 ## [0.8.3] — 2026-02-21
 
 ### Added
@@ -45,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flutter analyze errors, warnings, and infos
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
-[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/mezinster/cimbar/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/mezinster/cimbar/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/mezinster/cimbar/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/mezinster/cimbar/compare/v0.7.1...v0.8.1
