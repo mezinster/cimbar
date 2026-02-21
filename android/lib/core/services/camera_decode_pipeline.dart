@@ -122,13 +122,13 @@ class CameraDecodePipeline {
     final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
     final fileData = plaintext.sublist(4 + nameLen);
 
+    _lastResult = DecodeResult(filename: filename, data: fileData);
+
     yield DecodeProgress(
       state: DecodeState.done,
       progress: 1.0,
       message: 'Decoded: $filename (${fileData.length} bytes)',
     );
-
-    _lastResult = DecodeResult(filename: filename, data: fileData);
   }
 
   /// Try decoding the cropped image at each supported frame size.

@@ -120,14 +120,15 @@ class DecodePipeline {
     final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
     final fileData = plaintext.sublist(4 + nameLen);
 
+    // Store result BEFORE yield — async* generators suspend at yield, so
+    // the listener reads lastResult before the line after yield executes.
+    _lastResult = DecodeResult(filename: filename, data: fileData);
+
     yield DecodeProgress(
       state: DecodeState.done,
       progress: 1.0,
       message: 'Decoded: $filename (${fileData.length} bytes)',
     );
-
-    // Store result for retrieval
-    _lastResult = DecodeResult(filename: filename, data: fileData);
   }
 
   /// Decode a raw binary file (from C++ scanner) with a passphrase.
@@ -172,13 +173,13 @@ class DecodePipeline {
     final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
     final fileData = plaintext.sublist(4 + nameLen);
 
+    _lastResult = DecodeResult(filename: filename, data: fileData);
+
     yield DecodeProgress(
       state: DecodeState.done,
       progress: 1.0,
       message: 'Decoded: $filename (${fileData.length} bytes)',
     );
-
-    _lastResult = DecodeResult(filename: filename, data: fileData);
   }
 
   DecodeResult? _lastResult;
