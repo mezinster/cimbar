@@ -93,15 +93,15 @@ android/lib/
 
 ```
 GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder) → RS decode (reed_solomon) → decrypt (crypto_service) → File
-Camera photo:  Photo → locate barcode (frame_locator) → try frame sizes → RS decode → decrypt → File
-Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + decode per-frame (live_scanner) → adjacency-chain assembly → decrypt → File
+Camera photo:  Photo → locate barcode (frame_locator) → white balance + try frame sizes → RS decode → decrypt → File
+Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white balance + decode per-frame (live_scanner) → adjacency-chain assembly → decrypt → File
 ```
 
 #### Core services (`android/lib/core/services/`)
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance, symbol detection via quadrant luma thresholding, RS frame splitting (port of cimbar.js decode side)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding, RS frame splitting (port of cimbar.js decode side)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
@@ -237,17 +237,19 @@ Requires Flutter 3.24+ and Java 17.
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access to read/write `localeProvider`, so it can't be a plain `StatelessWidget`. Uses `showModalBottomSheet` with `RadioListTile` options matching the existing `LanguageSelector` pattern. Placed in AppBar `actions` on all 5 tabbed screens; `LiveScanScreen` (full-screen camera modal, no AppBar) does not include it.
 
-## Planned Camera Decode Improvements (from libcimbar C++ analysis)
+**Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`):** `decodeFramePixels()` accepts optional flags that gate white balance correction and relative color matching. Both default to `false` (preserving exact GIF decode behavior) and are set to `true` only by `CameraDecodePipeline` and `LiveScanner._tryDecode()`. GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
+
+**White balance finder sampling:** The Von Kries white reference is sampled from the outer corner cells of the 3×3 finder patterns (grid positions 0,0 and cols-1,rows-1), NOT the center cell (1,1) which is dark gray. The center cell has a dark fill with only a tiny white dot — sampling it would produce an incorrect white reference and amplify color errors.
+
+## Camera Decode Improvements (from libcimbar C++ analysis)
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
-Our current camera decode pipeline uses simple luma-threshold bounding-box detection + square crop + direct pixel sampling. The C++ libcimbar scanner uses significantly more sophisticated techniques. Below are the techniques identified for future porting, in priority order.
+Techniques from the C++ libcimbar scanner, identified for porting. Priority 1 and 5 are implemented; the rest are planned for future work.
 
-### Priority 1 — White-balance from finder patterns (low effort, high impact)
+### ~~Priority 1 — White-balance from finder patterns~~ ✓ IMPLEMENTED
 
-libcimbar samples the 3 finder-pattern corners (which are known to be white) and applies a **Von Kries chromatic adaptation transform** — a 3×3 diagonal matrix that maps observed white to true (255,255,255). This corrects for ambient lighting color temperature. Under warm indoor lighting, our color detection compares yellowish pixels against pure-RGB palette values, causing systematic mismatches.
-
-**Implementation plan:** Sample the center 4×4 pixels of each detected 3×3 finder block, average to get observed white, compute per-channel scale factors `(255/R_obs, 255/G_obs, 255/B_obs)`, apply to all pixels before color matching.
+Implemented in `cimbar_decoder.dart` as `enableWhiteBalance` flag (enabled for camera decode paths, disabled for GIF decode). Samples 4×4 pixel regions at the outer corner cells of the TL and BR finder patterns (which are known to be solid white), takes per-channel maximum across both samples, then computes a full Von Kries 3×3 chromatic adaptation matrix (`M⁻¹ · diag(dst_cone/src_cone) · M`) to map observed white to true (255,255,255). Applied per-pixel before color matching. Falls back gracefully (skip correction) if observed white is too dark (luma < 30).
 
 ### Priority 2 — Perspective transform (medium effort, critical impact)
 
@@ -278,11 +280,9 @@ Instead of sampling 5 specific pixels (center + 4 corners), libcimbar:
 
 **vs. our approach:** Our 5-pixel sampling fails if any sample lands on a boundary or blur artifact. Hash matching uses all 64 pixels and gracefully degrades with noise.
 
-### Priority 5 — Relative color matching (low effort, medium impact)
+### ~~Priority 5 — Relative color matching~~ ✓ IMPLEMENTED
 
-libcimbar compares `(R-G, G-B, B-R)` ratios instead of absolute RGB Euclidean distance. Two pixels that are "dim green" and "bright green" have the same relative color profile. Additionally, it normalizes the color range (stretch min/max to 0-255) and clamps extreme values before matching.
-
-**Implementation plan:** Replace `_nearestColorIdx`'s `dr²×2 + dg²×4 + db²` with relative-difference matching: `(r-g, g-b, b-r)` compared against the same for each palette color. Normalize brightness first.
+Implemented in `cimbar_decoder.dart` as `useRelativeColor` flag (enabled for camera decode paths, disabled for GIF decode). Normalizes brightness by stretching the channel range to 0–255 (with `minVal` capped at 48 to prevent extreme scaling, and high-channel clamping to 255), then compares `(R-G, G-B, B-R)` differences against pre-normalized palette values. The palette relative colors are pre-computed through the same normalization pipeline to ensure consistent comparison. Combined with white balance for best results on camera-captured images.
 
 ### Priority 6 — Lens distortion correction (medium effort, medium impact)
 
@@ -352,7 +352,7 @@ flutter test
 |------|--------------|
 | `test/core/services/galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic identities. |
 | `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 16-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (223-byte) round-trips. |
-| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. |
+| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames) and relative color matching (brightness-shifted and clean frames). |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 | `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, rectangular input, dark image (no barcode). Validates `LocateResult.boundingBox` has positive dimensions. |

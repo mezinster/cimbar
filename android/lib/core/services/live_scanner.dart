@@ -43,6 +43,30 @@ class ScanResult {
   });
 }
 
+/// Diagnostic info emitted via [LiveScanner.onDebug].
+class ScanDebugInfo {
+  final int framesAnalyzed;
+  final int uniqueFrames;
+  final int totalFrames;
+  final int? detectedFrameSize;
+  final String event; // e.g. 'frame_decoded', 'frame_rejected', 'crop_ratio'
+  final String detail;
+
+  const ScanDebugInfo({
+    required this.framesAnalyzed,
+    required this.uniqueFrames,
+    required this.totalFrames,
+    this.detectedFrameSize,
+    required this.event,
+    required this.detail,
+  });
+
+  @override
+  String toString() =>
+      '[$event] frames=$framesAnalyzed unique=$uniqueFrames/$totalFrames '
+      'size=$detectedFrameSize $detail';
+}
+
 /// Live scanning engine for multi-frame CimBar barcodes.
 ///
 /// Tracks unique frames via content hashing, uses adjacency-chain ordering
@@ -50,6 +74,9 @@ class ScanResult {
 /// its 4-byte big-endian length prefix.
 class LiveScanner {
   final CimbarDecoder _decoder = CimbarDecoder();
+
+  /// Optional debug callback for diagnostic logging.
+  void Function(ScanDebugInfo)? onDebug;
 
   /// Locked after first successful decode to avoid try-all-sizes overhead.
   int? _frameSize;
@@ -97,15 +124,23 @@ class LiveScanner {
       // (e.g. well-lit room) and the crop is useless.
       final cropArea = locateResult.cropped.width * locateResult.cropped.height;
       final totalArea = photo.width * photo.height;
-      if (cropArea < totalArea * 0.8) {
+      final cropRatio = cropArea / totalArea;
+      _emitDebug('crop_ratio', 'locator=${cropRatio.toStringAsFixed(2)} '
+          'crop=${locateResult.cropped.width}x${locateResult.cropped.height}');
+      if (cropRatio < 0.8) {
         // Always propagate bounding box so the AR overlay shows even before
         // a successful decode — gives the user visual feedback that the app
         // sees the barcode.
         barcodeRect = locateResult.boundingBox;
         (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
+        if (dataBytes != null) {
+          _emitDebug('frame_decoded', 'strategy=locator size=$usedSize');
+        } else {
+          _emitDebug('frame_rejected', 'strategy=locator decode_failed');
+        }
       }
     } catch (_) {
-      // No bright region found — try center crop below
+      _emitDebug('frame_rejected', 'strategy=locator no_bright_region');
     }
 
     // Strategy 2: Center square crop (user points camera directly at barcode)
@@ -119,6 +154,9 @@ class LiveScanner {
       if (dataBytes != null) {
         barcodeRect = BarcodeRect(
             x: cropX, y: cropY, width: minDim, height: minDim);
+        _emitDebug('frame_decoded', 'strategy=center size=$usedSize');
+      } else {
+        _emitDebug('frame_rejected', 'strategy=center decode_failed');
       }
     }
 
@@ -179,6 +217,8 @@ class LiveScanner {
 
     // 4. Store new unique frame
     _uniqueFrames[hash] = dataBytes;
+    _emitDebug('new_frame', 'hash=$hash unique=${_uniqueFrames.length} '
+        'chain=${_adjacency.length} links');
 
     // 5. Check if this is frame 0 (has valid length prefix)
     if (_frame0Hash == null && dataBytes.length >= 4) {
@@ -253,6 +293,17 @@ class LiveScanner {
     _framesAnalyzed = 0;
   }
 
+  void _emitDebug(String event, String detail) {
+    onDebug?.call(ScanDebugInfo(
+      framesAnalyzed: _framesAnalyzed,
+      uniqueFrames: _uniqueFrames.length,
+      totalFrames: _totalFrames,
+      detectedFrameSize: _frameSize,
+      event: event,
+      detail: detail,
+    ));
+  }
+
   /// Try all candidate frame sizes on a cropped image.
   /// Returns (dataBytes, frameSize) or (null, null).
   (Uint8List?, int?) _tryDecodeImage(img.Image cropped) {
@@ -279,7 +330,8 @@ class LiveScanner {
           height: frameSize,
           interpolation: img.Interpolation.linear);
 
-      final rawBytes = _decoder.decodeFramePixels(resized, frameSize);
+      final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
+          enableWhiteBalance: true, useRelativeColor: true);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
       if (dataBytes.isEmpty) return null;

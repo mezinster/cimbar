@@ -144,7 +144,8 @@ class CameraDecodePipeline {
             interpolation: img.Interpolation.linear);
 
         // Decode pixels -> raw bytes -> RS decode
-        final rawBytes = _decoder.decodeFramePixels(resized, frameSize);
+        final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
+            enableWhiteBalance: true, useRelativeColor: true);
         final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
         // Validate: need at least 4 bytes for length prefix
