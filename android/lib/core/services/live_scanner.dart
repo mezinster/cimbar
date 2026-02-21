@@ -98,10 +98,11 @@ class LiveScanner {
       final cropArea = locateResult.cropped.width * locateResult.cropped.height;
       final totalArea = photo.width * photo.height;
       if (cropArea < totalArea * 0.8) {
+        // Always propagate bounding box so the AR overlay shows even before
+        // a successful decode — gives the user visual feedback that the app
+        // sees the barcode.
+        barcodeRect = locateResult.boundingBox;
         (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
-        if (dataBytes != null) {
-          barcodeRect = locateResult.boundingBox;
-        }
       }
     } catch (_) {
       // No bright region found — try center crop below
@@ -121,7 +122,22 @@ class LiveScanner {
       }
     }
 
-    if (dataBytes == null || usedSize == null) return null;
+    if (dataBytes == null || usedSize == null) {
+      // Even if decode failed, return progress with barcodeRect so the AR
+      // overlay can highlight the detected region.
+      if (barcodeRect != null) {
+        return ScanProgress(
+          uniqueFrames: _uniqueFrames.length,
+          totalFrames: _totalFrames,
+          isComplete: _isComplete(),
+          detectedFrameSize: _frameSize,
+          barcodeRect: barcodeRect,
+          sourceImageWidth: photo.width,
+          sourceImageHeight: photo.height,
+        );
+      }
+      return null;
+    }
 
     final progress = processDecodedData(dataBytes, usedSize);
     return ScanProgress(
