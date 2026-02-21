@@ -266,9 +266,6 @@ void main() {
     });
 
     test('clean frame round-trips perfectly with relative matching', () {
-      // Relative matching should not break perfect-pixel frames
-      const cs = CimbarConstants.cellSize;
-
       // Full frame round-trip with relative matching
       const frameSize = 128;
       final cleanFrame = _buildTestFrame(frameSize);
