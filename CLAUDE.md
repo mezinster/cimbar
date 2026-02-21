@@ -237,6 +237,68 @@ Requires Flutter 3.24+ and Java 17.
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access to read/write `localeProvider`, so it can't be a plain `StatelessWidget`. Uses `showModalBottomSheet` with `RadioListTile` options matching the existing `LanguageSelector` pattern. Placed in AppBar `actions` on all 5 tabbed screens; `LiveScanScreen` (full-screen camera modal, no AppBar) does not include it.
 
+## Planned Camera Decode Improvements (from libcimbar C++ analysis)
+
+Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
+
+Our current camera decode pipeline uses simple luma-threshold bounding-box detection + square crop + direct pixel sampling. The C++ libcimbar scanner uses significantly more sophisticated techniques. Below are the techniques identified for future porting, in priority order.
+
+### Priority 1 — White-balance from finder patterns (low effort, high impact)
+
+libcimbar samples the 3 finder-pattern corners (which are known to be white) and applies a **Von Kries chromatic adaptation transform** — a 3×3 diagonal matrix that maps observed white to true (255,255,255). This corrects for ambient lighting color temperature. Under warm indoor lighting, our color detection compares yellowish pixels against pure-RGB palette values, causing systematic mismatches.
+
+**Implementation plan:** Sample the center 4×4 pixels of each detected 3×3 finder block, average to get observed white, compute per-channel scale factors `(255/R_obs, 255/G_obs, 255/B_obs)`, apply to all pixels before color matching.
+
+### Priority 2 — Perspective transform (medium effort, critical impact)
+
+With 4 corner anchor points, libcimbar uses OpenCV `getPerspectiveTransform()` + `warpPerspective()` to rectify tilted/rotated/skewed captures into a perfect square. Our square-crop approach fails if the camera is angled even slightly — every cell becomes misaligned.
+
+**Dependency:** Requires anchor detection (Priority 3) to find the 4 corner points. The `image` package has no built-in perspective warp; would need a pure-Dart implementation or an FFI bridge.
+
+### Priority 3 — Anchor-based finder pattern detection (medium-high effort, critical impact)
+
+libcimbar uses a 4-tier scan for QR-style finder patterns:
+1. **Horizontal row scan** at intervals of `imageSize/60` — detects 1:1:4:1:1 black-white ratio pattern
+2. **Vertical column scan** at each hit — confirms it's a 2D pattern, not a horizontal line
+3. **Diagonal scan** — further validates the pattern
+4. **Confirmation scan** — refines center coordinates
+
+Candidates are deduplicated (merge if centers within `imageSize/30`), filtered by size (top 3 by area), and sorted into TL/TR/BL by edge geometry (longest edge is opposite TL, cross product determines orientation). The 4th corner (BR) is extrapolated and verified with a smaller 1:2:2 pattern scan.
+
+**vs. our approach:** Our luma > 30 bounding box cannot distinguish the barcode from any other bright object in the scene. Anchor detection would provide precise corner coordinates for perspective correction.
+
+### Priority 4 — Average hash symbol detection with drift tracking (medium effort, high impact)
+
+Instead of sampling 5 specific pixels (center + 4 corners), libcimbar:
+1. Pre-computes a 64-bit **average hash** for each of the 16 symbols (each bit = pixel above/below cell mean)
+2. For each camera cell, computes a **fuzzy hash from 9 overlapping sub-regions** (center + 4 sides + 4 corners, shifted by 1px each)
+3. Matches via **Hamming distance** (popcount) — tolerates ~20 bits of noise per cell
+4. The winning drift position propagates to neighbors via **CellDrift** (accumulated offset, capped at ±7px)
+5. Decode order uses **flood-fill from anchor corners** via priority queue, so high-confidence cells guide low-confidence neighbors
+
+**vs. our approach:** Our 5-pixel sampling fails if any sample lands on a boundary or blur artifact. Hash matching uses all 64 pixels and gracefully degrades with noise.
+
+### Priority 5 — Relative color matching (low effort, medium impact)
+
+libcimbar compares `(R-G, G-B, B-R)` ratios instead of absolute RGB Euclidean distance. Two pixels that are "dim green" and "bright green" have the same relative color profile. Additionally, it normalizes the color range (stretch min/max to 0-255) and clamps extreme values before matching.
+
+**Implementation plan:** Replace `_nearestColorIdx`'s `dr²×2 + dg²×4 + db²` with relative-difference matching: `(r-g, g-b, b-r)` compared against the same for each palette color. Normalize brightness first.
+
+### Priority 6 — Lens distortion correction (medium effort, medium impact)
+
+libcimbar measures how edge midpoints deviate from the ideal straight line between anchors. The deviation maps to radial distortion coefficient `k1`, which is corrected via OpenCV `initUndistortRectifyMap()`. Phone cameras often have noticeable barrel distortion that shifts cell positions near the image edges.
+
+### Priority 7 — Pre-processing: adaptive threshold + sharpening (low effort, medium impact)
+
+libcimbar converts to grayscale → optional 3×3 high-pass sharpen (`[-0,-1,-0; -1,4.5,-1; -0,-1,-0]`) → adaptive threshold (block size 5-7) → compact bitmatrix (1 bit/pixel). This produces clean binary data for hash computation and eliminates lighting gradients.
+
+**Note on sharpening:** Only applied when the barcode appears smaller than target resolution in the camera image (upscaling blur compensation).
+
+### Techniques not planned for porting
+
+- **Fountain codes** (wirehair) — libcimbar uses rateless fountain codes for multi-frame assembly (any N+1 of N frames suffice). Our adjacency-chain approach requires seeing a full animation cycle but is much simpler to implement. Fountain codes would require a significant new dependency.
+- **RS block interleaving** — libcimbar interleaves ECC blocks across image positions so localized damage (e.g., finger covering part of barcode) doesn't wipe out a single block. Would require encoder changes (breaking web-app compatibility).
+
 ## Interoperability
 
 The encrypted binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning) or scanned with a physical camera and decrypted via the "Import Binary" tab in either app.
