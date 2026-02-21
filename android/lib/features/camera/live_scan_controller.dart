@@ -236,10 +236,13 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
       final fileData = plaintext.sublist(4 + nameLen);
 
+      final result = DecodeResult(filename: filename, data: fileData);
       state = state.copyWith(
         isDecrypting: false,
-        result: DecodeResult(filename: filename, data: fileData),
+        result: result,
       );
+      // Auto-save to app documents so file appears in Files tab
+      await _autoSave(result);
     } catch (e) {
       state = state.copyWith(
         isDecrypting: false,
@@ -248,13 +251,20 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     }
   }
 
+  Future<String?> _autoSave(DecodeResult result) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/${result.filename}');
+      await file.writeAsBytes(result.data);
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String?> saveResult() async {
     final result = state.result;
     if (result == null) return null;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/${result.filename}');
-    await file.writeAsBytes(result.data);
-    return file.path;
+    return _autoSave(result);
   }
 }

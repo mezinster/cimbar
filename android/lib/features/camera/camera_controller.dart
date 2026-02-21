@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
 import '../../core/services/camera_decode_pipeline.dart';
+import '../../core/services/decode_pipeline.dart';
 
 final cameraControllerProvider =
     StateNotifierProvider<CameraController, CameraState>((ref) {
@@ -50,8 +51,20 @@ class CameraState {
 class CameraController extends StateNotifier<CameraState> {
   CameraController() : super(const CameraState());
 
-  final _pipeline = CameraDecodePipeline();
+  final _cameraPipeline = CameraDecodePipeline();
+  final _gifPipeline = DecodePipeline();
   final _picker = ImagePicker();
+
+  /// Check if bytes start with GIF magic (GIF87a or GIF89a).
+  static bool _isGif(Uint8List bytes) {
+    return bytes.length >= 6 &&
+        bytes[0] == 0x47 && // G
+        bytes[1] == 0x49 && // I
+        bytes[2] == 0x46 && // F
+        bytes[3] == 0x38 && // 8
+        (bytes[4] == 0x39 || bytes[4] == 0x37) && // 9 or 7
+        bytes[5] == 0x61; // a
+  }
 
   Future<void> capturePhoto() async {
     final xFile = await _picker.pickImage(source: ImageSource.camera);
@@ -84,29 +97,52 @@ class CameraController extends StateNotifier<CameraState> {
       clearProgress: true,
     );
 
-    await for (final progress
-        in _pipeline.decodePhoto(state.capturedPhotoBytes!, passphrase)) {
-      state = state.copyWith(progress: progress);
+    final bytes = state.capturedPhotoBytes!;
 
-      if (progress.state == DecodeState.done) {
-        state = state.copyWith(
-          isDecoding: false,
-          result: _pipeline.lastResult,
-        );
-      } else if (progress.state == DecodeState.error) {
-        state = state.copyWith(isDecoding: false);
+    // Route GIF files through the full multi-frame pipeline
+    if (_isGif(bytes)) {
+      await for (final progress in _gifPipeline.decodeGif(bytes, passphrase)) {
+        state = state.copyWith(progress: progress);
+
+        if (progress.state == DecodeState.done) {
+          final result = _gifPipeline.lastResult;
+          state = state.copyWith(isDecoding: false, result: result);
+          if (result != null) await _autoSave(result);
+        } else if (progress.state == DecodeState.error) {
+          state = state.copyWith(isDecoding: false);
+        }
       }
+    } else {
+      await for (final progress
+          in _cameraPipeline.decodePhoto(bytes, passphrase)) {
+        state = state.copyWith(progress: progress);
+
+        if (progress.state == DecodeState.done) {
+          final result = _cameraPipeline.lastResult;
+          state = state.copyWith(isDecoding: false, result: result);
+          if (result != null) await _autoSave(result);
+        } else if (progress.state == DecodeState.error) {
+          state = state.copyWith(isDecoding: false);
+        }
+      }
+    }
+  }
+
+  Future<String?> _autoSave(DecodeResult result) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/${result.filename}');
+      await file.writeAsBytes(result.data);
+      return file.path;
+    } catch (_) {
+      return null;
     }
   }
 
   Future<String?> saveResult() async {
     final result = state.result;
     if (result == null) return null;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/${result.filename}');
-    await file.writeAsBytes(result.data);
-    return file.path;
+    return _autoSave(result);
   }
 
   void reset() {

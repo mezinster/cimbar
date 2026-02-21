@@ -82,24 +82,34 @@ class ImportController extends StateNotifier<ImportState> {
       state = state.copyWith(progress: progress);
 
       if (progress.state == DecodeState.done) {
+        final result = _pipeline.lastResult;
         state = state.copyWith(
           isDecoding: false,
-          result: _pipeline.lastResult,
+          result: result,
         );
+        // Auto-save to app documents so file appears in Files tab
+        if (result != null) await _autoSave(result);
       } else if (progress.state == DecodeState.error) {
         state = state.copyWith(isDecoding: false);
       }
     }
   }
 
+  Future<String?> _autoSave(DecodeResult result) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/${result.filename}');
+      await file.writeAsBytes(result.data);
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String?> saveResult() async {
     final result = state.result;
     if (result == null) return null;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/${result.filename}');
-    await file.writeAsBytes(result.data);
-    return file.path;
+    return _autoSave(result);
   }
 
   void reset() {
