@@ -71,18 +71,19 @@ android/lib/
 ├── main.dart                   — Entry point; initializes SharedPreferences, ProviderScope
 ├── core/
 │   ├── constants/cimbar_constants.dart  — Cell size, ECC bytes, frame sizes, 8-color palette, magic
-│   ├── models/                 — DecodeProgress, DecodeState, DecodeResult
+│   ├── models/                 — DecodeProgress, DecodeState, DecodeResult, BarcodeRect
 │   ├── providers/              — SharedPreferencesProvider, LocaleProvider
-│   ├── services/               — All decode/crypto/camera logic (see below)
+│   ├── services/               — All decode/crypto/camera/file logic (see below)
 │   └── utils/byte_utils.dart   — readUint32BE, writeUint32BE, concatBytes, bytesToHex
 ├── features/
 │   ├── import/                 — GIF import: ImportScreen + ImportController
 │   ├── import_binary/          — Binary import: ImportBinaryScreen + ImportBinaryController
 │   ├── camera/                 — Camera: CameraScreen, CameraController, LiveScanScreen, LiveScanController
+│   ├── files/                  — File explorer: FilesScreen + FilesController
 │   └── settings/               — SettingsScreen (language, about)
 ├── shared/
 │   ├── theme/app_theme.dart    — Material 3, forest green seed, light + dark
-│   └── widgets/                — AppShell, PassphraseField, FilePickerZone, ProgressCard, ResultCard, LanguageSelector
+│   └── widgets/                — AppShell, PassphraseField, FilePickerZone, ProgressCard, ResultCard, LanguageSelector, LanguageSwitcherButton, BarcodeOverlayPainter
 └── l10n/
     ├── app_en.arb … app_ka.arb — 5 language ARB files
     └── generated/app_localizations.dart — Stub (replaced by flutter gen-l10n)
@@ -105,9 +106,10 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + decode p
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
-- `frame_locator.dart` — finds the CimBar barcode region in a camera photo via luma thresholding and bounding-box extraction, returns a cropped square image
+- `frame_locator.dart` — finds the CimBar barcode region in a camera photo via luma thresholding and bounding-box extraction. Returns `LocateResult` containing both the cropped square image and a `BarcodeRect` with the bounding box coordinates in source image space (used for AR overlay)
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
-- `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete
+- `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
+- `file_service.dart` — centralized file operations: sharing decoded files via `share_plus` (`shareResult` for `DecodeResult`, `shareFile` for existing paths)
 
 #### State management (Riverpod)
 
@@ -144,6 +146,7 @@ GoRouter(
         GoRoute(path: '/import',   ...ImportScreen),
         GoRoute(path: '/binary',   ...ImportBinaryScreen),
         GoRoute(path: '/camera',   ...CameraScreen),
+        GoRoute(path: '/files',    ...FilesScreen),
         GoRoute(path: '/settings', ...SettingsScreen),
       ],
     ),
@@ -171,6 +174,7 @@ CimBar frames have no per-frame identifiers. Frames are distinguished only by co
 - **Dual crop strategy** — tries FrameLocator first; if the crop covers >80% of the image area (common in well-lit rooms), falls back to center-square crop
 - **RS quality gate** — rejects frames where the first 64 decoded bytes are all zero (every RS block failed = garbage data, not a real barcode)
 - **Frame size locking** — after first successful decode, skips expensive try-all-sizes step for subsequent frames
+- **AR overlay** — `FrameLocator` returns the bounding box via `LocateResult`; `ScanProgress` propagates it through the controller to `BarcodeOverlayPainter`, which maps camera coordinates to screen space (handling sensor rotation + `BoxFit.cover` scaling) and draws green corner brackets around the detected barcode
 
 #### Dependencies (`pubspec.yaml`)
 
@@ -185,6 +189,7 @@ CimBar frames have no per-frame identifiers. Frames are distinguished only by co
 | Storage | `path_provider`, `shared_preferences` | Save files, persist settings |
 | Permissions | `permission_handler` | Camera + storage permissions |
 | Sharing | `share_handler` | Receive shared GIF/binary files |
+| Sharing | `share_plus` | Outbound file sharing via system share sheet |
 | Other | `url_launcher`, `intl` | Open web links, i18n formatting |
 
 #### Localization
@@ -212,10 +217,13 @@ Requires Flutter 3.24+ and Java 17.
 
 #### Features
 
-- **Import GIF** — pick a CimBar GIF, enter passphrase, decode and save the file
-- **Import Binary** — decrypt raw binary from C++ scanner
-- **Camera** — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes
+- **Import GIF** — pick a CimBar GIF, enter passphrase, decode and save/share the file
+- **Import Binary** — decrypt raw binary from C++ scanner, save/share result
+- **Camera** — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes with AR overlay (green corner brackets highlight detected barcode region)
+- **Files** — browse decoded files saved to app storage, swipe-to-delete with confirmation, share via system share sheet, pull-to-refresh, file-type icons by extension
 - **Settings** — language selection (5 languages), about with web app link
+- **Language Switcher** — globe icon in AppBar on all tabbed screens; opens a bottom sheet with flag emojis for quick language switching without navigating to Settings
+- **File Sharing** — all `ResultCard` instances wire `onShare` via `FileService.shareResult`, which writes to temp directory and invokes `share_plus`
 
 #### Design decisions and known patterns
 
@@ -224,6 +232,10 @@ Requires Flutter 3.24+ and Java 17.
 **`Future.microtask` for camera state updates:** The camera `startImageStream` callback can fire while the widget tree is building. Setting `state = state.copyWith(...)` synchronously inside the callback triggers Riverpod's "modify provider during build" exception. The fix: wrap state updates in `Future.microtask(() { ... })` to defer them past the current build cycle.
 
 **Material 3 theming:** Forest green (#2E7D32) seed color generates the full Material 3 color scheme. Both light and dark themes are provided; the app follows system preference via `ThemeMode.system`.
+
+**AR overlay coordinate mapping:** `BarcodeOverlayPainter` maps barcode bounding box from camera image coordinates to screen coordinates in three steps: (1) rotate by `sensorOrientation` (90° for typical back camera swaps x↔y), (2) scale by `BoxFit.cover` factor (`max(screenW/rotatedW, screenH/rotatedH)`), (3) offset by centering delta. The painter uses `shouldRepaint` with rect equality check to avoid unnecessary redraws at ~4fps.
+
+**`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access to read/write `localeProvider`, so it can't be a plain `StatelessWidget`. Uses `showModalBottomSheet` with `RadioListTile` options matching the existing `LanguageSelector` pattern. Placed in AppBar `actions` on all 5 tabbed screens; `LiveScanScreen` (full-screen camera modal, no AppBar) does not include it.
 
 ## Interoperability
 
@@ -281,7 +293,7 @@ flutter test
 | `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
-| `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, rectangular input, dark image (no barcode). |
+| `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, rectangular input, dark image (no barcode). Validates `LocateResult.boundingBox` has positive dimensions. |
 | `test/core/services/yuv_converter_test.dart` | YUV420→RGB conversion: pure white/black, UV subsampling correctness, stride configurations (padded Y rows), semi-planar UV (uvPixelStride=2). |
 | `test/core/services/live_scanner_test.dart` | Multi-frame scanning logic via `processDecodedData`: single-frame complete scan, 5-frame progressive capture with assembly, duplicate handling, out-of-order adjacency-chain resolution ([2,3,4,0,1] → correct [0,1,2,3,4]), frame 0 detection, dark image graceful handling, reset. |
 
