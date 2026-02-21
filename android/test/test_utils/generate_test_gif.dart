@@ -48,8 +48,11 @@ void main() {
 
     // ignore: avoid_print
     print('Generated: ${file.path} (${gifBytes.length} bytes)');
+    // ignore: avoid_print
     print('Passphrase: $passphrase');
+    // ignore: avoid_print
     print('Content: Hello, CimBar!');
+    // ignore: avoid_print
     print('Filename: $filename');
   });
 }

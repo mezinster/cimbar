@@ -156,11 +156,7 @@ void main() {
     });
 
     test('warm-tinted frame decodes correctly with white balance', () {
-      // Build a full frame with finder patterns and data cells
       const frameSize = 128;
-      const cs = CimbarConstants.cellSize;
-      final cols = frameSize ~/ cs;
-      final rows = frameSize ~/ cs;
 
       // Build a clean frame
       final cleanFrame = _buildTestFrame(frameSize);
@@ -272,23 +268,6 @@ void main() {
     test('clean frame round-trips perfectly with relative matching', () {
       // Relative matching should not break perfect-pixel frames
       const cs = CimbarConstants.cellSize;
-
-      for (var colorIdx = 0; colorIdx < 8; colorIdx++) {
-        final image = img.Image(width: cs, height: cs);
-        final color = CimbarConstants.colors[colorIdx];
-        img.fillRect(image,
-            x1: 0, y1: 0, x2: cs, y2: cs,
-            color: img.ColorRgba8(color[0], color[1], color[2], 255));
-
-        final pixel = image.getPixel(cs ~/ 2, cs ~/ 2);
-        // Skip gray (index 7) — its relative profile is (0,0,0) which can
-        // match any achromatic color; this is a known edge case where absolute
-        // matching is better (and why we combine both techniques)
-        if (colorIdx == 7) continue;
-
-        // Use the public static method to test relative matching
-        // We test via a full frame decode below instead
-      }
 
       // Full frame round-trip with relative matching
       const frameSize = 128;
