@@ -4,11 +4,11 @@
   "tabImport": "GIF İçe Aktar",
   "tabBinary": "İkili İçe Aktar",
   "tabCamera": "Kamera",
-  "tabSettings": "Ayarlar",
+  "tabSettings": "Hakkında",
   "importTitle": "CimBar GIF İçe Aktar",
   "importBinaryTitle": "İkili Dosya İçe Aktar",
   "cameraTitle": "Kamera Tarayıcı",
-  "settingsTitle": "Ayarlar",
+  "settingsTitle": "Hakkında",
   "selectFile": "Dosya Seç",
   "dropFileHere": "Seçmek için dokunun veya dosyayı buraya bırakın",
   "selectGifFile": "Çözümlemek için bir CimBar GIF dosyası seçin",
@@ -65,5 +65,9 @@
   "delete": "Sil",
   "deleteFileTitle": "Dosyayı Sil",
   "deleteFileConfirm": "{filename} silinsin mi?",
-  "fileDeleted": "Dosya silindi"
+  "fileDeleted": "Dosya silindi",
+
+  "privacyPolicy": "Gizlilik Politikası",
+  "licenseInfo": "MIT Lisansı",
+  "sourceCode": "Kaynak Kodu"
 }

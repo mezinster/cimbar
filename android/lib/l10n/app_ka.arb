@@ -4,11 +4,11 @@
   "tabImport": "GIF იმპორტი",
   "tabBinary": "ბინარული იმპორტი",
   "tabCamera": "კამერა",
-  "tabSettings": "პარამეტრები",
+  "tabSettings": "შესახებ",
   "importTitle": "CimBar GIF იმპორტი",
   "importBinaryTitle": "ბინარული ფაილის იმპორტი",
   "cameraTitle": "კამერის სკანერი",
-  "settingsTitle": "პარამეტრები",
+  "settingsTitle": "შესახებ",
   "selectFile": "ფაილის არჩევა",
   "dropFileHere": "შეხებით აირჩიეთ ან გადმოიტანეთ ფაილი აქ",
   "selectGifFile": "აირჩიეთ CimBar GIF ფაილი დეკოდირებისთვის",
@@ -65,5 +65,9 @@
   "delete": "წაშლა",
   "deleteFileTitle": "ფაილის წაშლა",
   "deleteFileConfirm": "წაიშალოს {filename}?",
-  "fileDeleted": "ფაილი წაიშალა"
+  "fileDeleted": "ფაილი წაიშალა",
+
+  "privacyPolicy": "კონფიდენციალურობის პოლიტიკა",
+  "licenseInfo": "MIT ლიცენზია",
+  "sourceCode": "საწყისი კოდი"
 }

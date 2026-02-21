@@ -9,8 +9,8 @@
   "@tabBinary": { "description": "Bottom navigation tab for binary import" },
   "tabCamera": "Camera",
   "@tabCamera": { "description": "Bottom navigation tab for camera scanning" },
-  "tabSettings": "Settings",
-  "@tabSettings": { "description": "Bottom navigation tab for settings" },
+  "tabSettings": "About",
+  "@tabSettings": { "description": "Bottom navigation tab for about/info" },
 
   "importTitle": "Import CimBar GIF",
   "@importTitle": { "description": "Title for GIF import screen" },
@@ -18,8 +18,8 @@
   "@importBinaryTitle": { "description": "Title for binary import screen" },
   "cameraTitle": "Camera Scanner",
   "@cameraTitle": { "description": "Title for camera screen" },
-  "settingsTitle": "Settings",
-  "@settingsTitle": { "description": "Title for settings screen" },
+  "settingsTitle": "About",
+  "@settingsTitle": { "description": "Title for about screen" },
 
   "selectFile": "Select File",
   "@selectFile": { "description": "Button to open file picker" },
@@ -180,5 +180,12 @@
     }
   },
   "fileDeleted": "File deleted",
-  "@fileDeleted": { "description": "Snackbar message after file deletion" }
+  "@fileDeleted": { "description": "Snackbar message after file deletion" },
+
+  "privacyPolicy": "Privacy Policy",
+  "@privacyPolicy": { "description": "Label for Privacy Policy link" },
+  "licenseInfo": "MIT License",
+  "@licenseInfo": { "description": "License name shown in About screen" },
+  "sourceCode": "Source Code",
+  "@sourceCode": { "description": "Label for source code / GitHub link" }
 }

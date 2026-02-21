@@ -4,11 +4,11 @@
   "tabImport": "Импорт GIF",
   "tabBinary": "Импорт бинарного",
   "tabCamera": "Камера",
-  "tabSettings": "Настройки",
+  "tabSettings": "О приложении",
   "importTitle": "Импорт CimBar GIF",
   "importBinaryTitle": "Импорт бинарного файла",
   "cameraTitle": "Сканер камеры",
-  "settingsTitle": "Настройки",
+  "settingsTitle": "О приложении",
   "selectFile": "Выбрать файл",
   "dropFileHere": "Нажмите для выбора или перетащите файл сюда",
   "selectGifFile": "Выберите CimBar GIF файл для декодирования",
@@ -65,5 +65,9 @@
   "delete": "Удалить",
   "deleteFileTitle": "Удалить файл",
   "deleteFileConfirm": "Удалить {filename}?",
-  "fileDeleted": "Файл удалён"
+  "fileDeleted": "Файл удалён",
+
+  "privacyPolicy": "Политика конфиденциальности",
+  "licenseInfo": "Лицензия MIT",
+  "sourceCode": "Исходный код"
 }
