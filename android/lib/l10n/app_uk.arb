@@ -57,5 +57,13 @@
   "liveScanError": "Сканування не вдалося",
   "cameraPermissionDenied": "Для живого сканування потрібен дозвіл камери",
   "noCameraAvailable": "На цьому пристрої немає доступної камери",
-  "liveScanFramesAnalyzed": "{count} кадрів проаналізовано"
+  "liveScanFramesAnalyzed": "{count} кадрів проаналізовано",
+
+  "tabFiles": "Файли",
+  "filesTitle": "Декодовані файли",
+  "noFilesYet": "Ще немає файлів",
+  "delete": "Видалити",
+  "deleteFileTitle": "Видалити файл",
+  "deleteFileConfirm": "Видалити {filename}?",
+  "fileDeleted": "Файл видалено"
 }

@@ -2,6 +2,16 @@ import 'dart:math';
 
 import 'package:image/image.dart' as img;
 
+import '../models/barcode_rect.dart';
+
+/// Result of [FrameLocator.locate]: the cropped image plus bounding box.
+class LocateResult {
+  final img.Image cropped;
+  final BarcodeRect boundingBox;
+
+  const LocateResult({required this.cropped, required this.boundingBox});
+}
+
 /// Finds the CimBar barcode region in a camera photo and returns a cropped
 /// square image suitable for decoding.
 class FrameLocator {
@@ -19,7 +29,7 @@ class FrameLocator {
   /// 6. Crop from original full-res image
   ///
   /// Throws [StateError] if no barcode region is found.
-  static img.Image locate(img.Image photo) {
+  static LocateResult locate(img.Image photo) {
     final origW = photo.width;
     final origH = photo.height;
 
@@ -89,7 +99,11 @@ class FrameLocator {
     final cropSide = min(side, min(origW - cropX, origH - cropY));
 
     // 5. Crop from original full-res image
-    return img.copyCrop(photo,
-        x: cropX, y: cropY, width: cropSide, height: cropSide);
+    return LocateResult(
+      cropped: img.copyCrop(photo,
+          x: cropX, y: cropY, width: cropSide, height: cropSide),
+      boundingBox: BarcodeRect(
+          x: cropX, y: cropY, width: cropSide, height: cropSide),
+    );
   }
 }

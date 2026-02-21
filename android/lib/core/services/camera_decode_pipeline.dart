@@ -45,7 +45,8 @@ class CameraDecodePipeline {
 
     final img.Image cropped;
     try {
-      cropped = FrameLocator.locate(photo);
+      final locateResult = FrameLocator.locate(photo);
+      cropped = locateResult.cropped;
     } catch (e) {
       yield DecodeProgress(
         state: DecodeState.error,

@@ -88,6 +88,13 @@ class AppLocalizations {
       'Camera permission is required for live scanning';
   String get noCameraAvailable => 'No camera available on this device';
   String liveScanFramesAnalyzed(int count) => '$count frames analyzed';
+  String get tabFiles => 'Files';
+  String get filesTitle => 'Decoded Files';
+  String get noFilesYet => 'No decoded files yet';
+  String get delete => 'Delete';
+  String get deleteFileTitle => 'Delete File';
+  String deleteFileConfirm(String filename) => 'Delete $filename?';
+  String get fileDeleted => 'File deleted';
 }
 
 class _AppLocalizationsDelegate

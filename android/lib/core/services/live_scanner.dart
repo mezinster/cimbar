@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../constants/cimbar_constants.dart';
+import '../models/barcode_rect.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'frame_locator.dart';
@@ -14,12 +15,18 @@ class ScanProgress {
   final int totalFrames;
   final bool isComplete;
   final int? detectedFrameSize;
+  final BarcodeRect? barcodeRect;
+  final int? sourceImageWidth;
+  final int? sourceImageHeight;
 
   const ScanProgress({
     required this.uniqueFrames,
     required this.totalFrames,
     required this.isComplete,
     this.detectedFrameSize,
+    this.barcodeRect,
+    this.sourceImageWidth,
+    this.sourceImageHeight,
   });
 }
 
@@ -80,17 +87,21 @@ class LiveScanner {
     // Try multiple crop strategies to find the barcode
     Uint8List? dataBytes;
     int? usedSize;
+    BarcodeRect? barcodeRect;
 
     // Strategy 1: FrameLocator (bright-region detection)
     try {
-      final cropped = FrameLocator.locate(photo);
+      final locateResult = FrameLocator.locate(photo);
       // Only use if crop is meaningfully smaller than the original image.
       // If the crop covers >80% of the area, FrameLocator found "everything"
       // (e.g. well-lit room) and the crop is useless.
-      final cropArea = cropped.width * cropped.height;
+      final cropArea = locateResult.cropped.width * locateResult.cropped.height;
       final totalArea = photo.width * photo.height;
       if (cropArea < totalArea * 0.8) {
-        (dataBytes, usedSize) = _tryDecodeImage(cropped);
+        (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
+        if (dataBytes != null) {
+          barcodeRect = locateResult.boundingBox;
+        }
       }
     } catch (_) {
       // No bright region found — try center crop below
@@ -104,11 +115,24 @@ class LiveScanner {
       final center = img.copyCrop(photo,
           x: cropX, y: cropY, width: minDim, height: minDim);
       (dataBytes, usedSize) = _tryDecodeImage(center);
+      if (dataBytes != null) {
+        barcodeRect = BarcodeRect(
+            x: cropX, y: cropY, width: minDim, height: minDim);
+      }
     }
 
     if (dataBytes == null || usedSize == null) return null;
 
-    return processDecodedData(dataBytes, usedSize);
+    final progress = processDecodedData(dataBytes, usedSize);
+    return ScanProgress(
+      uniqueFrames: progress.uniqueFrames,
+      totalFrames: progress.totalFrames,
+      isComplete: progress.isComplete,
+      detectedFrameSize: progress.detectedFrameSize,
+      barcodeRect: barcodeRect,
+      sourceImageWidth: photo.width,
+      sourceImageHeight: photo.height,
+    );
   }
 
   /// Process already-decoded frame data bytes.

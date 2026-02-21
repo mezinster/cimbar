@@ -63,15 +63,40 @@ The visible result is colored squares with 0–4 small black dots at the corners
 
 **Flutter project** in `android/` (the Flutter root; native Android config is at `android/android/`).
 
-**Decoding pipelines (Dart ports of the web-app JS modules):**
+#### Project structure
 
 ```
-GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder.dart) → RS decode (reed_solomon.dart) → decrypt (crypto_service.dart) → File
-Camera photo:  Photo → locate barcode (frame_locator.dart) → try frame sizes → RS decode → decrypt → File
-Live scan:     Camera stream → YUV→RGB (yuv_converter.dart) → locate + decode per-frame (live_scanner.dart) → adjacency-chain assembly → decrypt → File
+android/lib/
+├── app.dart                    — Root MaterialApp.router + go_router config
+├── main.dart                   — Entry point; initializes SharedPreferences, ProviderScope
+├── core/
+│   ├── constants/cimbar_constants.dart  — Cell size, ECC bytes, frame sizes, 8-color palette, magic
+│   ├── models/                 — DecodeProgress, DecodeState, DecodeResult
+│   ├── providers/              — SharedPreferencesProvider, LocaleProvider
+│   ├── services/               — All decode/crypto/camera logic (see below)
+│   └── utils/byte_utils.dart   — readUint32BE, writeUint32BE, concatBytes, bytesToHex
+├── features/
+│   ├── import/                 — GIF import: ImportScreen + ImportController
+│   ├── import_binary/          — Binary import: ImportBinaryScreen + ImportBinaryController
+│   ├── camera/                 — Camera: CameraScreen, CameraController, LiveScanScreen, LiveScanController
+│   └── settings/               — SettingsScreen (language, about)
+├── shared/
+│   ├── theme/app_theme.dart    — Material 3, forest green seed, light + dark
+│   └── widgets/                — AppShell, PassphraseField, FilePickerZone, ProgressCard, ResultCard, LanguageSelector
+└── l10n/
+    ├── app_en.arb … app_ka.arb — 5 language ARB files
+    └── generated/app_localizations.dart — Stub (replaced by flutter gen-l10n)
 ```
 
-**Module responsibilities (all in `android/lib/core/services/`):**
+#### Decoding pipelines (Dart ports of the web-app JS modules)
+
+```
+GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder) → RS decode (reed_solomon) → decrypt (crypto_service) → File
+Camera photo:  Photo → locate barcode (frame_locator) → try frame sizes → RS decode → decrypt → File
+Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + decode per-frame (live_scanner) → adjacency-chain assembly → decrypt → File
+```
+
+#### Core services (`android/lib/core/services/`)
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
@@ -84,21 +109,96 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter.dart) → locate + dec
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete
 
-**Feature controllers (all in `android/lib/features/camera/`):**
+#### State management (Riverpod)
 
-- `camera_controller.dart` — Riverpod StateNotifier for single-photo capture (Take Photo / Gallery) + decode via `CameraDecodePipeline`
-- `live_scan_controller.dart` — Riverpod StateNotifier for live scanning: throttled frame processing (~4fps / 250ms interval), YUV→RGB conversion, delegates to `LiveScanner`, handles decrypt + file header parsing after assembly
+All feature controllers follow a consistent `State + StateNotifier` pattern:
 
-**Feature screens (all in `android/lib/features/camera/`):**
+```dart
+class XyzState {
+  final bool isDecoding;
+  final DecodeResult? result;
+  // ... immutable fields, const constructor, copyWith with clearXyz flags
+}
 
-- `camera_screen.dart` — Camera tab: passphrase field, Take Photo / Gallery buttons, Live Scan button (requires passphrase), photo preview + decode
-- `live_scan_screen.dart` — Full-screen camera preview pushed via `Navigator.push`: `CameraController` with `ResolutionPreset.medium` + `startImageStream`, overlay with progress ("X/Y frames captured"), auto-decrypt on completion, `WidgetsBindingObserver` for camera lifecycle
+final xyzControllerProvider = StateNotifierProvider<XyzController, XyzState>((ref) {
+  return XyzController();
+});
 
-**State management:** flutter_riverpod. **Navigation:** go_router with ShellRoute for bottom nav.
+class XyzController extends StateNotifier<XyzState> {
+  XyzController() : super(const XyzState());
+  // ... methods that update state via state = state.copyWith(...)
+}
+```
 
-**Localization:** 5 languages (en, ru, tr, uk, ka) via ARB files in `android/lib/l10n/`.
+Screens use `ref.watch(provider)` to rebuild on state changes and `ref.read(provider.notifier)` to call controller methods. State objects are immutable with `copyWith` + optional `clearField` flags to null out fields.
 
-**Build:**
+#### Navigation (go_router)
+
+```dart
+GoRouter(
+  initialLocation: '/import',
+  routes: [
+    ShellRoute(
+      builder: (_, __, child) => AppShell(child: child),  // bottom nav bar
+      routes: [
+        GoRoute(path: '/import',   ...ImportScreen),
+        GoRoute(path: '/binary',   ...ImportBinaryScreen),
+        GoRoute(path: '/camera',   ...CameraScreen),
+        GoRoute(path: '/settings', ...SettingsScreen),
+      ],
+    ),
+  ],
+);
+```
+
+`NoTransitionPage` for instant tab switching. `LiveScanScreen` is pushed **outside the shell** via `Navigator.of(context).push(MaterialPageRoute(...))` as a full-screen modal (no bottom nav).
+
+#### Camera implementation
+
+- **`CameraController`** with `ResolutionPreset.medium` (480p — barcode decoding downscales anyway) and `ImageFormatGroup.yuv420` (native camera format, avoids in-camera RGB conversion)
+- **`startImageStream`** delivers ~30fps YUV frames; plane bytes are copied with `Uint8List.fromList(plane.bytes)` because they're only valid during the callback
+- **`WidgetsBindingObserver`** for camera lifecycle: dispose on `inactive`, reinitialize on `resumed`
+- **Portrait lock** via `SystemChrome.setPreferredOrientations` while live scanning (camera preview dimensions don't update on rotation)
+- **`PopScope`** wrapper ensures Android back button exits camera mode and stops the image stream
+
+#### Live scanning architecture
+
+CimBar frames have no per-frame identifiers. Frames are distinguished only by content. The live scanner uses:
+- **Content-based deduplication** — FNV-1a hash of first 64 decoded bytes
+- **Adjacency-chain ordering** — tracks frame-to-frame transitions (A→B) to reconstruct correct sequence across multiple animation cycles
+- **Frame 0 detection** — identifies the frame whose first 4 bytes form a valid big-endian length prefix (payload ≥ 32 bytes, 1–255 total frames)
+- **Completion condition** — all unique frames captured AND adjacency chain from frame 0 is complete (N-1 links for N frames)
+- **Dual crop strategy** — tries FrameLocator first; if the crop covers >80% of the image area (common in well-lit rooms), falls back to center-square crop
+- **RS quality gate** — rejects frames where the first 64 decoded bytes are all zero (every RS block failed = garbage data, not a real barcode)
+- **Frame size locking** — after first successful decode, skips expensive try-all-sizes step for subsequent frames
+
+#### Dependencies (`pubspec.yaml`)
+
+| Category | Package | Purpose |
+|----------|---------|---------|
+| State | `flutter_riverpod` | Provider-based state management |
+| Navigation | `go_router` | Type-safe routing with ShellRoute |
+| Camera | `camera` | Full camera control for live streaming |
+| Image | `image` | Pure Dart GIF decode + pixel manipulation |
+| Crypto | `pointycastle` | AES-GCM, PBKDF2 |
+| Files | `file_picker`, `image_picker` | File/photo selection |
+| Storage | `path_provider`, `shared_preferences` | Save files, persist settings |
+| Permissions | `permission_handler` | Camera + storage permissions |
+| Sharing | `share_handler` | Receive shared GIF/binary files |
+| Other | `url_launcher`, `intl` | Open web links, i18n formatting |
+
+#### Localization
+
+5 languages via ARB files (`lib/l10n/app_*.arb`). Run `flutter gen-l10n` to regenerate. A manual stub at `lib/l10n/generated/app_localizations.dart` allows the project to compile before generation. Access via `AppLocalizations.of(context)!.keyName`. Parameterized strings use `{placeholder}` syntax in ARB. Locale preference persisted in `SharedPreferences` via `LocaleProvider`.
+
+#### Android manifest
+
+- Permissions: `CAMERA`, `READ_EXTERNAL_STORAGE` (maxSdkVersion 32)
+- `android.hardware.camera` feature declared as `required="false"`
+- Intent filters accept shared `image/gif` and `application/octet-stream` files
+- Activity uses `singleTop` launch mode, handles `configChanges` for orientation/keyboard
+
+#### Build
 
 ```bash
 cd android
@@ -110,17 +210,20 @@ flutter test
 
 Requires Flutter 3.24+ and Java 17.
 
-**Features:**
-- Import GIF — pick a CimBar GIF, enter passphrase, decode and save the file
-- Import Binary — decrypt raw binary from C++ scanner
-- Camera — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes
-- Settings — language selection, about with web app link
+#### Features
 
-**Live scanning architecture:** CimBar frames have no per-frame identifiers. Frames are distinguished only by content. The live scanner uses:
-- **Content-based deduplication** — FNV-1a hash of first 64 decoded bytes
-- **Adjacency-chain ordering** — tracks frame-to-frame transitions (A→B) to reconstruct correct sequence across multiple animation cycles
-- **Frame 0 detection** — identifies the frame whose first 4 bytes form a valid big-endian length prefix (payload ≥ 32 bytes, 1–255 total frames)
-- **Completion condition** — all unique frames captured AND adjacency chain from frame 0 is complete (N-1 links for N frames)
+- **Import GIF** — pick a CimBar GIF, enter passphrase, decode and save the file
+- **Import Binary** — decrypt raw binary from C++ scanner
+- **Camera** — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes
+- **Settings** — language selection (5 languages), about with web app link
+
+#### Design decisions and known patterns
+
+**TextEditingController listener pattern:** Screens that check `_passphraseController.text.isNotEmpty` to enable/disable buttons must add `_passphraseController.addListener(() => setState(() {}))` in `initState`. `PassphraseField` is a self-contained `StatefulWidget` whose internal `setState` only rebuilds itself (text field + strength bar), not the parent screen. Without the listener, buttons stay disabled after typing.
+
+**`Future.microtask` for camera state updates:** The camera `startImageStream` callback can fire while the widget tree is building. Setting `state = state.copyWith(...)` synchronously inside the callback triggers Riverpod's "modify provider during build" exception. The fix: wrap state updates in `Future.microtask(() { ... })` to defer them past the current build cycle.
+
+**Material 3 theming:** Forest green (#2E7D32) seed color generates the full Material 3 color scheme. Both light and dark themes are provided; the app follows system preference via `ThemeMode.system`.
 
 ## Interoperability
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/providers/locale_provider.dart';
 import 'features/camera/camera_screen.dart';
+import 'features/files/files_screen.dart';
 import 'features/import/import_screen.dart';
 import 'features/import_binary/import_binary_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -40,6 +41,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/camera',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: CameraScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/files',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: FilesScreen(),
             ),
           ),
           GoRoute(

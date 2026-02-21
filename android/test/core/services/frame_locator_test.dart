@@ -97,7 +97,8 @@ void main() {
       img.compositeImage(photo, frame, dstX: offsetX, dstY: offsetY);
 
       // Locate
-      final cropped = FrameLocator.locate(photo);
+      final result = FrameLocator.locate(photo);
+      final cropped = result.cropped;
 
       // The crop must be square
       expect(cropped.width, equals(cropped.height));
@@ -106,6 +107,12 @@ void main() {
       // Since the frame is at (384, 384) with size 256, its center is at (512, 512)
       // The crop should be roughly centered around the barcode
       expect(cropped.width, greaterThanOrEqualTo(frameSize));
+
+      // Bounding box should be valid
+      expect(result.boundingBox.x, greaterThanOrEqualTo(0));
+      expect(result.boundingBox.y, greaterThanOrEqualTo(0));
+      expect(result.boundingBox.width, greaterThan(0));
+      expect(result.boundingBox.height, greaterThan(0));
 
       // Sample a pixel from the center of the cropped image
       // It should be a bright colored cell, not the dark background
@@ -130,10 +137,12 @@ void main() {
       final frame = _synthesizeFrame(frameSize);
       img.compositeImage(photo, frame, dstX: 20, dstY: 20);
 
-      final cropped = FrameLocator.locate(photo);
+      final result = FrameLocator.locate(photo);
+      final cropped = result.cropped;
 
       expect(cropped.width, equals(cropped.height));
       expect(cropped.width, greaterThanOrEqualTo(frameSize));
+      expect(result.boundingBox.width, greaterThan(0));
     });
 
     test('handles barcode filling entire image (no background)', () {
@@ -142,11 +151,13 @@ void main() {
       // Frame is the entire image — no surrounding dark area
       final frame = _synthesizeFrame(frameSize);
 
-      final cropped = FrameLocator.locate(frame);
+      final result = FrameLocator.locate(frame);
+      final cropped = result.cropped;
 
       expect(cropped.width, equals(cropped.height));
       // Should return approximately the full image
       expect(cropped.width, greaterThanOrEqualTo(frameSize * 0.9));
+      expect(result.boundingBox.width, greaterThan(0));
     });
 
     test('throws StateError for fully dark image', () {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
+import '../../core/models/barcode_rect.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/crypto_service.dart';
 import '../../core/services/live_scanner.dart';
@@ -25,6 +26,9 @@ class LiveScanState {
   final bool isDecrypting;
   final DecodeResult? result;
   final String? errorMessage;
+  final BarcodeRect? barcodeRect;
+  final int? sourceImageWidth;
+  final int? sourceImageHeight;
 
   const LiveScanState({
     this.isScanning = false,
@@ -35,6 +39,9 @@ class LiveScanState {
     this.isDecrypting = false,
     this.result,
     this.errorMessage,
+    this.barcodeRect,
+    this.sourceImageWidth,
+    this.sourceImageHeight,
   });
 
   LiveScanState copyWith({
@@ -46,8 +53,12 @@ class LiveScanState {
     bool? isDecrypting,
     DecodeResult? result,
     String? errorMessage,
+    BarcodeRect? barcodeRect,
+    int? sourceImageWidth,
+    int? sourceImageHeight,
     bool clearResult = false,
     bool clearError = false,
+    bool clearBarcodeRect = false,
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
@@ -58,6 +69,9 @@ class LiveScanState {
       isDecrypting: isDecrypting ?? this.isDecrypting,
       result: clearResult ? null : (result ?? this.result),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      barcodeRect: clearBarcodeRect ? null : (barcodeRect ?? this.barcodeRect),
+      sourceImageWidth: sourceImageWidth ?? this.sourceImageWidth,
+      sourceImageHeight: sourceImageHeight ?? this.sourceImageHeight,
     );
   }
 
@@ -130,6 +144,9 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       final unique = progress?.uniqueFrames ?? state.uniqueFrames;
       final total = progress?.totalFrames ?? state.totalFrames;
       final fSize = progress?.detectedFrameSize ?? state.detectedFrameSize;
+      final rect = progress?.barcodeRect;
+      final srcW = progress?.sourceImageWidth;
+      final srcH = progress?.sourceImageHeight;
 
       // Defer state update: the camera stream callback can fire while the
       // widget tree is still building, and Riverpod forbids synchronous
@@ -140,6 +157,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
           uniqueFrames: unique,
           totalFrames: total,
           detectedFrameSize: fSize,
+          barcodeRect: rect,
+          sourceImageWidth: srcW,
+          sourceImageHeight: srcH,
+          clearBarcodeRect: rect == null,
         );
         _processing = false;
       });

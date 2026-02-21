@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import '../../shared/widgets/progress_card.dart';
 import '../../shared/widgets/result_card.dart';
@@ -43,7 +45,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.cameraTitle)),
+      appBar: AppBar(
+        title: Text(l10n.cameraTitle),
+        actions: const [LanguageSwitcherButton()],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -142,6 +147,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                   );
                 }
               },
+              onShare: () => FileService.shareResult(state.result!),
             ),
           ],
         ],

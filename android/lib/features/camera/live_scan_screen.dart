@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/widgets/barcode_overlay_painter.dart';
 import '../../shared/widgets/result_card.dart';
 import 'live_scan_controller.dart';
 
@@ -34,8 +36,11 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       DeviceOrientation.portraitDown,
     ]);
     _initCamera();
-    // Start scanning
-    ref.read(liveScanControllerProvider.notifier).startScan();
+    // Defer startScan — initState runs during the widget tree build and
+    // Riverpod forbids synchronous provider modifications at that point.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(liveScanControllerProvider.notifier).startScan();
+    });
   }
 
   @override
@@ -190,6 +195,24 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
               child: CircularProgressIndicator(color: Colors.white),
             ),
 
+          // AR overlay: barcode bounding box
+          if (scanState.barcodeRect != null &&
+              scanState.isScanning &&
+              scanState.sourceImageWidth != null &&
+              scanState.sourceImageHeight != null &&
+              _cameraController != null)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: BarcodeOverlayPainter(
+                  barcodeRect: scanState.barcodeRect!,
+                  sourceImageWidth: scanState.sourceImageWidth!,
+                  sourceImageHeight: scanState.sourceImageHeight!,
+                  sensorOrientation:
+                      _cameraController!.description.sensorOrientation,
+                ),
+              ),
+            ),
+
           // Top: cancel button
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
@@ -250,6 +273,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
                 );
               }
             },
+            onShare: () => FileService.shareResult(scanState.result!),
           ),
           const SizedBox(height: 8),
           TextButton(

@@ -160,5 +160,25 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
+  },
+
+  "tabFiles": "Files",
+  "@tabFiles": { "description": "Bottom navigation tab for file explorer" },
+  "filesTitle": "Decoded Files",
+  "@filesTitle": { "description": "Title for file explorer screen" },
+  "noFilesYet": "No decoded files yet",
+  "@noFilesYet": { "description": "Empty state message in file explorer" },
+  "delete": "Delete",
+  "@delete": { "description": "Delete action label" },
+  "deleteFileTitle": "Delete File",
+  "@deleteFileTitle": { "description": "Title for delete confirmation dialog" },
+  "deleteFileConfirm": "Delete {filename}?",
+  "@deleteFileConfirm": {
+    "description": "Confirmation message for file deletion",
+    "placeholders": {
+      "filename": { "type": "String" }
+    }
+  },
+  "fileDeleted": "File deleted",
+  "@fileDeleted": { "description": "Snackbar message after file deletion" }
 }

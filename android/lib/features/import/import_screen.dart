@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/file_picker_zone.dart';
+import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import '../../shared/widgets/progress_card.dart';
 import '../../shared/widgets/result_card.dart';
@@ -40,7 +42,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     final controller = ref.read(importControllerProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.importTitle)),
+      appBar: AppBar(
+        title: Text(l10n.importTitle),
+        actions: const [LanguageSwitcherButton()],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -84,6 +89,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                   );
                 }
               },
+              onShare: () => FileService.shareResult(state.result!),
             ),
           ],
         ],

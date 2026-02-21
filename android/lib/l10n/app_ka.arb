@@ -57,5 +57,13 @@
   "liveScanError": "სკანირება ვერ მოხერხდა",
   "cameraPermissionDenied": "პირდაპირი სკანირებისთვის საჭიროა კამერის ნებართვა",
   "noCameraAvailable": "ამ მოწყობილობაზე კამერა მიუწვდომელია",
-  "liveScanFramesAnalyzed": "{count} კადრი გაანალიზებულია"
+  "liveScanFramesAnalyzed": "{count} კადრი გაანალიზებულია",
+
+  "tabFiles": "ფაილები",
+  "filesTitle": "ფაილები",
+  "noFilesYet": "ფაილები ჯერ არ არის",
+  "delete": "წაშლა",
+  "deleteFileTitle": "ფაილის წაშლა",
+  "deleteFileConfirm": "წაიშალოს {filename}?",
+  "fileDeleted": "ფაილი წაიშალა"
 }

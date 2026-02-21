@@ -57,5 +57,13 @@
   "liveScanError": "Tarama başarısız",
   "cameraPermissionDenied": "Canlı tarama için kamera izni gerekli",
   "noCameraAvailable": "Bu cihazda kamera yok",
-  "liveScanFramesAnalyzed": "{count} kare analiz edildi"
+  "liveScanFramesAnalyzed": "{count} kare analiz edildi",
+
+  "tabFiles": "Dosyalar",
+  "filesTitle": "Dosyalar",
+  "noFilesYet": "Henüz dosya yok",
+  "delete": "Sil",
+  "deleteFileTitle": "Dosyayı Sil",
+  "deleteFileConfirm": "{filename} silinsin mi?",
+  "fileDeleted": "Dosya silindi"
 }
