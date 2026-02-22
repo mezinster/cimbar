@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Live camera decode producing all-0xFF bytes: symbol detection threshold `c * 0.5 + 20` was too permissive under camera auto-exposure; camera path now uses multiplicative threshold `c * symbolThreshold` (default 0.85)
+- `CameraPreview` crash when controller is disposed during navigation/lifecycle transitions (added `_disposed` guard)
+
+### Added
+- Runtime decode tuning settings in Settings screen: symbol sensitivity slider, white balance toggle, relative color matching toggle, quadrant sample offset slider, and reset-to-defaults button — all persisted in SharedPreferences
+- `DecodeTuningConfig` model and `DecodeTuningProvider` for Riverpod-based tuning state management
+- Camera-exposure symbol detection test in `cimbar_decoder_test.dart`
+
 ## [0.8.4] — 2026-02-21
 
 ### Fixed

@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 
 import '../constants/cimbar_constants.dart';
 import '../models/barcode_rect.dart';
+import '../models/decode_tuning_config.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'frame_locator.dart';
@@ -77,6 +78,9 @@ class LiveScanner {
 
   /// Optional debug callback for diagnostic logging.
   void Function(ScanDebugInfo)? onDebug;
+
+  /// Runtime tuning configuration. Updated from settings UI.
+  DecodeTuningConfig tuningConfig = const DecodeTuningConfig();
 
   /// Locked after first successful decode to avoid try-all-sizes overhead.
   int? _frameSize;
@@ -323,7 +327,10 @@ class LiveScanner {
           interpolation: img.Interpolation.nearest);
 
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
-          enableWhiteBalance: true, useRelativeColor: true);
+          enableWhiteBalance: tuningConfig.enableWhiteBalance,
+          useRelativeColor: tuningConfig.useRelativeColor,
+          symbolThreshold: tuningConfig.symbolThreshold,
+          quadrantOffset: tuningConfig.quadrantOffset);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
       _emitDebug('try_decode', 'size=$frameSize '

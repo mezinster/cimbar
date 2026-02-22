@@ -55,7 +55,7 @@ bit 1 → BL corner at (q-h, size-q-h)
 bit 0 → BR corner at (size-q-h, size-q-h)
 ```
 
-`detectSymbol` samples luma at those same four points plus the center; a point brighter than `center × 0.5 + 20` reads as 1, darker reads as 0. The center pixel is never covered by a dot, so it always reflects the foreground color and is used for color detection by `nearestColorIdx`. This design was chosen to guarantee a perfect encode→decode round-trip: every bit position is sampled at exactly the pixel that was drawn for it.
+`detectSymbol` samples luma at those same four points plus the center. For the GIF path (no `symbolThreshold`), a point brighter than `center × 0.5 + 20` reads as 1. For the camera path, a configurable multiplicative threshold `center × symbolThreshold` is used instead (default 0.85) — this scales with brightness and correctly handles camera auto-exposure where the additive formula fails. The `quadrantOffset` parameter (default 0.28) controls the corner sample position as a fraction of cell size. The center pixel is never covered by a dot, so it always reflects the foreground color and is used for color detection by `nearestColorIdx`. This design was chosen to guarantee a perfect encode→decode round-trip: every bit position is sampled at exactly the pixel that was drawn for it.
 
 The visible result is colored squares with 0–4 small black dots at the corners. `symIdx=15` (all bits 1) has no dots — a plain solid square. `symIdx=0` (all bits 0) has all four corners dotted.
 
@@ -71,8 +71,8 @@ android/lib/
 ├── main.dart                   — Entry point; initializes SharedPreferences, ProviderScope
 ├── core/
 │   ├── constants/cimbar_constants.dart  — Cell size, ECC bytes, frame sizes, 8-color palette, magic
-│   ├── models/                 — DecodeProgress, DecodeState, DecodeResult, BarcodeRect
-│   ├── providers/              — SharedPreferencesProvider, LocaleProvider
+│   ├── models/                 — DecodeProgress, DecodeState, DecodeResult, BarcodeRect, DecodeTuningConfig
+│   ├── providers/              — SharedPreferencesProvider, LocaleProvider, DecodeTuningProvider
 │   ├── services/               — All decode/crypto/camera/file logic (see below)
 │   └── utils/byte_utils.dart   — readUint32BE, writeUint32BE, concatBytes, bytesToHex
 ├── features/
@@ -80,7 +80,7 @@ android/lib/
 │   ├── import_binary/          — Binary import: ImportBinaryScreen + ImportBinaryController
 │   ├── camera/                 — Camera: CameraScreen, CameraController, LiveScanScreen, LiveScanController
 │   ├── files/                  — File explorer: FilesScreen + FilesController
-│   └── settings/               — SettingsScreen (language, about)
+│   └── settings/               — SettingsScreen (decode tuning, language, about)
 ├── shared/
 │   ├── theme/app_theme.dart    — Material 3, forest green seed, light + dark
 │   └── widgets/                — AppShell, PassphraseField, FilePickerZone, ProgressCard, ResultCard, LanguageSelector, LanguageSwitcherButton, BarcodeOverlayPainter
@@ -101,14 +101,14 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding, RS frame splitting (port of cimbar.js decode side)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (with configurable `symbolThreshold` and `quadrantOffset` for camera tuning), RS frame splitting (port of cimbar.js decode side)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
 - `frame_locator.dart` — finds the CimBar barcode region in a camera photo via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` containing the cropped square image, a `BarcodeRect` with bounding box coordinates in source image space (used for AR overlay), and optional `tlFinderCenter`/`brFinderCenter` (`Point<double>?`) for future perspective transform use
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
-- `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
+- `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus` (`shareResult` for `DecodeResult`, `shareFile` for existing paths)
 
 #### State management (Riverpod)
@@ -221,7 +221,7 @@ Requires Flutter 3.24+ and Java 17.
 - **Import Binary** — decrypt raw binary from C++ scanner, save/share result
 - **Camera** — single-photo capture (Take Photo / Gallery) for single-frame barcodes, plus live multi-frame scanning for animated barcodes with AR overlay (green corner brackets highlight detected barcode region)
 - **Files** — browse decoded files saved to app storage, swipe-to-delete with confirmation, share via system share sheet, pull-to-refresh, file-type icons by extension
-- **Settings** — language selection (5 languages), about with web app link
+- **Settings** — decode tuning (symbol sensitivity, white balance, relative color, quadrant offset sliders/toggles persisted in SharedPreferences), language selection (5 languages), about with web app link
 - **Language Switcher** — globe icon in AppBar on all tabbed screens; opens a bottom sheet with flag emojis for quick language switching without navigating to Settings
 - **File Sharing** — all `ResultCard` instances wire `onShare` via `FileService.shareResult`, which writes to temp directory and invokes `share_plus`
 
@@ -237,9 +237,15 @@ Requires Flutter 3.24+ and Java 17.
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access to read/write `localeProvider`, so it can't be a plain `StatelessWidget`. Uses `showModalBottomSheet` with `RadioListTile` options matching the existing `LanguageSelector` pattern. Placed in AppBar `actions` on all 5 tabbed screens; `LiveScanScreen` (full-screen camera modal, no AppBar) does not include it.
 
-**Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`):** `decodeFramePixels()` accepts optional flags that gate white balance correction and relative color matching. Both default to `false` (preserving exact GIF decode behavior) and are set to `true` only by `CameraDecodePipeline` and `LiveScanner._tryDecode()`. GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
+**Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`):** `decodeFramePixels()` accepts optional flags that gate white balance correction, relative color matching, symbol detection sensitivity, and corner sample positioning. `enableWhiteBalance` and `useRelativeColor` default to `false`; `symbolThreshold` and `quadrantOffset` default to `null` (using the GIF formula and 0.28 respectively). Camera paths set all four via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`). GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
 
 **White balance finder sampling:** The Von Kries white reference is sampled from the outer corner cells of the 3×3 finder patterns (grid positions 0,0 and cols-1,rows-1), NOT the center cell (1,1) which is dark gray. The center cell has a dark fill with only a tiny white dot — sampling it would produce an incorrect white reference and amplify color errors.
+
+**Symbol threshold for camera vs GIF:** The original `_detectSymbol` threshold `c * 0.5 + 20` works perfectly for GIF decode (exact pixel colors) but fails under camera auto-exposure. When center luma is ~200, the threshold (~120) is below blurred black dot corners (~130–160), so all corners read as 1 → `symIdx=15` → all bytes become 0xFF. The camera path uses `symbolThreshold` (default 0.85): a multiplicative-only formula `c * symbolThreshold` that scales with brightness. At c=200, threshold=170 cleanly separates dot corners (130) from undotted corners (195). The GIF path keeps the original formula (null `symbolThreshold`).
+
+**CameraController disposed guard:** `LiveScanScreen` sets `_disposed = true` in `dispose()` and checks it in `_initCamera()`, `_onCameraImage()`, `didChangeAppLifecycleState(resumed)`, and the `CameraPreview` render condition. This prevents "CameraController used after dispose" crashes during navigation/lifecycle transitions where disposal can race with the camera stream callback or AppLifecycleState events.
+
+**Decode tuning config wiring:** `DecodeTuningConfig` is an immutable value object persisted in SharedPreferences via `DecodeTuningProvider`. The Settings screen writes to the provider; camera screens (`LiveScanScreen`, `CameraScreen`) read it via `ref.watch(decodeTuningProvider)` and pass it through controllers to decoders. The decoder itself is stateless — it accepts tuning params as optional function arguments, keeping it testable without Riverpod. GIF decode ignores tuning entirely (uses default/null params).
 
 ## Camera Decode Improvements (from libcimbar C++ analysis)
 
@@ -356,7 +362,7 @@ flutter test
 |------|--------------|
 | `test/core/services/galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic identities. |
 | `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 16-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (223-byte) round-trips. |
-| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames) and relative color matching (brightness-shifted and clean frames). |
+| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames), relative color matching (brightness-shifted and clean frames), and camera-exposure symbol detection with `symbolThreshold=0.85` (over-exposed frames). |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 | `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, barcode filling entire image, dark image (no barcode), noisy background with scattered bright pixels (verifies anchor detection ignores noise), finder center position validation (detected centers within 20px of known positions), and fallback behavior (uniform bright rectangle without finder structure triggers luma-threshold fallback with null finder centers). 7 tests total. |

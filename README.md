@@ -91,8 +91,8 @@ The `android/` directory contains a Flutter app that can decode CimBar GIFs on A
 
 - **Import GIF** — Pick a CimBar GIF file, enter the passphrase, decode and save the original file
 - **Import Binary** — Decrypt raw binary output from the C++ `cimbar` scanner
-- **Camera** — Single-photo capture for single-frame barcodes, plus live multi-frame scanning for animated barcodes
-- **Settings** — Language selection (English, Russian, Turkish, Ukrainian, Georgian)
+- **Camera** — Single-photo capture for single-frame barcodes, plus live multi-frame scanning for animated barcodes. Camera decode uses white balance correction, relative color matching, and configurable symbol sensitivity to handle varying lighting conditions.
+- **Settings** — Decode tuning (symbol sensitivity, white balance, relative color matching, quadrant offset — all adjustable at runtime and persisted), language selection (English, Russian, Turkish, Ukrainian, Georgian)
 
 ### Live Camera Scanning
 
@@ -183,7 +183,7 @@ cd android
 flutter test
 ```
 
-Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip, AES-GCM crypto, the full RS frame pipeline, YUV→RGB conversion, and live scanner logic (deduplication, adjacency-chain ordering, frame 0 detection, multi-frame assembly).
+Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip (including camera-exposure threshold), AES-GCM crypto, the full RS frame pipeline, YUV→RGB conversion, and live scanner logic (deduplication, adjacency-chain ordering, frame 0 detection, multi-frame assembly).
 
 ---
 

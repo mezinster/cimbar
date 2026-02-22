@@ -7,6 +7,7 @@ import 'dart:io';
 
 import '../../core/models/barcode_rect.dart';
 import '../../core/models/decode_result.dart';
+import '../../core/models/decode_tuning_config.dart';
 import '../../core/services/crypto_service.dart';
 import '../../core/services/live_scanner.dart';
 import '../../core/services/yuv_converter.dart';
@@ -98,6 +99,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   bool _processing = false;
 
   static const _maxDebugEntries = 50;
+
+  void updateTuningConfig(DecodeTuningConfig config) {
+    _scanner.tuningConfig = config;
+  }
 
   void startScan() {
     _scanner.reset();

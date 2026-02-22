@@ -202,6 +202,8 @@ class CimbarDecoder {
     int frameSize, {
     bool enableWhiteBalance = false,
     bool useRelativeColor = false,
+    double? symbolThreshold,
+    double? quadrantOffset,
   }) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
@@ -253,7 +255,8 @@ class CimbarDecoder {
             : _nearestColorIdx(pr, pg, pb);
 
         // Symbol detection: sample 4 quadrant points
-        final symIdx = _detectSymbol(frame, ox, oy, cs);
+        final symIdx = _detectSymbol(frame, ox, oy, cs,
+            symbolThreshold: symbolThreshold, quadrantOffset: quadrantOffset);
 
         final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
 
@@ -319,8 +322,22 @@ class CimbarDecoder {
   }
 
   /// Detect 4-bit symbol from quadrant luma sampling.
-  static int _detectSymbol(img.Image image, int ox, int oy, int cs) {
-    final q = max(1, (cs * 0.28).floor());
+  ///
+  /// When [symbolThreshold] is provided (camera path), uses a multiplicative-only
+  /// threshold: `c * symbolThreshold`. A corner must be at least this fraction
+  /// of center brightness to read as 1. Default 0.85 cleanly separates blurred
+  /// black dots (~130 luma at c=200) from undotted corners (~195).
+  ///
+  /// When [symbolThreshold] is null (GIF path), uses the original `c * 0.5 + 20`.
+  ///
+  /// When [quadrantOffset] is provided, overrides the default 0.28 cell fraction
+  /// for corner sample positioning.
+  static int _detectSymbol(img.Image image, int ox, int oy, int cs, {
+    double? symbolThreshold,
+    double? quadrantOffset,
+  }) {
+    final qFraction = quadrantOffset ?? 0.28;
+    final q = max(1, (cs * qFraction).floor());
 
     double luma(int px, int py) {
       final x = min(px, image.width - 1);
@@ -335,7 +352,7 @@ class CimbarDecoder {
     final bl = luma(ox + q, oy + cs - q);
     final br = luma(ox + cs - q, oy + cs - q);
 
-    final thresh = c * 0.5 + 20;
+    final thresh = symbolThreshold != null ? c * symbolThreshold : c * 0.5 + 20;
 
     return ((tl > thresh ? 1 : 0) << 3) |
         ((tr > thresh ? 1 : 0) << 2) |

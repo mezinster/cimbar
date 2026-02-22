@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
+import '../../core/models/decode_tuning_config.dart';
 import '../../core/services/camera_decode_pipeline.dart';
 import '../../core/services/decode_pipeline.dart';
 
@@ -54,6 +55,8 @@ class CameraController extends StateNotifier<CameraState> {
   final _cameraPipeline = CameraDecodePipeline();
   final _gifPipeline = DecodePipeline();
   final _picker = ImagePicker();
+
+  DecodeTuningConfig? tuningConfig;
 
   /// Check if bytes start with GIF magic (GIF87a or GIF89a).
   static bool _isGif(Uint8List bytes) {
@@ -114,7 +117,8 @@ class CameraController extends StateNotifier<CameraState> {
       }
     } else {
       await for (final progress
-          in _cameraPipeline.decodePhoto(bytes, passphrase)) {
+          in _cameraPipeline.decodePhoto(bytes, passphrase,
+              tuningConfig: tuningConfig)) {
         state = state.copyWith(progress: progress);
 
         if (progress.state == DecodeState.done) {

@@ -491,6 +491,54 @@ abstract class AppLocalizations {
   /// **'File deleted'**
   String get fileDeleted;
 
+  /// Section title for camera decode tuning settings
+  ///
+  /// In en, this message translates to:
+  /// **'Decode Tuning'**
+  String get decodeTuning;
+
+  /// Label for symbol detection threshold slider
+  ///
+  /// In en, this message translates to:
+  /// **'Symbol Sensitivity'**
+  String get symbolSensitivity;
+
+  /// Description for symbol sensitivity slider
+  ///
+  /// In en, this message translates to:
+  /// **'Higher = stricter dot detection (corners must be brighter to read as 1)'**
+  String get symbolSensitivityDesc;
+
+  /// Label for white balance toggle
+  ///
+  /// In en, this message translates to:
+  /// **'White Balance Correction'**
+  String get whiteBalanceLabel;
+
+  /// Label for relative color matching toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Relative Color Matching'**
+  String get relativeColorLabel;
+
+  /// Label for quadrant offset slider
+  ///
+  /// In en, this message translates to:
+  /// **'Quadrant Sample Offset'**
+  String get quadrantOffsetLabel;
+
+  /// Description for quadrant offset slider
+  ///
+  /// In en, this message translates to:
+  /// **'Corner sample position as fraction of cell size'**
+  String get quadrantOffsetDesc;
+
+  /// Button to reset tuning to default values
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Defaults'**
+  String get resetDefaults;
+
   /// Label for Privacy Policy link
   ///
   /// In en, this message translates to:

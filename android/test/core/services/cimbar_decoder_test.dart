@@ -265,6 +265,38 @@ void main() {
               '(combined=$mismatchesCombined vs none=$mismatchesNone mismatches)');
     });
 
+    test('camera-exposure symbol detection with symbolThreshold', () {
+      // Simulate camera auto-exposure: everything gets brighter.
+      // With c=200 and old threshold (c*0.5+20=120), a blurred dot corner
+      // at ~140 luma reads as 1 (WRONG). With symbolThreshold=0.85,
+      // threshold=170, so 140 < 170 → reads as 0 (CORRECT).
+      const frameSize = 128;
+
+      final cleanFrame = _buildTestFrame(frameSize);
+      // Brighten uniformly (simulates auto-exposure cranking up ISO)
+      final bright = applyTint(cleanFrame, 1.3, 1.3, 1.3);
+
+      final decoder = CimbarDecoder();
+      final rawClean = decoder.decodeFramePixels(cleanFrame, frameSize);
+
+      // Decode with new symbolThreshold (camera path)
+      final rawCameraThresh = decoder.decodeFramePixels(bright, frameSize,
+          symbolThreshold: 0.85);
+      // Decode with old threshold (no symbolThreshold = GIF path)
+      final rawOldThresh = decoder.decodeFramePixels(bright, frameSize);
+
+      var mismatchesCamera = 0;
+      var mismatchesOld = 0;
+      for (var i = 0; i < rawClean.length; i++) {
+        if (rawCameraThresh[i] != rawClean[i]) mismatchesCamera++;
+        if (rawOldThresh[i] != rawClean[i]) mismatchesOld++;
+      }
+
+      expect(mismatchesCamera, lessThanOrEqualTo(mismatchesOld),
+          reason: 'symbolThreshold=0.85 should handle over-exposure at least as well '
+              '(camera=$mismatchesCamera vs old=$mismatchesOld mismatches)');
+    });
+
     test('clean frame round-trips perfectly with relative matching', () {
       // Full frame round-trip with relative matching
       const frameSize = 128;

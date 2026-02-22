@@ -67,6 +67,15 @@
   "deleteFileConfirm": "Удалить {filename}?",
   "fileDeleted": "Файл удалён",
 
+  "decodeTuning": "Настройки декодирования",
+  "symbolSensitivity": "Чувствительность символов",
+  "symbolSensitivityDesc": "Выше = строже определение точек (углы должны быть ярче для чтения как 1)",
+  "whiteBalanceLabel": "Коррекция баланса белого",
+  "relativeColorLabel": "Относительное сопоставление цветов",
+  "quadrantOffsetLabel": "Смещение квадранта",
+  "quadrantOffsetDesc": "Позиция углового образца как доля размера ячейки",
+  "resetDefaults": "Сбросить настройки",
+
   "privacyPolicy": "Политика конфиденциальности",
   "licenseInfo": "Лицензия MIT",
   "sourceCode": "Исходный код"

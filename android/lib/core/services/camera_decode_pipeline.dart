@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 
 import '../constants/cimbar_constants.dart';
 import '../models/decode_result.dart';
+import '../models/decode_tuning_config.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'crypto_service.dart';
@@ -24,8 +25,9 @@ class CameraDecodePipeline {
   /// Decode a single CimBar frame from a camera photo.
   Stream<DecodeProgress> decodePhoto(
     Uint8List imageBytes,
-    String passphrase,
-  ) async* {
+    String passphrase, {
+    DecodeTuningConfig? tuningConfig,
+  }) async* {
     // 1. Decode image
     final photo = img.decodeImage(imageBytes);
     if (photo == null) {
@@ -62,7 +64,7 @@ class CameraDecodePipeline {
       message: 'Detecting frame size...',
     );
 
-    final sizeResult = _tryAllFrameSizes(cropped);
+    final sizeResult = _tryAllFrameSizes(cropped, tuningConfig: tuningConfig);
     if (sizeResult == null) {
       yield const DecodeProgress(
         state: DecodeState.error,
@@ -134,7 +136,10 @@ class CameraDecodePipeline {
   /// Try decoding the cropped image at each supported frame size.
   /// Returns (frameSize, dataBytes) for the first size that produces a
   /// plausible 4-byte length prefix, or null if none work.
-  (int, Uint8List)? _tryAllFrameSizes(img.Image cropped) {
+  (int, Uint8List)? _tryAllFrameSizes(img.Image cropped, {
+    DecodeTuningConfig? tuningConfig,
+  }) {
+    final config = tuningConfig ?? const DecodeTuningConfig();
     for (final frameSize in CimbarConstants.frameSizes) {
       try {
         // Resize cropped barcode to candidate frame size
@@ -145,7 +150,10 @@ class CameraDecodePipeline {
 
         // Decode pixels -> raw bytes -> RS decode
         final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
-            enableWhiteBalance: true, useRelativeColor: true);
+            enableWhiteBalance: config.enableWhiteBalance,
+            useRelativeColor: config.useRelativeColor,
+            symbolThreshold: config.symbolThreshold,
+            quadrantOffset: config.quadrantOffset);
         final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
         // Validate: need at least 4 bytes for length prefix

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/decode_tuning_provider.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/barcode_overlay_painter.dart';
@@ -23,6 +24,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     with WidgetsBindingObserver {
   CameraController? _cameraController;
   bool _initializing = false;
+  bool _disposed = false;
   String? _cameraError;
   bool _decryptTriggered = false;
   int _tapCount = 0;
@@ -48,6 +50,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
 
   @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.stopImageStream().catchError((_) {});
     _cameraController?.dispose();
@@ -59,6 +62,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_disposed) return;
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
     }
@@ -73,7 +77,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   }
 
   Future<void> _initCamera() async {
-    if (_initializing) return;
+    if (_initializing || _disposed) return;
     _initializing = true;
 
     try {
@@ -120,7 +124,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   }
 
   void _onCameraImage(CameraImage image) {
-    if (image.planes.length < 3) return;
+    if (_disposed || image.planes.length < 3) return;
 
     // Copy plane bytes — they're only valid during this callback
     final yPlane = Uint8List.fromList(image.planes[0].bytes);
@@ -165,6 +169,8 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     final l10n = AppLocalizations.of(context)!;
     final scanState = ref.watch(liveScanControllerProvider);
     final controller = ref.read(liveScanControllerProvider.notifier);
+    final tuningConfig = ref.watch(decodeTuningProvider);
+    controller.updateTuningConfig(tuningConfig);
 
     // Auto-scroll debug log when new entries arrive
     if (scanState.debugEnabled && scanState.debugLog.isNotEmpty) {
@@ -197,7 +203,8 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
         body: Stack(
         children: [
           // Camera preview
-          if (_cameraController != null &&
+          if (!_disposed &&
+              _cameraController != null &&
               _cameraController!.value.isInitialized)
             Positioned.fill(
               child: FittedBox(

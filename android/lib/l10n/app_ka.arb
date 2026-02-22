@@ -67,6 +67,15 @@
   "deleteFileConfirm": "წაიშალოს {filename}?",
   "fileDeleted": "ფაილი წაიშალა",
 
+  "decodeTuning": "Decode Tuning",
+  "symbolSensitivity": "Symbol Sensitivity",
+  "symbolSensitivityDesc": "Higher = stricter dot detection (corners must be brighter to read as 1)",
+  "whiteBalanceLabel": "White Balance Correction",
+  "relativeColorLabel": "Relative Color Matching",
+  "quadrantOffsetLabel": "Quadrant Sample Offset",
+  "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
+  "resetDefaults": "Reset to Defaults",
+
   "privacyPolicy": "კონფიდენციალურობის პოლიტიკა",
   "licenseInfo": "MIT ლიცენზია",
   "sourceCode": "საწყისი კოდი"
