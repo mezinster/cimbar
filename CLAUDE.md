@@ -106,7 +106,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
-- `frame_locator.dart` — finds the CimBar barcode region in a camera photo via luma thresholding and bounding-box extraction. Returns `LocateResult` containing both the cropped square image and a `BarcodeRect` with the bounding box coordinates in source image space (used for AR overlay)
+- `frame_locator.dart` — finds the CimBar barcode region in a camera photo via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` containing the cropped square image, a `BarcodeRect` with bounding box coordinates in source image space (used for AR overlay), and optional `tlFinderCenter`/`brFinderCenter` (`Point<double>?`) for future perspective transform use
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus` (`shareResult` for `DecodeResult`, `shareFile` for existing paths)
@@ -245,7 +245,7 @@ Requires Flutter 3.24+ and Java 17.
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
-Techniques from the C++ libcimbar scanner, identified for porting. Priority 1 and 5 are implemented; the rest are planned for future work.
+Techniques from the C++ libcimbar scanner, identified for porting. Priorities 1, 3, and 5 are implemented; the rest are planned for future work.
 
 ### ~~Priority 1 — White-balance from finder patterns~~ ✓ IMPLEMENTED
 
@@ -255,19 +255,23 @@ Implemented in `cimbar_decoder.dart` as `enableWhiteBalance` flag (enabled for c
 
 With 4 corner anchor points, libcimbar uses OpenCV `getPerspectiveTransform()` + `warpPerspective()` to rectify tilted/rotated/skewed captures into a perfect square. Our square-crop approach fails if the camera is angled even slightly — every cell becomes misaligned.
 
-**Dependency:** Requires anchor detection (Priority 3) to find the 4 corner points. The `image` package has no built-in perspective warp; would need a pure-Dart implementation or an FFI bridge.
+**Dependency:** Anchor detection (Priority 3) is now implemented and provides `tlFinderCenter`/`brFinderCenter` coordinates via `LocateResult`. The `image` package has no built-in perspective warp; would need a pure-Dart implementation or an FFI bridge. With 2 finder centers, a 4-corner perspective transform requires extrapolating TL/BR finder centers to estimate TR/BL corners (the barcode is square, so the other two corners can be derived geometrically).
 
-### Priority 3 — Anchor-based finder pattern detection (medium-high effort, critical impact)
+### ~~Priority 3 — Anchor-based finder pattern detection~~ ✓ IMPLEMENTED
 
-libcimbar uses a 4-tier scan for QR-style finder patterns:
-1. **Horizontal row scan** at intervals of `imageSize/60` — detects 1:1:4:1:1 black-white ratio pattern
-2. **Vertical column scan** at each hit — confirms it's a 2D pattern, not a horizontal line
-3. **Diagonal scan** — further validates the pattern
-4. **Confirmation scan** — refines center coordinates
+Implemented in `frame_locator.dart` as the primary detection path, with the old luma-threshold approach kept as fallback. The algorithm:
 
-Candidates are deduplicated (merge if centers within `imageSize/30`), filtered by size (top 3 by area), and sorted into TL/TR/BL by edge geometry (longest edge is opposite TL, cross product determines orientation). The 4th corner (BR) is extrapolated and verified with a smaller 1:2:2 pattern scan.
+1. **Downscale 2×** and build a luma buffer for fast scanning
+2. **Horizontal row scan** every 2 rows — tracks runs of bright (luma > 180) and not-bright pixels, looking for bright→dark→bright patterns. The high threshold (180) is critical: it distinguishes white finder cells (luma 255) from colored barcode cells (luma 64–171). Relaxed ratio check requires only the shorter bright run to be within 4× of the dark run (handles asymmetric patterns near image edges).
+3. **Vertical confirmation** at each horizontal hit — scans the column at `centerX` for a matching vertical bright→dark→bright pattern within 2× of the horizontal width
+4. **Deduplication** — merges candidates within `imageSize/30` radius (multiple scan lines hit the same finder)
+5. **Selection & classification** — scores by hit count + aspect ratio + contrast, selects top 2, classifies as TL/BR by coordinate sum
+6. **Crop computation** — estimates cell size from finder width (`finderPx / 3`), computes barcode bounding square with 1.5-cell padding (finder centers are at grid cell (1,1) and (cols-2, rows-2)) plus 2% margin
+7. **Fallback** — if fewer than 2 finders found, reverts to original luma > 30 bounding-box approach
 
-**vs. our approach:** Our luma > 30 bounding box cannot distinguish the barcode from any other bright object in the scene. Anchor detection would provide precise corner coordinates for perspective correction.
+`LocateResult` now includes optional `tlFinderCenter` and `brFinderCenter` (`Point<double>?`) in original image coordinates, present when anchor detection succeeds (null on fallback). These enable future perspective transform work (Priority 2).
+
+**Key tuning insight:** The finder's dark center is only ~4px wide after 2× downscale, and the 3px inner white dot splits the center row into complex sub-runs. Scanning every 2 rows ensures hitting the clean rows above/below the inner dot. The dense scan is affordable: O(w×h/4) pixel lookups on the downscaled image.
 
 ### Priority 4 — Average hash symbol detection with drift tracking (medium effort, high impact)
 
@@ -355,7 +359,7 @@ flutter test
 | `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames) and relative color matching (brightness-shifted and clean frames). |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
-| `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, rectangular input, dark image (no barcode). Validates `LocateResult.boundingBox` has positive dimensions. |
+| `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, barcode filling entire image, dark image (no barcode), noisy background with scattered bright pixels (verifies anchor detection ignores noise), finder center position validation (detected centers within 20px of known positions), and fallback behavior (uniform bright rectangle without finder structure triggers luma-threshold fallback with null finder centers). 7 tests total. |
 | `test/core/services/yuv_converter_test.dart` | YUV420→RGB conversion: pure white/black, UV subsampling correctness, stride configurations (padded Y rows), semi-planar UV (uvPixelStride=2). |
 | `test/core/services/live_scanner_test.dart` | Multi-frame scanning logic via `processDecodedData`: single-frame complete scan, 5-frame progressive capture with assembly, duplicate handling, out-of-order adjacency-chain resolution ([2,3,4,0,1] → correct [0,1,2,3,4]), frame 0 detection, dark image graceful handling, reset. |
 

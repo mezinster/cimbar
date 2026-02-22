@@ -104,8 +104,6 @@ void main() {
       expect(cropped.width, equals(cropped.height));
 
       // The crop must contain the barcode region
-      // Since the frame is at (384, 384) with size 256, its center is at (512, 512)
-      // The crop should be roughly centered around the barcode
       expect(cropped.width, greaterThanOrEqualTo(frameSize));
 
       // Bounding box should be valid
@@ -114,17 +112,21 @@ void main() {
       expect(result.boundingBox.width, greaterThan(0));
       expect(result.boundingBox.height, greaterThan(0));
 
-      // Sample a pixel from the center of the cropped image
-      // It should be a bright colored cell, not the dark background
+      // Sample a small region near the center of the cropped image.
+      // The exact center may land on a 2×2 black corner dot, so check
+      // that the max luma in a 5×5 region is bright (colored cell).
       final cx = cropped.width ~/ 2;
       final cy = cropped.height ~/ 2;
-      final centerPixel = cropped.getPixel(cx, cy);
-      final centerLuma = (0.299 * centerPixel.r +
-              0.587 * centerPixel.g +
-              0.114 * centerPixel.b)
-          .round();
-      // Center of the barcode should have colored cells (luma > 30)
-      expect(centerLuma, greaterThan(30));
+      var maxLuma = 0;
+      for (var dy = -2; dy <= 2; dy++) {
+        for (var dx = -2; dx <= 2; dx++) {
+          final p = cropped.getPixel(cx + dx, cy + dy);
+          final l = (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+          if (l > maxLuma) maxLuma = l;
+        }
+      }
+      // Center of the barcode should have colored cells nearby (luma > 30)
+      expect(maxLuma, greaterThan(30));
     });
 
     test('locates barcode in top-left corner', () {
@@ -168,6 +170,114 @@ void main() {
         () => FrameLocator.locate(dark),
         throwsStateError,
       );
+    });
+
+    test('ignores noisy background with random bright pixels', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+
+      // Draw barcode centered
+      final frame = _synthesizeFrame(frameSize);
+      const offsetX = 384;
+      const offsetY = 384;
+      img.compositeImage(photo, frame, dstX: offsetX, dstY: offsetY);
+
+      // Scatter random bright pixels (noise) outside the barcode area
+      final rng = Random(42); // fixed seed for reproducibility
+      for (var i = 0; i < 500; i++) {
+        // Only place noise outside the barcode region
+        int x, y;
+        do {
+          x = rng.nextInt(photoSize);
+          y = rng.nextInt(photoSize);
+        } while (x >= offsetX && x < offsetX + frameSize &&
+            y >= offsetY && y < offsetY + frameSize);
+
+        final brightness = 120 + rng.nextInt(136); // 120-255
+        photo.setPixel(x, y,
+            img.ColorRgba8(brightness, brightness, brightness, 255));
+      }
+
+      final result = FrameLocator.locate(photo);
+      final cropped = result.cropped;
+
+      expect(cropped.width, equals(cropped.height));
+      expect(cropped.width, greaterThanOrEqualTo(frameSize));
+
+      // The crop should NOT be massively inflated by noise.
+      // With anchor detection, the crop should be close to the barcode size.
+      // With pure luma-threshold, scattered pixels would blow up the crop.
+      // Allow up to 50% larger than the frame for margin + estimation error.
+      expect(cropped.width, lessThanOrEqualTo((frameSize * 1.5).round()));
+    });
+
+    test('finder center positions are near known locations', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+
+      final frame = _synthesizeFrame(frameSize);
+      const offsetX = 384;
+      const offsetY = 384;
+      img.compositeImage(photo, frame, dstX: offsetX, dstY: offsetY);
+
+      final result = FrameLocator.locate(photo);
+
+      // Should have anchor-based detection results
+      expect(result.tlFinderCenter, isNotNull);
+      expect(result.brFinderCenter, isNotNull);
+
+      // Known finder centers in photo coordinates:
+      // TL finder is a 3×3 block at grid (0,0). Center cell is (1,1).
+      // Center of cell (1,1) = offset + 1.5 * cellSize
+      final expectedTlX = offsetX + 1.5 * cs; // 384 + 12 = 396
+      final expectedTlY = offsetY + 1.5 * cs;
+
+      final cols = frameSize ~/ cs;
+      final rows = frameSize ~/ cs;
+      // BR finder center cell is (cols-2, rows-2)
+      final expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
+      final expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
+
+      // Allow tolerance for downscale + averaging error
+      const tolerance = 20.0;
+      expect((result.tlFinderCenter!.x - expectedTlX).abs(),
+          lessThanOrEqualTo(tolerance));
+      expect((result.tlFinderCenter!.y - expectedTlY).abs(),
+          lessThanOrEqualTo(tolerance));
+      expect((result.brFinderCenter!.x - expectedBrX).abs(),
+          lessThanOrEqualTo(tolerance));
+      expect((result.brFinderCenter!.y - expectedBrY).abs(),
+          lessThanOrEqualTo(tolerance));
+    });
+
+    test('falls back to luma-threshold when no finder structure present', () {
+      const photoSize = 512;
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+
+      // Draw a bright rectangle without any finder pattern structure
+      // (uniform bright block — no bright→dark→bright transitions internally)
+      img.fillRect(photo,
+          x1: 150, y1: 150, x2: 350, y2: 350,
+          color: img.ColorRgba8(200, 200, 200, 255));
+
+      final result = FrameLocator.locate(photo);
+
+      // Should still locate something (via fallback)
+      expect(result.cropped.width, greaterThan(0));
+      expect(result.boundingBox.width, greaterThan(0));
+
+      // Fallback doesn't produce finder centers
+      expect(result.tlFinderCenter, isNull);
+      expect(result.brFinderCenter, isNull);
     });
   });
 }
