@@ -236,14 +236,14 @@ void main() {
       // Known finder centers in photo coordinates:
       // TL finder is a 3×3 block at grid (0,0). Center cell is (1,1).
       // Center of cell (1,1) = offset + 1.5 * cellSize
-      final expectedTlX = offsetX + 1.5 * cs; // 384 + 12 = 396
-      final expectedTlY = offsetY + 1.5 * cs;
+      const expectedTlX = offsetX + 1.5 * cs; // 384 + 12 = 396
+      const expectedTlY = offsetY + 1.5 * cs;
 
-      final cols = frameSize ~/ cs;
-      final rows = frameSize ~/ cs;
+      const cols = frameSize ~/ cs;
+      const rows = frameSize ~/ cs;
       // BR finder center cell is (cols-2, rows-2)
-      final expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
-      final expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
+      const expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
+      const expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
 
       // Allow tolerance for downscale + averaging error
       const tolerance = 20.0;
