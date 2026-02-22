@@ -141,7 +141,7 @@ class CameraDecodePipeline {
         final resized = img.copyResize(cropped,
             width: frameSize,
             height: frameSize,
-            interpolation: img.Interpolation.linear);
+            interpolation: img.Interpolation.nearest);
 
         // Decode pixels -> raw bytes -> RS decode
         final rawBytes = _decoder.decodeFramePixels(resized, frameSize,

@@ -119,25 +119,17 @@ class LiveScanner {
     // Strategy 1: FrameLocator (bright-region detection)
     try {
       final locateResult = FrameLocator.locate(photo);
-      // Only use if crop is meaningfully smaller than the original image.
-      // If the crop covers >80% of the area, FrameLocator found "everything"
-      // (e.g. well-lit room) and the crop is useless.
-      final cropArea = locateResult.cropped.width * locateResult.cropped.height;
-      final totalArea = photo.width * photo.height;
-      final cropRatio = cropArea / totalArea;
-      _emitDebug('crop_ratio', 'locator=${cropRatio.toStringAsFixed(2)} '
+      _emitDebug('crop_ratio',
           'crop=${locateResult.cropped.width}x${locateResult.cropped.height}');
-      if (cropRatio < 0.8) {
-        // Always propagate bounding box so the AR overlay shows even before
-        // a successful decode — gives the user visual feedback that the app
-        // sees the barcode.
-        barcodeRect = locateResult.boundingBox;
-        (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
-        if (dataBytes != null) {
-          _emitDebug('frame_decoded', 'strategy=locator size=$usedSize');
-        } else {
-          _emitDebug('frame_rejected', 'strategy=locator decode_failed');
-        }
+      // Always use locator result — even when the barcode fills most of the
+      // frame (normal scanning distance). Fall back to center-crop only if
+      // FrameLocator throws or decode fails.
+      barcodeRect = locateResult.boundingBox;
+      (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
+      if (dataBytes != null) {
+        _emitDebug('frame_decoded', 'strategy=locator size=$usedSize');
+      } else {
+        _emitDebug('frame_rejected', 'strategy=locator decode_failed');
       }
     } catch (_) {
       _emitDebug('frame_rejected', 'strategy=locator no_bright_region');
@@ -328,11 +320,15 @@ class LiveScanner {
       final resized = img.copyResize(cropped,
           width: frameSize,
           height: frameSize,
-          interpolation: img.Interpolation.linear);
+          interpolation: img.Interpolation.nearest);
 
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: true, useRelativeColor: true);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
+
+      _emitDebug('try_decode', 'size=$frameSize '
+          'raw16=${_hexPreview(rawBytes, 16)} '
+          'rs16=${_hexPreview(dataBytes, 16)}');
 
       if (dataBytes.isEmpty) return null;
 
@@ -343,12 +339,29 @@ class LiveScanner {
       for (var i = 0; i < checkLen; i++) {
         if (dataBytes[i] != 0) nonZero++;
       }
-      if (nonZero == 0) return null;
+      if (nonZero == 0) {
+        _emitDebug('quality_gate', 'REJECTED size=$frameSize nonZero=0/$checkLen');
+        return null;
+      }
 
+      _emitDebug('quality_gate', 'PASSED size=$frameSize nonZero=$nonZero/$checkLen');
       return dataBytes;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Hex preview of first [n] bytes for debug output.
+  static String _hexPreview(Uint8List bytes, int n) {
+    final len = min(n, bytes.length);
+    if (len == 0) return '[]';
+    final sb = StringBuffer('[');
+    for (var i = 0; i < len; i++) {
+      if (i > 0) sb.write(' ');
+      sb.write(bytes[i].toRadixString(16).padLeft(2, '0'));
+    }
+    sb.write(']');
+    return sb.toString();
   }
 
   /// Check if scanning is complete.

@@ -29,6 +29,8 @@ class LiveScanState {
   final BarcodeRect? barcodeRect;
   final int? sourceImageWidth;
   final int? sourceImageHeight;
+  final bool debugEnabled;
+  final List<String> debugLog;
 
   const LiveScanState({
     this.isScanning = false,
@@ -42,6 +44,8 @@ class LiveScanState {
     this.barcodeRect,
     this.sourceImageWidth,
     this.sourceImageHeight,
+    this.debugEnabled = false,
+    this.debugLog = const [],
   });
 
   LiveScanState copyWith({
@@ -56,6 +60,8 @@ class LiveScanState {
     BarcodeRect? barcodeRect,
     int? sourceImageWidth,
     int? sourceImageHeight,
+    bool? debugEnabled,
+    List<String>? debugLog,
     bool clearResult = false,
     bool clearError = false,
     bool clearBarcodeRect = false,
@@ -72,6 +78,8 @@ class LiveScanState {
       barcodeRect: clearBarcodeRect ? null : (barcodeRect ?? this.barcodeRect),
       sourceImageWidth: sourceImageWidth ?? this.sourceImageWidth,
       sourceImageHeight: sourceImageHeight ?? this.sourceImageHeight,
+      debugEnabled: debugEnabled ?? this.debugEnabled,
+      debugLog: debugLog ?? this.debugLog,
     );
   }
 
@@ -89,11 +97,28 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   int _lastProcessedMs = 0;
   bool _processing = false;
 
+  static const _maxDebugEntries = 50;
+
   void startScan() {
     _scanner.reset();
+    _scanner.onDebug = _onDebug;
     _lastProcessedMs = 0;
     _processing = false;
-    state = const LiveScanState(isScanning: true);
+    state = LiveScanState(isScanning: true, debugEnabled: state.debugEnabled);
+  }
+
+  void _onDebug(ScanDebugInfo info) {
+    Future.microtask(() {
+      final log = [...state.debugLog, info.toString()];
+      if (log.length > _maxDebugEntries) {
+        log.removeRange(0, log.length - _maxDebugEntries);
+      }
+      state = state.copyWith(debugLog: log);
+    });
+  }
+
+  void toggleDebug() {
+    state = state.copyWith(debugEnabled: !state.debugEnabled);
   }
 
   void stopScan() {

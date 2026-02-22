@@ -25,6 +25,9 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   bool _initializing = false;
   String? _cameraError;
   bool _decryptTriggered = false;
+  int _tapCount = 0;
+  DateTime _lastTapTime = DateTime(0);
+  final ScrollController _debugScrollController = ScrollController();
 
   @override
   void initState() {
@@ -48,6 +51,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.stopImageStream().catchError((_) {});
     _cameraController?.dispose();
+    _debugScrollController.dispose();
     // Restore all orientations
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
@@ -135,11 +139,39 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
         );
   }
 
+  void _onStatusTap() {
+    final now = DateTime.now();
+    if (now.difference(_lastTapTime).inMilliseconds > 500) {
+      _tapCount = 0;
+    }
+    _lastTapTime = now;
+    _tapCount++;
+    if (_tapCount >= 3) {
+      _tapCount = 0;
+      ref.read(liveScanControllerProvider.notifier).toggleDebug();
+    }
+  }
+
+  void _scrollDebugToBottom() {
+    if (_debugScrollController.hasClients) {
+      _debugScrollController.jumpTo(
+        _debugScrollController.position.maxScrollExtent,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final scanState = ref.watch(liveScanControllerProvider);
     final controller = ref.read(liveScanControllerProvider.notifier);
+
+    // Auto-scroll debug log when new entries arrive
+    if (scanState.debugEnabled && scanState.debugLog.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollDebugToBottom();
+      });
+    }
 
     // Auto-decrypt when scan is complete
     if (controller.scanComplete &&
@@ -226,26 +258,57 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
             ),
           ),
 
-          // Bottom: status panel
+          // Debug overlay (above status panel)
+          if (scanState.debugEnabled && scanState.debugLog.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 160,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                color: Colors.black.withValues(alpha: 0.8),
+                child: ListView.builder(
+                  controller: _debugScrollController,
+                  padding: const EdgeInsets.all(8),
+                  itemCount: scanState.debugLog.length,
+                  itemBuilder: (_, i) => Text(
+                    scanState.debugLog[i],
+                    style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Bottom: status panel (triple-tap to toggle debug)
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black87],
+            child: GestureDetector(
+              onTap: _onStatusTap,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.of(context).padding.bottom + 16,
                 ),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black87],
+                  ),
+                ),
+                child: _buildStatusPanel(l10n, scanState, controller),
               ),
-              child: _buildStatusPanel(l10n, scanState, controller),
             ),
           ),
         ],
