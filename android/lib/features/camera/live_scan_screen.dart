@@ -268,7 +268,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.4,
                 ),
-                color: Colors.black.withValues(alpha: 0.8),
+                color: Colors.black.withOpacity(0.8),
                 child: ListView.builder(
                   controller: _debugScrollController,
                   padding: const EdgeInsets.all(8),
