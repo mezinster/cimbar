@@ -11,6 +11,7 @@ import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'crypto_service.dart';
 import 'frame_locator.dart';
+import 'perspective_transform.dart';
 
 /// Single-frame decode pipeline for camera-captured photos.
 ///
@@ -46,8 +47,9 @@ class CameraDecodePipeline {
     );
 
     final img.Image cropped;
+    final LocateResult locateResult;
     try {
-      final locateResult = FrameLocator.locate(photo);
+      locateResult = FrameLocator.locate(photo);
       cropped = locateResult.cropped;
     } catch (e) {
       yield DecodeProgress(
@@ -64,7 +66,10 @@ class CameraDecodePipeline {
       message: 'Detecting frame size...',
     );
 
-    final sizeResult = _tryAllFrameSizes(cropped, tuningConfig: tuningConfig);
+    final sizeResult = _tryAllFrameSizes(cropped,
+        tuningConfig: tuningConfig,
+        sourcePhoto: photo,
+        locateResult: locateResult);
     if (sizeResult == null) {
       yield const DecodeProgress(
         state: DecodeState.error,
@@ -136,40 +141,79 @@ class CameraDecodePipeline {
   /// Try decoding the cropped image at each supported frame size.
   /// Returns (frameSize, dataBytes) for the first size that produces a
   /// plausible 4-byte length prefix, or null if none work.
+  ///
+  /// When [sourcePhoto] and [locateResult] with finder centers are available,
+  /// tries perspective warp first per frame size, falling back to crop+resize.
   (int, Uint8List)? _tryAllFrameSizes(img.Image cropped, {
     DecodeTuningConfig? tuningConfig,
+    img.Image? sourcePhoto,
+    LocateResult? locateResult,
   }) {
     final config = tuningConfig ?? const DecodeTuningConfig();
     for (final frameSize in CimbarConstants.frameSizes) {
-      try {
-        // Resize cropped barcode to candidate frame size
-        final resized = img.copyResize(cropped,
+      // Strategy A: perspective warp (when finder centers available)
+      if (sourcePhoto != null &&
+          locateResult?.tlFinderCenter != null &&
+          locateResult?.brFinderCenter != null) {
+        final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
+            usePerspective: true, locateResult: locateResult!);
+        if (result != null) return (frameSize, result);
+      }
+
+      // Strategy B: existing crop+resize
+      final result = _tryDecodeAtSize(cropped, frameSize, config);
+      if (result != null) return (frameSize, result);
+    }
+    return null;
+  }
+
+  /// Try to decode an image at a specific frame size.
+  ///
+  /// If [usePerspective] is true, applies a perspective warp using finder
+  /// centers from [locateResult]. Otherwise, does a simple resize.
+  Uint8List? _tryDecodeAtSize(
+    img.Image source,
+    int frameSize,
+    DecodeTuningConfig config, {
+    bool usePerspective = false,
+    LocateResult? locateResult,
+  }) {
+    try {
+      final img.Image resized;
+      if (usePerspective && locateResult != null) {
+        final corners = PerspectiveTransform.computeBarcodeCorners(
+            locateResult.tlFinderCenter!, locateResult.brFinderCenter!,
+            frameSize);
+        if (corners == null) return null;
+        resized = PerspectiveTransform.warpPerspective(
+            source, corners, frameSize);
+      } else {
+        resized = img.copyResize(source,
             width: frameSize,
             height: frameSize,
             interpolation: img.Interpolation.nearest);
-
-        // Decode pixels -> raw bytes -> RS decode
-        final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
-            enableWhiteBalance: config.enableWhiteBalance,
-            useRelativeColor: config.useRelativeColor,
-            symbolThreshold: config.symbolThreshold,
-            quadrantOffset: config.quadrantOffset);
-        final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
-
-        // Validate: need at least 4 bytes for length prefix
-        if (dataBytes.length < 4) continue;
-
-        final payloadLength = readUint32BE(dataBytes);
-
-        // Plausibility check: payload must be >= 32 bytes (minimum for
-        // AES-GCM: 4 magic + 16 salt + 12 IV + tag) and fit in data
-        if (payloadLength >= 32 && payloadLength <= dataBytes.length - 4) {
-          return (frameSize, dataBytes);
-        }
-      } catch (_) {
-        // RS decode or other failure at this size — try next
-        continue;
       }
+
+      // Decode pixels -> raw bytes -> RS decode
+      final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
+          enableWhiteBalance: config.enableWhiteBalance,
+          useRelativeColor: config.useRelativeColor,
+          symbolThreshold: config.symbolThreshold,
+          quadrantOffset: config.quadrantOffset);
+      final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
+
+      // Validate: need at least 4 bytes for length prefix
+      if (dataBytes.length < 4) return null;
+
+      final payloadLength = readUint32BE(dataBytes);
+
+      // Plausibility check: payload must be >= 32 bytes (minimum for
+      // AES-GCM: 4 magic + 16 salt + 12 IV + tag) and fit in data
+      if (payloadLength >= 32 && payloadLength <= dataBytes.length - 4) {
+        return dataBytes;
+      }
+    } catch (_) {
+      // RS decode or other failure
     }
     return null;
   }

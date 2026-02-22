@@ -9,6 +9,7 @@ import '../models/decode_tuning_config.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'frame_locator.dart';
+import 'perspective_transform.dart';
 
 /// Result of processing a single camera frame.
 class ScanProgress {
@@ -129,7 +130,8 @@ class LiveScanner {
       // frame (normal scanning distance). Fall back to center-crop only if
       // FrameLocator throws or decode fails.
       barcodeRect = locateResult.boundingBox;
-      (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped);
+      (dataBytes, usedSize) = _tryDecodeImage(locateResult.cropped,
+          sourcePhoto: photo, locateResult: locateResult);
       if (dataBytes != null) {
         _emitDebug('frame_decoded', 'strategy=locator size=$usedSize');
       } else {
@@ -302,14 +304,19 @@ class LiveScanner {
 
   /// Try all candidate frame sizes on a cropped image.
   /// Returns (dataBytes, frameSize) or (null, null).
-  (Uint8List?, int?) _tryDecodeImage(img.Image cropped) {
+  (Uint8List?, int?) _tryDecodeImage(img.Image cropped, {
+    img.Image? sourcePhoto,
+    LocateResult? locateResult,
+  }) {
     if (_frameSize != null) {
-      final data = _tryDecode(cropped, _frameSize!);
+      final data = _tryDecode(cropped, _frameSize!,
+          sourcePhoto: sourcePhoto, locateResult: locateResult);
       if (data != null) return (data, _frameSize!);
       return (null, null);
     }
     for (final size in CimbarConstants.frameSizes) {
-      final data = _tryDecode(cropped, size);
+      final data = _tryDecode(cropped, size,
+          sourcePhoto: sourcePhoto, locateResult: locateResult);
       if (data != null) {
         _frameSize = size;
         return (data, size);
@@ -319,13 +326,41 @@ class LiveScanner {
   }
 
   /// Try to decode a cropped image at a specific frame size.
-  Uint8List? _tryDecode(img.Image cropped, int frameSize) {
-    try {
-      final resized = img.copyResize(cropped,
-          width: frameSize,
-          height: frameSize,
-          interpolation: img.Interpolation.nearest);
+  ///
+  /// When [sourcePhoto] and [locateResult] with finder centers are available,
+  /// tries perspective warp first. Falls back to crop+resize if warp fails.
+  Uint8List? _tryDecode(img.Image cropped, int frameSize, {
+    img.Image? sourcePhoto,
+    LocateResult? locateResult,
+  }) {
+    // Strategy A: perspective warp (when finder centers available)
+    if (sourcePhoto != null &&
+        locateResult?.tlFinderCenter != null &&
+        locateResult?.brFinderCenter != null) {
+      final corners = PerspectiveTransform.computeBarcodeCorners(
+          locateResult!.tlFinderCenter!, locateResult.brFinderCenter!, frameSize);
+      if (corners != null) {
+        final warped = PerspectiveTransform.warpPerspective(
+            sourcePhoto, corners, frameSize);
+        final result = _tryDecodeResized(warped, frameSize);
+        if (result != null) return result;
+        _emitDebug('perspective_fallback',
+            'warp failed RS for size=$frameSize, trying crop+resize');
+      }
+    }
 
+    // Strategy B: existing crop+resize fallback
+    return _tryDecodeResized(
+        img.copyResize(cropped,
+            width: frameSize,
+            height: frameSize,
+            interpolation: img.Interpolation.nearest),
+        frameSize);
+  }
+
+  /// Decode a pre-sized image and apply quality gate.
+  Uint8List? _tryDecodeResized(img.Image resized, int frameSize) {
+    try {
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: tuningConfig.enableWhiteBalance,
           useRelativeColor: tuningConfig.useRelativeColor,

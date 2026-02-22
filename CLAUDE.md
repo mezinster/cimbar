@@ -109,6 +109,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `frame_locator.dart` — finds the CimBar barcode region in a camera photo via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` containing the cropped square image, a `BarcodeRect` with bounding box coordinates in source image space (used for AR overlay), and optional `tlFinderCenter`/`brFinderCenter` (`Point<double>?`) for future perspective transform use
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
+- `perspective_transform.dart` — pure-Dart perspective warp: derives 4 barcode corners from 2 finder centers (assuming square barcode), computes 3×3 homography via DLT (8×8 linear system with Gaussian elimination), warps with inverse mapping + bilinear interpolation. Used by `live_scanner.dart` and `camera_decode_pipeline.dart` as a "try warp first, fallback to crop+resize" strategy
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus` (`shareResult` for `DecodeResult`, `shareFile` for existing paths)
 
 #### State management (Riverpod)
@@ -257,11 +258,17 @@ Techniques from the C++ libcimbar scanner, identified for porting. Priorities 1,
 
 Implemented in `cimbar_decoder.dart` as `enableWhiteBalance` flag (enabled for camera decode paths, disabled for GIF decode). Samples 4×4 pixel regions at the outer corner cells of the TL and BR finder patterns (which are known to be solid white), takes per-channel maximum across both samples, then computes a full Von Kries 3×3 chromatic adaptation matrix (`M⁻¹ · diag(dst_cone/src_cone) · M`) to map observed white to true (255,255,255). Applied per-pixel before color matching. Falls back gracefully (skip correction) if observed white is too dark (luma < 30).
 
-### Priority 2 — Perspective transform (medium effort, critical impact)
+### ~~Priority 2 — Perspective transform~~ ✓ IMPLEMENTED
 
-With 4 corner anchor points, libcimbar uses OpenCV `getPerspectiveTransform()` + `warpPerspective()` to rectify tilted/rotated/skewed captures into a perfect square. Our square-crop approach fails if the camera is angled even slightly — every cell becomes misaligned.
+Implemented in `perspective_transform.dart` as a pure-Dart homography warp, integrated into both camera decode paths (`live_scanner.dart` and `camera_decode_pipeline.dart`). The transform is always additive — when finder centers are available, perspective warp is tried first; if RS decode fails, it falls back to the existing crop+resize path.
 
-**Dependency:** Anchor detection (Priority 3) is now implemented and provides `tlFinderCenter`/`brFinderCenter` coordinates via `LocateResult`. The `image` package has no built-in perspective warp; would need a pure-Dart implementation or an FFI bridge. With 2 finder centers, a 4-corner perspective transform requires extrapolating TL/BR finder centers to estimate TR/BL corners (the barcode is square, so the other two corners can be derived geometrically).
+**Corner derivation from 2 finder centers:** The barcode is square. Given TL finder center at grid cell (1,1) and BR at (cols-2, rows-2), the diagonal vector `D = BR - TL` spans `(cols-3)*cs` pixels in each axis. The barcode's x/y unit vectors are: `ux = ((dx+dy)/(2n), (dy-dx)/(2n))`, `uy = (-(dy-dx)/(2n), (dx+dy)/(2n))`. The origin is `TL - 1.5*cs*(ux + uy)`, and the 4 corners are derived by stepping `frameSize` along each axis.
+
+**Homography computation:** DLT (Direct Linear Transform) with 4 point pairs yields an 8×8 linear system (h₈=1 normalization), solved via Gaussian elimination with partial pivoting. The 3×3 matrix maps destination pixels to source coordinates (inverse mapping).
+
+**Warp loop:** For each destination pixel `(x', y')`: multiply by the homography to get source coordinates, then bilinear interpolation from 4 neighboring source pixels (clamped at bounds). 256×256 output = 65K pixels, each requiring one 3×3 matrix-vector multiply and 4 pixel reads — well within the 4fps budget.
+
+**Fallback chain:** (1) No finder centers → crop+resize unchanged. (2) Degenerate geometry → crop+resize. (3) Warp-based RS decode fails → crop+resize for same frame size. (4) All sizes fail → center-crop strategy. GIF decode path is unaffected.
 
 ### ~~Priority 3 — Anchor-based finder pattern detection~~ ✓ IMPLEMENTED
 
@@ -275,7 +282,7 @@ Implemented in `frame_locator.dart` as the primary detection path, with the old 
 6. **Crop computation** — estimates cell size from finder width (`finderPx / 3`), computes barcode bounding square with 1.5-cell padding (finder centers are at grid cell (1,1) and (cols-2, rows-2)) plus 2% margin
 7. **Fallback** — if fewer than 2 finders found, reverts to original luma > 30 bounding-box approach
 
-`LocateResult` now includes optional `tlFinderCenter` and `brFinderCenter` (`Point<double>?`) in original image coordinates, present when anchor detection succeeds (null on fallback). These enable future perspective transform work (Priority 2).
+`LocateResult` now includes optional `tlFinderCenter` and `brFinderCenter` (`Point<double>?`) in original image coordinates, present when anchor detection succeeds (null on fallback). These are used by the perspective transform (Priority 2).
 
 **Key tuning insight:** The finder's dark center is only ~4px wide after 2× downscale, and the 3px inner white dot splits the center row into complex sub-runs. Scanning every 2 rows ensures hitting the clean rows above/below the inner dot. The dense scan is affordable: O(w×h/4) pixel lookups on the downscaled image.
 
@@ -367,6 +374,7 @@ flutter test
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 | `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, barcode filling entire image, dark image (no barcode), noisy background with scattered bright pixels (verifies anchor detection ignores noise), finder center position validation (detected centers within 20px of known positions), and fallback behavior (uniform bright rectangle without finder structure triggers luma-threshold fallback with null finder centers). 7 tests total. |
 | `test/core/services/yuv_converter_test.dart` | YUV420→RGB conversion: pure white/black, UV subsampling correctness, stride configurations (padded Y rows), semi-planar UV (uvPixelStride=2). |
+| `test/core/services/perspective_transform_test.dart` | Corner derivation (axis-aligned and 30° rotated barcodes produce correct square corners, degenerate inputs return null), identity warp preserves content, warp corrects rotated barcode (>70% cell colors match palette), full RS decode round-trip through perspective warp (256px barcode rotated 10° at 2× in 900px photo), fallback path with no finder centers. 7 tests. |
 | `test/core/services/live_scanner_test.dart` | Multi-frame scanning logic via `processDecodedData`: single-frame complete scan, 5-frame progressive capture with assembly, duplicate handling, out-of-order adjacency-chain resolution ([2,3,4,0,1] → correct [0,1,2,3,4]), frame 0 detection, dark image graceful handling, reset. |
 
 ### Known subtleties
