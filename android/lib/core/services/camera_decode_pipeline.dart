@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -151,16 +152,27 @@ class CameraDecodePipeline {
   }) {
     final config = tuningConfig ?? const DecodeTuningConfig();
     for (final frameSize in CimbarConstants.frameSizes) {
-      // Strategy A: perspective warp (when finder centers available)
-      if (sourcePhoto != null &&
-          locateResult?.tlFinderCenter != null &&
-          locateResult?.brFinderCenter != null) {
-        final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
-            usePerspective: true, locateResult: locateResult!);
-        if (result != null) return (frameSize, result);
+      if (sourcePhoto != null && locateResult != null) {
+        // Strategy A: 4-point perspective warp (all 4 finders present)
+        if (locateResult.tlFinderCenter != null &&
+            locateResult.trFinderCenter != null &&
+            locateResult.blFinderCenter != null &&
+            locateResult.brFinderCenter != null) {
+          final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
+              usePerspective: true, use4Point: true, locateResult: locateResult);
+          if (result != null) return (frameSize, result);
+        }
+
+        // Strategy B: 2-point perspective warp (TL+BR only)
+        if (locateResult.tlFinderCenter != null &&
+            locateResult.brFinderCenter != null) {
+          final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
+              usePerspective: true, locateResult: locateResult);
+          if (result != null) return (frameSize, result);
+        }
       }
 
-      // Strategy B: existing crop+resize
+      // Strategy C: existing crop+resize
       final result = _tryDecodeAtSize(cropped, frameSize, config);
       if (result != null) return (frameSize, result);
     }
@@ -170,20 +182,32 @@ class CameraDecodePipeline {
   /// Try to decode an image at a specific frame size.
   ///
   /// If [usePerspective] is true, applies a perspective warp using finder
-  /// centers from [locateResult]. Otherwise, does a simple resize.
+  /// centers from [locateResult]. When [use4Point] is true, uses all 4 finder
+  /// centers for the warp; otherwise uses only TL+BR (2-point method).
   Uint8List? _tryDecodeAtSize(
     img.Image source,
     int frameSize,
     DecodeTuningConfig config, {
     bool usePerspective = false,
+    bool use4Point = false,
     LocateResult? locateResult,
   }) {
     try {
       final img.Image resized;
       if (usePerspective && locateResult != null) {
-        final corners = PerspectiveTransform.computeBarcodeCorners(
-            locateResult.tlFinderCenter!, locateResult.brFinderCenter!,
-            frameSize);
+        List<Point<double>>? corners;
+        if (use4Point) {
+          corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+              locateResult.tlFinderCenter!,
+              locateResult.trFinderCenter!,
+              locateResult.blFinderCenter!,
+              locateResult.brFinderCenter!,
+              frameSize);
+        } else {
+          corners = PerspectiveTransform.computeBarcodeCorners(
+              locateResult.tlFinderCenter!, locateResult.brFinderCenter!,
+              frameSize);
+        }
         if (corners == null) return null;
         resized = PerspectiveTransform.warpPerspective(
             source, corners, frameSize);

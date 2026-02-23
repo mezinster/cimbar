@@ -32,7 +32,7 @@ class CimbarConstants {
   static int usableCells(int frameSize) {
     final cols = frameSize ~/ cellSize;
     final rows = frameSize ~/ cellSize;
-    return cols * rows - 18; // two 3x3 finder blocks
+    return cols * rows - 36; // four 3x3 finder blocks
   }
 
   /// Raw byte capacity of a frame (before RS overhead).

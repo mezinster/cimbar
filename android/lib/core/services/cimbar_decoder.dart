@@ -184,13 +184,15 @@ class CimbarDecoder {
 
     // Sample outer corner cells of each finder (known to be solid white)
     final tlSample = sampleRegion(0, 0);
+    final trSample = sampleRegion(cols - 1, 0);
+    final blSample = sampleRegion(0, rows - 1);
     final brSample = sampleRegion(cols - 1, rows - 1);
 
-    // Per-channel max (like libcimbar — handles partially occluded finders)
+    // Per-channel max across all 4 finders (handles partially occluded finders)
     return [
-      max(tlSample[0], brSample[0]),
-      max(tlSample[1], brSample[1]),
-      max(tlSample[2], brSample[2]),
+      max(max(tlSample[0], trSample[0]), max(blSample[0], brSample[0])),
+      max(max(tlSample[1], trSample[1]), max(blSample[1], brSample[1])),
+      max(max(tlSample[2], trSample[2]), max(blSample[2], brSample[2])),
     ];
   }
 
@@ -367,8 +369,10 @@ class CimbarDecoder {
       for (var row = 0; row < rows; row++) {
         for (var col = 0; col < cols; col++) {
           final inTL = row < 3 && col < 3;
+          final inTR = row < 3 && col >= cols - 3;
+          final inBL = row >= rows - 3 && col < 3;
           final inBR = row >= rows - 3 && col >= cols - 3;
-          if (inTL || inBR) continue;
+          if (inTL || inTR || inBL || inBR) continue;
 
           final ox = col * cs;
           final oy = row * cs;
@@ -460,8 +464,10 @@ class CimbarDecoder {
       for (var row = 0; row < rows; row++) {
         for (var col = 0; col < cols; col++) {
           final inTL = row < 3 && col < 3;
+          final inTR = row < 3 && col >= cols - 3;
+          final inBL = row >= rows - 3 && col < 3;
           final inBR = row >= rows - 3 && col >= cols - 3;
-          if (inTL || inBR) continue;
+          if (inTL || inTR || inBL || inBR) continue;
 
           final ox = col * cs;
           final oy = row * cs;

@@ -197,8 +197,10 @@ class CimbarEncoder {
     for (var row = 0; row < rows; row++) {
       for (var col = 0; col < cols; col++) {
         final inTL = row < 3 && col < 3;
+        final inTR = row < 3 && col >= cols - 3;
+        final inBL = row >= rows - 3 && col < 3;
         final inBR = row >= rows - 3 && col >= cols - 3;
-        if (inTL || inBR) continue;
+        if (inTL || inTR || inBL || inBR) continue;
 
         final globalBit = cellIdx * 7;
         final bytePos = globalBit ~/ 8;
@@ -225,6 +227,8 @@ class CimbarEncoder {
     }
 
     drawFinder(image, 0, 0, cs);
+    drawFinder(image, (cols - 3) * cs, 0, cs);
+    drawFinder(image, 0, (rows - 3) * cs, cs);
     drawFinder(image, (cols - 3) * cs, (rows - 3) * cs, cs);
 
     return image;

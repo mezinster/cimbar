@@ -327,29 +327,53 @@ class LiveScanner {
 
   /// Try to decode a cropped image at a specific frame size.
   ///
-  /// When [sourcePhoto] and [locateResult] with finder centers are available,
-  /// tries perspective warp first. Falls back to crop+resize if warp fails.
+  /// Fallback chain:
+  /// - Strategy A: 4-point perspective warp (all 4 finders present)
+  /// - Strategy B: 2-point perspective warp (TL+BR only)
+  /// - Strategy C: crop+resize (no finders)
   Uint8List? _tryDecode(img.Image cropped, int frameSize, {
     img.Image? sourcePhoto,
     LocateResult? locateResult,
   }) {
-    // Strategy A: perspective warp (when finder centers available)
-    if (sourcePhoto != null &&
-        locateResult?.tlFinderCenter != null &&
-        locateResult?.brFinderCenter != null) {
-      final corners = PerspectiveTransform.computeBarcodeCorners(
-          locateResult!.tlFinderCenter!, locateResult.brFinderCenter!, frameSize);
-      if (corners != null) {
-        final warped = PerspectiveTransform.warpPerspective(
-            sourcePhoto, corners, frameSize);
-        final result = _tryDecodeResized(warped, frameSize);
-        if (result != null) return result;
-        _emitDebug('perspective_fallback',
-            'warp failed RS for size=$frameSize, trying crop+resize');
+    if (sourcePhoto != null && locateResult != null) {
+      // Strategy A: 4-point warp (all 4 finders present)
+      if (locateResult.tlFinderCenter != null &&
+          locateResult.trFinderCenter != null &&
+          locateResult.blFinderCenter != null &&
+          locateResult.brFinderCenter != null) {
+        final corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+            locateResult.tlFinderCenter!,
+            locateResult.trFinderCenter!,
+            locateResult.blFinderCenter!,
+            locateResult.brFinderCenter!,
+            frameSize);
+        if (corners != null) {
+          final warped = PerspectiveTransform.warpPerspective(
+              sourcePhoto, corners, frameSize);
+          final result = _tryDecodeResized(warped, frameSize);
+          if (result != null) return result;
+          _emitDebug('perspective_fallback',
+              '4-point warp failed RS for size=$frameSize, trying 2-point');
+        }
+      }
+
+      // Strategy B: 2-point warp (TL+BR only)
+      if (locateResult.tlFinderCenter != null &&
+          locateResult.brFinderCenter != null) {
+        final corners = PerspectiveTransform.computeBarcodeCorners(
+            locateResult.tlFinderCenter!, locateResult.brFinderCenter!, frameSize);
+        if (corners != null) {
+          final warped = PerspectiveTransform.warpPerspective(
+              sourcePhoto, corners, frameSize);
+          final result = _tryDecodeResized(warped, frameSize);
+          if (result != null) return result;
+          _emitDebug('perspective_fallback',
+              '2-point warp failed RS for size=$frameSize, trying crop+resize');
+        }
       }
     }
 
-    // Strategy B: existing crop+resize fallback
+    // Strategy C: existing crop+resize fallback
     return _tryDecodeResized(
         img.copyResize(cropped,
             width: frameSize,

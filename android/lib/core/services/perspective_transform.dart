@@ -70,6 +70,67 @@ class PerspectiveTransform {
     ];
   }
 
+  /// Compute 4 barcode corners from 4 finder pattern centers.
+  ///
+  /// Unlike [computeBarcodeCorners] (2-finder), this derives x and y axes
+  /// independently from TL→TR and TL→BL, handling trapezoidal distortion
+  /// from angled camera views.
+  ///
+  /// Finder centers: TL at grid (1.5*cs, 1.5*cs), TR at ((cols-1.5)*cs, 1.5*cs),
+  /// BL at (1.5*cs, (rows-1.5)*cs), BR at ((cols-1.5)*cs, (rows-1.5)*cs).
+  ///
+  /// Returns [TL, TR, BL, BR] corners or null if the geometry is degenerate.
+  static List<Point<double>>? computeBarcodeCornersFrom4(
+    Point<double> tlFinder,
+    Point<double> trFinder,
+    Point<double> blFinder,
+    Point<double> brFinder,
+    int frameSize,
+  ) {
+    const cs = CimbarConstants.cellSize;
+    final cols = frameSize ~/ cs;
+    // Horizontal span between TL and TR finder centers: (cols-3)*cs pixels
+    final spanH = (cols - 3) * cs;
+    // Vertical span between TL and BL finder centers: (rows-3)*cs pixels
+    final rows = frameSize ~/ cs;
+    final spanV = (rows - 3) * cs;
+    if (spanH <= 0 || spanV <= 0) return null;
+
+    // Derive x-axis unit vector from TL→TR finder direction
+    final dxH = trFinder.x - tlFinder.x;
+    final dyH = trFinder.y - tlFinder.y;
+    final distH = sqrt(dxH * dxH + dyH * dyH);
+    if (distH < _minDiagonal) return null;
+
+    // Derive y-axis unit vector from TL→BL finder direction
+    final dxV = blFinder.x - tlFinder.x;
+    final dyV = blFinder.y - tlFinder.y;
+    final distV = sqrt(dxV * dxV + dyV * dyV);
+    if (distV < _minDiagonal) return null;
+
+    // Unit vectors scaled to 1 pixel of barcode space
+    final uxX = dxH / spanH.toDouble();
+    final uxY = dyH / spanH.toDouble();
+    final uyX = dxV / spanV.toDouble();
+    final uyY = dyV / spanV.toDouble();
+
+    // Origin: TL finder center is at grid position (1.5*cs, 1.5*cs) from
+    // the barcode's top-left corner.
+    const pad = 1.5 * cs;
+    final originX = tlFinder.x - pad * uxX - pad * uyX;
+    final originY = tlFinder.y - pad * uxY - pad * uyY;
+
+    final s = frameSize.toDouble();
+
+    return [
+      Point(originX, originY),                               // TL
+      Point(originX + s * uxX, originY + s * uxY),           // TR
+      Point(originX + s * uyX, originY + s * uyY),           // BL
+      Point(originX + s * uxX + s * uyX,
+            originY + s * uxY + s * uyY),                    // BR
+    ];
+  }
+
   /// Warp a quadrilateral region from [source] defined by [srcCorners]
   /// (TL, TR, BL, BR) into a [destSize] × [destSize] square image.
   ///

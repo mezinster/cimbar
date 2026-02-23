@@ -106,8 +106,10 @@ function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
     for (let col = 0; col < cols; col++) {
       // Skip finder pattern cells (top-left 3Ã—3 and bottom-right 3Ã—3)
       const inTL = row < 3 && col < 3;
+      const inTR = row < 3 && col >= cols - 3;
+      const inBL = row >= rows - 3 && col < 3;
       const inBR = row >= rows-3 && col >= cols-3;
-      if (inTL || inBR) {
+      if (inTL || inTR || inBL || inBR) {
         continue;
       }
 
@@ -139,8 +141,10 @@ function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
     }
   }
 
-  // Draw finder patterns
+  // Draw finder patterns (four corners)
   drawFinder(ctx, 0, 0, cs);
+  drawFinder(ctx, (cols-3)*cs, 0, cs);
+  drawFinder(ctx, 0, (rows-3)*cs, cs);
   drawFinder(ctx, (cols-3)*cs, (rows-3)*cs, cs);
 }
 
@@ -152,7 +156,7 @@ function usableCells(frameSize) {
   const cols = Math.floor(frameSize / cs);
   const rows = Math.floor(frameSize / cs);
   const total = cols * rows;
-  const finderCells = 9 + 9; // two 3Ã—3 blocks
+  const finderCells = 9 * 4; // four 3Ã—3 corner blocks
   return total - finderCells;
 }
 
@@ -285,8 +289,10 @@ function decodeFramePixels(imageData, frameSize) {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const inTL = row < 3 && col < 3;
+      const inTR = row < 3 && col >= cols - 3;
+      const inBL = row >= rows - 3 && col < 3;
       const inBR = row >= rows-3 && col >= cols-3;
-      if (inTL || inBR) continue;
+      if (inTL || inTR || inBL || inBR) continue;
 
       const ox = col * cs;
       const oy = row * cs;

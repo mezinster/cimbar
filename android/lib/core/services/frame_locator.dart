@@ -12,12 +12,16 @@ class LocateResult {
   /// Optional finder pattern center coordinates (in original image space).
   /// Present when anchor-based detection succeeds; null on fallback.
   final Point<double>? tlFinderCenter;
+  final Point<double>? trFinderCenter;
+  final Point<double>? blFinderCenter;
   final Point<double>? brFinderCenter;
 
   const LocateResult({
     required this.cropped,
     required this.boundingBox,
     this.tlFinderCenter,
+    this.trFinderCenter,
+    this.blFinderCenter,
     this.brFinderCenter,
   });
 }
@@ -99,7 +103,8 @@ class FrameLocator {
     // Phase 5: Crop from anchors or fallback
     if (finders != null) {
       return _computeCropFromAnchors(
-          photo, finders.$1, finders.$2, origW, origH);
+          photo, finders.tl, finders.br, origW, origH,
+          tr: finders.tr, bl: finders.bl);
     }
 
     // Fallback to luma-threshold approach
@@ -185,20 +190,29 @@ class FrameLocator {
   }
 
   /// Phase 2: Confirm each horizontal hit with a vertical scan at centerX.
+  ///
+  /// Scans only a LOCAL vertical region around the candidate's y position
+  /// (±3× the horizontal pattern width) to avoid interference from colored
+  /// cells or other finders elsewhere in the column.
   static void _confirmVertical(
       List<_FinderCandidate> candidates, List<int> luma, int w, int h) {
     candidates.removeWhere((c) {
       final x = c.centerX.round().clamp(0, w - 1);
 
-      // Scan vertical column at x
-      var runStart = 0;
-      var runBright = luma[x] >= _brightThreshold;
+      // Limit vertical scan to local region around the candidate
+      final scanRadius = (c.hSize * 3).ceil();
+      final yStart = max(0, c.centerY.round() - scanRadius);
+      final yEnd = min(h, c.centerY.round() + scanRadius);
+
+      // Scan vertical column at x within [yStart, yEnd)
+      var runStart = yStart;
+      var runBright = luma[yStart * w + x] >= _brightThreshold;
       final runs = <(int, int, bool)>[];
 
-      for (var y = 1; y <= h; y++) {
+      for (var y = yStart + 1; y <= yEnd; y++) {
         final bright =
-            y < h ? luma[y * w + x] >= _brightThreshold : !runBright;
-        if (bright != runBright || y == h) {
+            y < yEnd ? luma[y * w + x] >= _brightThreshold : !runBright;
+        if (bright != runBright || y == yEnd) {
           runs.add((runStart, y - runStart, runBright));
           runStart = y;
           runBright = bright;
@@ -292,52 +306,120 @@ class FrameLocator {
     return merged;
   }
 
-  /// Phase 4: Score and select top 2, classify as TL/BR.
-  /// Returns (tl, br) or null if fewer than 2 candidates.
-  static (_FinderCandidate, _FinderCandidate)? _selectAndClassify(
-      List<_FinderCandidate> candidates) {
+  /// Phase 4: Classify finders as TL/TR/BL/BR using coordinate extremes.
+  ///
+  /// Returns a record with TL and BR (required) plus optional TR and BL.
+  /// Returns null if fewer than 2 candidates found.
+  ///
+  /// Classification uses coordinate-sum/difference extremes:
+  /// - TL: minimize (x+y) — top-left corner
+  /// - BR: maximize (x+y) — bottom-right corner
+  /// - TR: maximize (x-y) — top-right corner (high x, low y)
+  /// - BL: minimize (x-y) — bottom-left corner (low x, high y)
+  ///
+  /// For robustness against spurious candidates from colored cells (e.g.,
+  /// yellow cells have luma ~226 > finder threshold 180), we first select
+  /// TL and BR by coordinate extremes from ALL candidates, then find TR
+  /// and BL among remaining candidates that are geometrically consistent.
+  static ({
+    _FinderCandidate tl,
+    _FinderCandidate br,
+    _FinderCandidate? tr,
+    _FinderCandidate? bl,
+  })? _selectAndClassify(List<_FinderCandidate> candidates) {
     if (candidates.length < 2) return null;
 
-    // Score: hitCount (most important), aspect ratio closeness, contrast
-    candidates.sort((a, b) {
-      final aScore = _score(a);
-      final bScore = _score(b);
-      return bScore.compareTo(aScore); // descending
-    });
+    // Find TL (min x+y) and BR (max x+y) from all candidates
+    _FinderCandidate tl = candidates[0];
+    _FinderCandidate br = candidates[0];
+    var minSum = tl.centerX + tl.centerY;
+    var maxSum = minSum;
 
-    final c0 = candidates[0];
-    final c1 = candidates[1];
-
-    // Classify: smaller (x+y) sum → TL, larger → BR
-    final sum0 = c0.centerX + c0.centerY;
-    final sum1 = c1.centerX + c1.centerY;
-
-    if (sum0 <= sum1) {
-      return (c0, c1);
-    } else {
-      return (c1, c0);
+    for (final c in candidates) {
+      final s = c.centerX + c.centerY;
+      if (s < minSum) {
+        minSum = s;
+        tl = c;
+      }
+      if (s > maxSum) {
+        maxSum = s;
+        br = c;
+      }
     }
+
+    // TL and BR must be distinct
+    if (identical(tl, br)) return null;
+
+    if (candidates.length == 2) {
+      return (tl: tl, br: br, tr: null, bl: null);
+    }
+
+    // Find TR (max x-y) and BL (min x-y) among remaining candidates,
+    // but only accept them if they're geometrically consistent with TL/BR
+    // (i.e., within the bounding region of TL..BR).
+    final midX = (tl.centerX + br.centerX) / 2;
+    final midY = (tl.centerY + br.centerY) / 2;
+    final spanX = (br.centerX - tl.centerX).abs();
+    final spanY = (br.centerY - tl.centerY).abs();
+    final span = max(spanX, spanY);
+
+    _FinderCandidate? tr;
+    _FinderCandidate? bl;
+    var maxXminusY = double.negativeInfinity;
+    var minXminusY = double.infinity;
+
+    for (final c in candidates) {
+      if (identical(c, tl) || identical(c, br)) continue;
+
+      // Must be within reasonable distance of the barcode region
+      if ((c.centerX - midX).abs() > span ||
+          (c.centerY - midY).abs() > span) {
+        continue;
+      }
+
+      final d = c.centerX - c.centerY;
+      if (d > maxXminusY) {
+        maxXminusY = d;
+        tr = c;
+      }
+      if (d < minXminusY) {
+        minXminusY = d;
+        bl = c;
+      }
+    }
+
+    // If TR and BL ended up as the same candidate, classify by position
+    if (tr != null && bl != null && identical(tr, bl)) {
+      if (tr!.centerX > midX) {
+        bl = null;
+      } else {
+        tr = null;
+      }
+    }
+
+    return (tl: tl, br: br, tr: tr, bl: bl);
   }
 
-  static double _score(_FinderCandidate c) {
-    final aspectRatio =
-        c.vSize > 0 ? min(c.hSize, c.vSize) / max(c.hSize, c.vSize) : 0.5;
-    return c.hitCount * 10.0 + aspectRatio * 5.0 + c.contrast / 50.0;
-  }
-
-  /// Phase 5: Compute crop region from TL and BR finder centers.
+  /// Phase 5: Compute crop region from TL and BR finder centers,
+  /// with optional TR and BL finders.
   static LocateResult _computeCropFromAnchors(
     img.Image photo,
     _FinderCandidate tl,
     _FinderCandidate br,
     int origW,
-    int origH,
-  ) {
+    int origH, {
+    _FinderCandidate? tr,
+    _FinderCandidate? bl,
+  }) {
     // Scale finder centers back to original coordinates
     final tlX = tl.centerX * _downscale;
     final tlY = tl.centerY * _downscale;
     final brX = br.centerX * _downscale;
     final brY = br.centerY * _downscale;
+    final trX = tr != null ? tr.centerX * _downscale : null;
+    final trY = tr != null ? tr.centerY * _downscale : null;
+    final blX = bl != null ? bl.centerX * _downscale : null;
+    final blY = bl != null ? bl.centerY * _downscale : null;
 
     // TL finder center is at grid cell (1,1), BR at (cols-2, rows-2).
     // The diagonal distance spans (cols-3) cells in both x and y.
@@ -368,10 +450,28 @@ class FrameLocator {
     //   cell (cols-0.5, rows-0.5) → 1.5 cells after the center.
     final padding = cellSize * 1.5;
 
-    var cropLeft = (tlX - padding).round();
-    var cropTop = (tlY - padding).round();
-    var cropRight = (brX + padding).round();
-    var cropBottom = (brY + padding).round();
+    // Compute bounding box from all available finder centers
+    var minFinderX = min(tlX, brX);
+    var minFinderY = min(tlY, brY);
+    var maxFinderX = max(tlX, brX);
+    var maxFinderY = max(tlY, brY);
+    if (trX != null && trY != null) {
+      minFinderX = min(minFinderX, trX);
+      minFinderY = min(minFinderY, trY);
+      maxFinderX = max(maxFinderX, trX);
+      maxFinderY = max(maxFinderY, trY);
+    }
+    if (blX != null && blY != null) {
+      minFinderX = min(minFinderX, blX);
+      minFinderY = min(minFinderY, blY);
+      maxFinderX = max(maxFinderX, blX);
+      maxFinderY = max(maxFinderY, blY);
+    }
+
+    var cropLeft = (minFinderX - padding).round();
+    var cropTop = (minFinderY - padding).round();
+    var cropRight = (maxFinderX + padding).round();
+    var cropBottom = (maxFinderY + padding).round();
 
     // Make square
     var cropW = cropRight - cropLeft;
@@ -398,6 +498,8 @@ class FrameLocator {
       boundingBox:
           BarcodeRect(x: cropX, y: cropY, width: cropSide, height: cropSide),
       tlFinderCenter: Point(tlX, tlY),
+      trFinderCenter: trX != null && trY != null ? Point(trX, trY) : null,
+      blFinderCenter: blX != null && blY != null ? Point(blX, blY) : null,
       brFinderCenter: Point(brX, brY),
     );
   }

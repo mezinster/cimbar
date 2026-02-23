@@ -110,6 +110,79 @@ void main() {
     });
   });
 
+  group('PerspectiveTransform.computeBarcodeCornersFrom4', () {
+    test('axis-aligned barcode produces correct corners', () {
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+      const cols = frameSize ~/ cs;
+
+      // 4 finder centers at grid positions (1.5*cs, 1.5*cs), etc.
+      const tlFinder = Point(1.5 * cs, 1.5 * cs);
+      const trFinder = Point((cols - 1.5) * cs, 1.5 * cs);
+      const blFinder = Point(1.5 * cs, (cols - 1.5) * cs);
+      const brFinder = Point((cols - 1.5) * cs, (cols - 1.5) * cs);
+
+      final corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+          tlFinder, trFinder, blFinder, brFinder, frameSize);
+
+      expect(corners, isNotNull);
+      expect(corners!.length, equals(4));
+
+      const tol = 1.0;
+      expect(corners[0].x, closeTo(0.0, tol)); // TL
+      expect(corners[0].y, closeTo(0.0, tol));
+      expect(corners[1].x, closeTo(256.0, tol)); // TR
+      expect(corners[1].y, closeTo(0.0, tol));
+      expect(corners[2].x, closeTo(0.0, tol)); // BL
+      expect(corners[2].y, closeTo(256.0, tol));
+      expect(corners[3].x, closeTo(256.0, tol)); // BR
+      expect(corners[3].y, closeTo(256.0, tol));
+    });
+
+    test('rotated barcode produces correct square corners', () {
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+      const cols = frameSize ~/ cs;
+
+      const angle = 30.0 * pi / 180;
+      final cosA = cos(angle);
+      final sinA = sin(angle);
+
+      const cx = 400.0, cy = 400.0;
+      // Rotate all 4 finder centers around (400, 400)
+      Point<double> rotate(double ox, double oy) {
+        return Point(
+          cx + (ox - 128) * cosA - (oy - 128) * sinA,
+          cy + (ox - 128) * sinA + (oy - 128) * cosA,
+        );
+      }
+
+      final tlFinder = rotate(1.5 * cs, 1.5 * cs);
+      final trFinder = rotate((cols - 1.5) * cs, 1.5 * cs);
+      final blFinder = rotate(1.5 * cs, (cols - 1.5) * cs);
+      final brFinder = rotate((cols - 1.5) * cs, (cols - 1.5) * cs);
+
+      final corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+          tlFinder, trFinder, blFinder, brFinder, frameSize);
+
+      expect(corners, isNotNull);
+      expect(corners!.length, equals(4));
+
+      double dist(Point<double> a, Point<double> b) {
+        final dx = a.x - b.x;
+        final dy = a.y - b.y;
+        return sqrt(dx * dx + dy * dy);
+      }
+
+      // All sides should be approximately frameSize
+      const sideTol = 2.0;
+      expect(dist(corners[0], corners[1]), closeTo(256.0, sideTol)); // TL-TR
+      expect(dist(corners[0], corners[2]), closeTo(256.0, sideTol)); // TL-BL
+      expect(dist(corners[1], corners[3]), closeTo(256.0, sideTol)); // TR-BR
+      expect(dist(corners[2], corners[3]), closeTo(256.0, sideTol)); // BL-BR
+    });
+  });
+
   group('PerspectiveTransform.warpPerspective', () {
     test('identity-like warp preserves image content', () {
       const size = 64;
@@ -211,8 +284,10 @@ void main() {
       for (var row = 4; row < cols - 4; row++) {
         for (var col = 4; col < cols - 4; col++) {
           final inTL = row < 3 && col < 3;
+          final inTR = row < 3 && col >= cols - 3;
+          final inBL = row >= cols - 3 && col < 3;
           final inBR = row >= cols - 3 && col >= cols - 3;
-          if (inTL || inBR) continue;
+          if (inTL || inTR || inBL || inBR) continue;
 
           final px = col * cs + cs ~/ 2;
           final py = row * cs + cs ~/ 2;
@@ -346,6 +421,88 @@ void main() {
           reason: '$mismatches byte mismatches in first $dataLen bytes');
     });
 
+    test('rotated barcode decodes through RS with 4-point perspective warp', () {
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+      const cols = frameSize ~/ cs;
+
+      const dataLen = 200;
+      final testData = Uint8List(dataLen);
+      for (var i = 0; i < dataLen; i++) {
+        testData[i] = (i * 7 + 13) & 0xFF;
+      }
+
+      final dpf = CimbarConstants.dataBytesPerFrame(frameSize);
+      final chunk = Uint8List(dpf);
+      chunk.setRange(0, dataLen, testData);
+
+      final rsFrame = CimbarEncoder.encodeRSFrame(chunk, frameSize);
+      final barcode = CimbarEncoder.encodeFrame(rsFrame, frameSize);
+
+      const scale = 2;
+      const angle = 10.0 * pi / 180;
+      const photoSize = 900;
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(10, 10, 10, 255));
+
+      const centerX = photoSize / 2.0;
+      const centerY = photoSize / 2.0;
+      final cosA = cos(angle);
+      final sinA = sin(angle);
+
+      for (var dy = 0; dy < photoSize; dy++) {
+        for (var dx = 0; dx < photoSize; dx++) {
+          final px = dx - centerX;
+          final py = dy - centerY;
+          final sx = (px * cosA + py * sinA) / scale + frameSize / 2.0;
+          final sy = (-px * sinA + py * cosA) / scale + frameSize / 2.0;
+          final sxi = sx.floor();
+          final syi = sy.floor();
+          if (sxi >= 0 && sxi < frameSize && syi >= 0 && syi < frameSize) {
+            final p = barcode.getPixel(sxi, syi);
+            photo.setPixelRgba(dx, dy, p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
+          }
+        }
+      }
+
+      // Compute all 4 finder centers in photo space
+      Point<double> toPhoto(double ox, double oy) {
+        final rx = (ox - frameSize / 2.0) * scale;
+        final ry = (oy - frameSize / 2.0) * scale;
+        return Point(
+          centerX + rx * cosA - ry * sinA,
+          centerY + rx * sinA + ry * cosA,
+        );
+      }
+
+      final tlFinder = toPhoto(1.5 * cs, 1.5 * cs);
+      final trFinder = toPhoto((cols - 1.5) * cs, 1.5 * cs);
+      final blFinder = toPhoto(1.5 * cs, (cols - 1.5) * cs);
+      final brFinder = toPhoto((cols - 1.5) * cs, (cols - 1.5) * cs);
+
+      final corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+          tlFinder, trFinder, blFinder, brFinder, frameSize);
+      expect(corners, isNotNull);
+
+      final warped = PerspectiveTransform.warpPerspective(
+          photo, corners!, frameSize);
+
+      final rs = ReedSolomon(CimbarConstants.eccBytes);
+      final decoder = CimbarDecoder(rs);
+      final rawBytes = decoder.decodeFramePixels(warped, frameSize);
+      final dataBytes = decoder.decodeRSFrame(rawBytes, frameSize);
+
+      expect(dataBytes.length, greaterThanOrEqualTo(dataLen));
+
+      var mismatches = 0;
+      for (var i = 0; i < dataLen; i++) {
+        if (dataBytes[i] != chunk[i]) mismatches++;
+      }
+
+      expect(mismatches, equals(0),
+          reason: '$mismatches byte mismatches in first $dataLen bytes');
+    });
+
     test('null finder centers fall back to crop+resize path', () {
       // This verifies the fallback in LiveScanner._tryDecode works
       const frameSize = 128;
@@ -391,30 +548,15 @@ img.Image _buildTestFrame(int frameSize) {
   final image = img.Image(width: frameSize, height: frameSize);
   img.fill(image, color: img.ColorRgba8(17, 17, 17, 255));
 
-  // Draw finder patterns
-  img.fillRect(image,
-      x1: 0, y1: 0, x2: 3 * cs, y2: 3 * cs,
-      color: img.ColorRgba8(255, 255, 255, 255));
-  img.fillRect(image,
-      x1: cs, y1: cs, x2: 2 * cs, y2: 2 * cs,
-      color: img.ColorRgba8(51, 51, 51, 255));
-
-  final brOx = (cols - 3) * cs;
-  final brOy = (rows - 3) * cs;
-  img.fillRect(image,
-      x1: brOx, y1: brOy, x2: brOx + 3 * cs, y2: brOy + 3 * cs,
-      color: img.ColorRgba8(255, 255, 255, 255));
-  img.fillRect(image,
-      x1: brOx + cs, y1: brOy + cs, x2: brOx + 2 * cs, y2: brOy + 2 * cs,
-      color: img.ColorRgba8(51, 51, 51, 255));
-
   // Draw data cells with cycling colors and symbols
   var cellIdx = 0;
   for (var row = 0; row < rows; row++) {
     for (var col = 0; col < cols; col++) {
       final inTL = row < 3 && col < 3;
+      final inTR = row < 3 && col >= cols - 3;
+      final inBL = row >= rows - 3 && col < 3;
       final inBR = row >= rows - 3 && col >= cols - 3;
-      if (inTL || inBR) continue;
+      if (inTL || inTR || inBL || inBR) continue;
 
       final colorIdx = cellIdx % 8;
       final symIdx = cellIdx % 16;
@@ -423,6 +565,21 @@ img.Image _buildTestFrame(int frameSize) {
       cellIdx++;
     }
   }
+
+  // Draw 4 finder patterns
+  void drawFinderBlock(int fx, int fy) {
+    img.fillRect(image,
+        x1: fx, y1: fy, x2: fx + 3 * cs, y2: fy + 3 * cs,
+        color: img.ColorRgba8(255, 255, 255, 255));
+    img.fillRect(image,
+        x1: fx + cs, y1: fy + cs, x2: fx + 2 * cs, y2: fy + 2 * cs,
+        color: img.ColorRgba8(51, 51, 51, 255));
+  }
+
+  drawFinderBlock(0, 0);                              // TL
+  drawFinderBlock((cols - 3) * cs, 0);                // TR
+  drawFinderBlock(0, (rows - 3) * cs);                // BL
+  drawFinderBlock((cols - 3) * cs, (rows - 3) * cs);  // BR
 
   return image;
 }
