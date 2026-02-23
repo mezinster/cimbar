@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
 import 'package:cimbar_scanner/core/services/cimbar_decoder.dart';
+import 'package:cimbar_scanner/core/services/symbol_hash_detector.dart';
 
 /// Draw one symbol on an image, matching web-app/cimbar.js drawSymbol.
 void drawSymbol(img.Image image, int symIdx, List<int> colorRGB, int ox, int oy, int size) {
@@ -316,6 +317,151 @@ void main() {
       expect(mismatches, lessThan(rawClean.length * 0.05),
           reason: 'Relative matching on clean pixels should have <5% errors '
               '(got $mismatches/${rawClean.length})');
+    });
+  });
+
+  group('Hash symbol detection', () {
+    test('all 16 reference hashes are distinct with minimum Hamming distance >= 4', () {
+      final detector = SymbolHashDetector();
+      final hashes = detector.referenceHashes;
+      expect(hashes.length, equals(16));
+
+      // Check all pairwise distances
+      var minDist = 65;
+      for (var i = 0; i < 16; i++) {
+        for (var j = i + 1; j < 16; j++) {
+          final dist = SymbolHashDetector.popcount(hashes[i] ^ hashes[j]);
+          if (dist < minDist) minDist = dist;
+        }
+      }
+
+      expect(minDist, greaterThanOrEqualTo(4),
+          reason: 'Minimum pairwise Hamming distance should be >= 4 '
+              '(got $minDist)');
+    });
+
+    test('all 128 (color, symbol) combos round-trip with hash detection on clean cells', () {
+      const cs = CimbarConstants.cellSize;
+      final detector = SymbolHashDetector();
+      var pass = 0;
+      var fail = 0;
+
+      for (var colorIdx = 0; colorIdx < 8; colorIdx++) {
+        for (var symIdx = 0; symIdx < 16; symIdx++) {
+          final image = img.Image(width: cs, height: cs);
+          drawSymbol(image, symIdx, CimbarConstants.colors[colorIdx], 0, 0, cs);
+
+          final detected = detector.detectSymbol(image, 0, 0, cs);
+          if (detected == symIdx) {
+            pass++;
+          } else {
+            fail++;
+          }
+        }
+      }
+
+      expect(fail, equals(0),
+          reason: '$fail/128 hash detection round-trips failed');
+      expect(pass, equals(128));
+    });
+
+    test('hash detection recovers correct symbol from ±1px shifted cell', () {
+      const cs = CimbarConstants.cellSize;
+      final detector = SymbolHashDetector();
+      var pass = 0;
+      var total = 0;
+
+      for (var symIdx = 0; symIdx < 16; symIdx++) {
+        // Draw cell with 2px padding on all sides to allow shifting
+        final image = img.Image(width: cs + 4, height: cs + 4);
+        img.fill(image, color: img.ColorRgba8(0, 0, 0, 255));
+        drawSymbol(image, symIdx, CimbarConstants.colors[0], 2, 2, cs);
+
+        // Try fuzzy detection from offset (1,1) — 1px off from actual (2,2)
+        final (detected, _, _, _) = detector.detectSymbolFuzzy(
+            image, 1, 1, cs);
+        total++;
+        if (detected == symIdx) pass++;
+
+        // Try from offset (3,3) — 1px off the other way
+        final (detected2, _, _, _) = detector.detectSymbolFuzzy(
+            image, 3, 3, cs);
+        total++;
+        if (detected2 == symIdx) pass++;
+      }
+
+      // Allow 1-2 edge cases where the shifted black padding overlaps
+      // dot patterns enough to confuse the hash
+      expect(pass, greaterThanOrEqualTo(total - 2),
+          reason: 'Fuzzy hash detection should recover nearly all symbols with ±1px shift '
+              '($pass/$total passed)');
+    });
+
+    test('full frame decode round-trip with useHashDetection', () {
+      const frameSize = 128;
+      final cleanFrame = _buildTestFrame(frameSize);
+      final decoder = CimbarDecoder();
+
+      // Decode with threshold detection (GIF path)
+      final rawThreshold = decoder.decodeFramePixels(cleanFrame, frameSize);
+
+      // Decode with hash detection (camera path)
+      final rawHash = decoder.decodeFramePixels(cleanFrame, frameSize,
+          useHashDetection: true);
+
+      // Both should produce identical output on clean data
+      var mismatches = 0;
+      for (var i = 0; i < rawThreshold.length; i++) {
+        if (rawHash[i] != rawThreshold[i]) mismatches++;
+      }
+
+      expect(mismatches, equals(0),
+          reason: 'Hash detection on clean frame should match threshold detection '
+              '($mismatches/${rawThreshold.length} mismatches)');
+    });
+
+    test('hash detection handles blurred cells reasonably', () {
+      // Verify hash detection works on blurred cells — not necessarily better
+      // than threshold (mild blur barely affects 5-pixel sampling), but should
+      // still correctly identify most symbols.
+      const cs = CimbarConstants.cellSize;
+      final detector = SymbolHashDetector();
+      var hashCorrect = 0;
+
+      for (var symIdx = 0; symIdx < 16; symIdx++) {
+        // Create a cell and apply a simple box blur (average 3x3 neighborhood)
+        final original = img.Image(width: cs + 2, height: cs + 2);
+        img.fill(original, color: img.ColorRgba8(0, 0, 0, 255));
+        drawSymbol(original, symIdx, CimbarConstants.colors[2], 1, 1, cs);
+
+        // Simple 3x3 box blur
+        final blurred = img.Image(width: cs + 2, height: cs + 2);
+        for (var y = 1; y < cs + 1; y++) {
+          for (var x = 1; x < cs + 1; x++) {
+            var rSum = 0, gSum = 0, bSum = 0;
+            for (var dy = -1; dy <= 1; dy++) {
+              for (var dx = -1; dx <= 1; dx++) {
+                final p = original.getPixel(x + dx, y + dy);
+                rSum += p.r.toInt();
+                gSum += p.g.toInt();
+                bSum += p.b.toInt();
+              }
+            }
+            blurred.setPixelRgba(x, y, rSum ~/ 9, gSum ~/ 9, bSum ~/ 9, 255);
+          }
+        }
+
+        // Hash detection on blurred cell
+        final hashResult = detector.detectSymbol(blurred, 1, 1, cs);
+        if (hashResult == symIdx) hashCorrect++;
+      }
+
+      // Hash detection should still get most symbols right even after blur.
+      // The 2x2 corner dots are small (4 pixels) so blur reduces contrast,
+      // but the overall pattern still differs enough across symbols.
+      expect(hashCorrect, greaterThanOrEqualTo(10),
+          reason: 'Hash detection should correctly identify >=10/16 symbols '
+              'after 3x3 blur (got $hashCorrect/16)');
     });
   });
 }

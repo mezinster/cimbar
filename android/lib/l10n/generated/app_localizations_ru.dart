@@ -237,6 +237,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get quadrantOffsetDesc => 'Позиция углового образца как доля размера ячейки';
 
   @override
+  String get hashDetectionLabel => 'Хеш-определение символов';
+
+  @override
   String get resetDefaults => 'Сбросить настройки';
 
   @override

@@ -237,6 +237,9 @@ class AppLocalizationsKa extends AppLocalizations {
   String get quadrantOffsetDesc => 'Corner sample position as fraction of cell size';
 
   @override
+  String get hashDetectionLabel => 'Hash Symbol Detection';
+
+  @override
   String get resetDefaults => 'Reset to Defaults';
 
   @override

@@ -533,6 +533,12 @@ abstract class AppLocalizations {
   /// **'Corner sample position as fraction of cell size'**
   String get quadrantOffsetDesc;
 
+  /// Label for hash-based symbol detection toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Hash Symbol Detection'**
+  String get hashDetectionLabel;
+
   /// Button to reset tuning to default values
   ///
   /// In en, this message translates to:

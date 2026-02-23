@@ -196,6 +196,8 @@
   "@quadrantOffsetLabel": { "description": "Label for quadrant offset slider" },
   "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
   "@quadrantOffsetDesc": { "description": "Description for quadrant offset slider" },
+  "hashDetectionLabel": "Hash Symbol Detection",
+  "@hashDetectionLabel": { "description": "Label for hash-based symbol detection toggle" },
   "resetDefaults": "Reset to Defaults",
   "@resetDefaults": { "description": "Button to reset tuning to default values" },
 

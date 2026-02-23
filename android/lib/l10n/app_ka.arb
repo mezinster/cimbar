@@ -74,6 +74,7 @@
   "relativeColorLabel": "Relative Color Matching",
   "quadrantOffsetLabel": "Quadrant Sample Offset",
   "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
+  "hashDetectionLabel": "Hash Symbol Detection",
   "resetDefaults": "Reset to Defaults",
 
   "privacyPolicy": "კონფიდენციალურობის პოლიტიკა",

@@ -9,12 +9,14 @@ class DecodeTuningConfig {
   final bool enableWhiteBalance;
   final bool useRelativeColor;
   final double quadrantOffset;
+  final bool useHashDetection;
 
   const DecodeTuningConfig({
     this.symbolThreshold = 0.85,
     this.enableWhiteBalance = true,
     this.useRelativeColor = true,
     this.quadrantOffset = 0.28,
+    this.useHashDetection = true,
   });
 
   DecodeTuningConfig copyWith({
@@ -22,12 +24,14 @@ class DecodeTuningConfig {
     bool? enableWhiteBalance,
     bool? useRelativeColor,
     double? quadrantOffset,
+    bool? useHashDetection,
   }) {
     return DecodeTuningConfig(
       symbolThreshold: symbolThreshold ?? this.symbolThreshold,
       enableWhiteBalance: enableWhiteBalance ?? this.enableWhiteBalance,
       useRelativeColor: useRelativeColor ?? this.useRelativeColor,
       quadrantOffset: quadrantOffset ?? this.quadrantOffset,
+      useHashDetection: useHashDetection ?? this.useHashDetection,
     );
   }
 
@@ -35,12 +39,14 @@ class DecodeTuningConfig {
   static const _keyWhiteBalance = 'tuning_white_balance';
   static const _keyRelativeColor = 'tuning_relative_color';
   static const _keyQuadrantOffset = 'tuning_quadrant_offset';
+  static const _keyHashDetection = 'tuning_hash_detection';
 
   void toPrefs(SharedPreferences prefs) {
     prefs.setDouble(_keySymbolThreshold, symbolThreshold);
     prefs.setBool(_keyWhiteBalance, enableWhiteBalance);
     prefs.setBool(_keyRelativeColor, useRelativeColor);
     prefs.setDouble(_keyQuadrantOffset, quadrantOffset);
+    prefs.setBool(_keyHashDetection, useHashDetection);
   }
 
   static DecodeTuningConfig fromPrefs(SharedPreferences prefs) {
@@ -49,6 +55,7 @@ class DecodeTuningConfig {
       enableWhiteBalance: prefs.getBool(_keyWhiteBalance) ?? true,
       useRelativeColor: prefs.getBool(_keyRelativeColor) ?? true,
       quadrantOffset: prefs.getDouble(_keyQuadrantOffset) ?? 0.28,
+      useHashDetection: prefs.getBool(_keyHashDetection) ?? true,
     );
   }
 }

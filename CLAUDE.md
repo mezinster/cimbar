@@ -101,7 +101,8 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (with configurable `symbolThreshold` and `quadrantOffset` for camera tuning), RS frame splitting (port of cimbar.js decode side)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting (port of cimbar.js decode side)
+- `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±7px)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
@@ -238,11 +239,11 @@ Requires Flutter 3.24+ and Java 17.
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access to read/write `localeProvider`, so it can't be a plain `StatelessWidget`. Uses `showModalBottomSheet` with `RadioListTile` options matching the existing `LanguageSelector` pattern. Placed in AppBar `actions` on all 5 tabbed screens; `LiveScanScreen` (full-screen camera modal, no AppBar) does not include it.
 
-**Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`):** `decodeFramePixels()` accepts optional flags that gate white balance correction, relative color matching, symbol detection sensitivity, and corner sample positioning. `enableWhiteBalance` and `useRelativeColor` default to `false`; `symbolThreshold` and `quadrantOffset` default to `null` (using the GIF formula and 0.28 respectively). Camera paths set all four via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`). GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
+**Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`):** `decodeFramePixels()` accepts optional flags that gate white balance correction, relative color matching, symbol detection sensitivity, corner sample positioning, and hash-based symbol detection. `enableWhiteBalance`, `useRelativeColor`, and `useHashDetection` default to `false`; `symbolThreshold` and `quadrantOffset` default to `null` (using the GIF formula and 0.28 respectively). Camera paths set all five via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`). GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
 
 **White balance finder sampling:** The Von Kries white reference is sampled from the outer corner cells of the 3×3 finder patterns (grid positions 0,0 and cols-1,rows-1), NOT the center cell (1,1) which is dark gray. The center cell has a dark fill with only a tiny white dot — sampling it would produce an incorrect white reference and amplify color errors.
 
-**Symbol threshold for camera vs GIF:** The original `_detectSymbol` threshold `c * 0.5 + 20` works perfectly for GIF decode (exact pixel colors) but fails under camera auto-exposure. When center luma is ~200, the threshold (~120) is below blurred black dot corners (~130–160), so all corners read as 1 → `symIdx=15` → all bytes become 0xFF. The camera path uses `symbolThreshold` (default 0.85): a multiplicative-only formula `c * symbolThreshold` that scales with brightness. At c=200, threshold=170 cleanly separates dot corners (130) from undotted corners (195). The GIF path keeps the original formula (null `symbolThreshold`).
+**Symbol threshold for camera vs GIF:** The original `_detectSymbol` threshold `c * 0.5 + 20` works perfectly for GIF decode (exact pixel colors) but fails under camera auto-exposure. When center luma is ~200, the threshold (~120) is below blurred black dot corners (~130–160), so all corners read as 1 → `symIdx=15` → all bytes become 0xFF. The camera path now defaults to hash-based detection (`useHashDetection=true`), which bypasses threshold entirely by matching full 64-bit cell hashes via Hamming distance. When hash detection is disabled, the fallback camera threshold uses `symbolThreshold` (default 0.85): a multiplicative-only formula `c * symbolThreshold` that scales with brightness. The GIF path keeps the original formula (null `symbolThreshold`, no hash detection).
 
 **CameraController disposed guard:** `LiveScanScreen` sets `_disposed = true` in `dispose()` and checks it in `_initCamera()`, `_onCameraImage()`, `didChangeAppLifecycleState(resumed)`, and the `CameraPreview` render condition. This prevents "CameraController used after dispose" crashes during navigation/lifecycle transitions where disposal can race with the camera stream callback or AppLifecycleState events.
 
@@ -252,7 +253,7 @@ Requires Flutter 3.24+ and Java 17.
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
-Techniques from the C++ libcimbar scanner, identified for porting. Priorities 1, 3, and 5 are implemented; the rest are planned for future work.
+Techniques from the C++ libcimbar scanner, identified for porting. Priorities 1–5 are implemented; the rest are planned for future work.
 
 ### ~~Priority 1 — White-balance from finder patterns~~ ✓ IMPLEMENTED
 
@@ -286,16 +287,11 @@ Implemented in `frame_locator.dart` as the primary detection path, with the old 
 
 **Key tuning insight:** The finder's dark center is only ~4px wide after 2× downscale, and the 3px inner white dot splits the center row into complex sub-runs. Scanning every 2 rows ensures hitting the clean rows above/below the inner dot. The dense scan is affordable: O(w×h/4) pixel lookups on the downscaled image.
 
-### Priority 4 — Average hash symbol detection with drift tracking (medium effort, high impact)
+### ~~Priority 4 — Average hash symbol detection with drift tracking~~ ✓ IMPLEMENTED
 
-Instead of sampling 5 specific pixels (center + 4 corners), libcimbar:
-1. Pre-computes a 64-bit **average hash** for each of the 16 symbols (each bit = pixel above/below cell mean)
-2. For each camera cell, computes a **fuzzy hash from 9 overlapping sub-regions** (center + 4 sides + 4 corners, shifted by 1px each)
-3. Matches via **Hamming distance** (popcount) — tolerates ~20 bits of noise per cell
-4. The winning drift position propagates to neighbors via **CellDrift** (accumulated offset, capped at ±7px)
-5. Decode order uses **flood-fill from anchor corners** via priority queue, so high-confidence cells guide low-confidence neighbors
+Implemented in `symbol_hash_detector.dart` as a standalone class used by `cimbar_decoder.dart` when `useHashDetection` is true (camera paths). The detector pre-computes 64-bit average hashes for all 16 symbols using the same corner-dot geometry as `drawSymbol` (rendered on gray foreground, each bit = pixel luma > cell mean). For each camera cell, `detectSymbolFuzzy()` tries 9 overlapping positions (center + 8 neighbors at ±1px), computing a hash at each and matching via Hamming distance (`popcount(a ^ b)`) against all 16 reference hashes. The winning drift offset accumulates across cells in row-scan order (capped at ±7px), mimicking libcimbar's cell drift propagation. Gated by `DecodeTuningConfig.useHashDetection` (default true for camera, ignored for GIF decode). The GIF path continues using the existing 5-pixel quadrant luma threshold, which is exact for clean pixel data.
 
-**vs. our approach:** Our 5-pixel sampling fails if any sample lands on a boundary or blur artifact. Hash matching uses all 64 pixels and gracefully degrades with noise.
+**Note:** This implementation uses simplified row-scan drift propagation rather than libcimbar's flood-fill from anchor corners via priority queue. The flood-fill approach (Priority 4b, not yet implemented) would decode high-confidence cells first and propagate drift outward, further improving robustness on severely distorted images.
 
 ### ~~Priority 5 — Relative color matching~~ ✓ IMPLEMENTED
 
@@ -369,7 +365,7 @@ flutter test
 |------|--------------|
 | `test/core/services/galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic identities. |
 | `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 16-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (223-byte) round-trips. |
-| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames), relative color matching (brightness-shifted and clean frames), and camera-exposure symbol detection with `symbolThreshold=0.85` (over-exposed frames). |
+| `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames), relative color matching (brightness-shifted and clean frames), camera-exposure symbol detection with `symbolThreshold=0.85` (over-exposed frames), and average hash symbol detection: reference hash distinctness (min pairwise Hamming distance ≥4), 128-combo round-trip with hash detection, ±1px drift tolerance via fuzzy matching, full frame round-trip, and blur robustness. |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 | `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, barcode filling entire image, dark image (no barcode), noisy background with scattered bright pixels (verifies anchor detection ignores noise), finder center position validation (detected centers within 20px of known positions), and fallback behavior (uniform bright rectangle without finder structure triggers luma-threshold fallback with null finder centers). 7 tests total. |

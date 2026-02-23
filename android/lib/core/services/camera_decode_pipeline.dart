@@ -199,7 +199,8 @@ class CameraDecodePipeline {
           enableWhiteBalance: config.enableWhiteBalance,
           useRelativeColor: config.useRelativeColor,
           symbolThreshold: config.symbolThreshold,
-          quadrantOffset: config.quadrantOffset);
+          quadrantOffset: config.quadrantOffset,
+          useHashDetection: config.useHashDetection);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
       // Validate: need at least 4 bytes for length prefix

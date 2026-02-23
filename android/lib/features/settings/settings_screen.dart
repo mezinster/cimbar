@@ -70,6 +70,14 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (v) => tuningNotifier.setUseRelativeColor(v),
                   contentPadding: EdgeInsets.zero,
                 ),
+
+                // Hash Symbol Detection toggle
+                SwitchListTile(
+                  title: Text(l10n.hashDetectionLabel),
+                  value: tuning.useHashDetection,
+                  onChanged: (v) => tuningNotifier.setUseHashDetection(v),
+                  contentPadding: EdgeInsets.zero,
+                ),
                 const SizedBox(height: 8),
 
                 // Quadrant Offset slider

@@ -35,6 +35,11 @@ class DecodeTuningNotifier extends StateNotifier<DecodeTuningConfig> {
     state.toPrefs(_prefs);
   }
 
+  void setUseHashDetection(bool value) {
+    state = state.copyWith(useHashDetection: value);
+    state.toPrefs(_prefs);
+  }
+
   void resetDefaults() {
     state = const DecodeTuningConfig();
     state.toPrefs(_prefs);

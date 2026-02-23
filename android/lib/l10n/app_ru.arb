@@ -74,6 +74,7 @@
   "relativeColorLabel": "Относительное сопоставление цветов",
   "quadrantOffsetLabel": "Смещение квадранта",
   "quadrantOffsetDesc": "Позиция углового образца как доля размера ячейки",
+  "hashDetectionLabel": "Хеш-определение символов",
   "resetDefaults": "Сбросить настройки",
 
   "privacyPolicy": "Политика конфиденциальности",
