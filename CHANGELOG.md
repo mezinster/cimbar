@@ -7,14 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- Live camera decode producing all-0xFF bytes: symbol detection threshold `c * 0.5 + 20` was too permissive under camera auto-exposure; camera path now uses multiplicative threshold `c * symbolThreshold` (default 0.85)
-- `CameraPreview` crash when controller is disposed during navigation/lifecycle transitions (added `_disposed` guard)
+## [0.8.5] — 2026-02-23
 
 ### Added
-- Runtime decode tuning settings in Settings screen: symbol sensitivity slider, white balance toggle, relative color matching toggle, quadrant sample offset slider, and reset-to-defaults button — all persisted in SharedPreferences
-- `DecodeTuningConfig` model and `DecodeTuningProvider` for Riverpod-based tuning state management
-- Camera-exposure symbol detection test in `cimbar_decoder_test.dart`
+- **RS block interleaving** — byte-stride interleaving spreads each RS block's bytes across the entire frame, so spatially concentrated camera errors distribute evenly across all blocks instead of overwhelming a single one
+- **LAB color space failover** (Android) — when primary RGB/relative color matching fails the quality gate, camera decode retries with perceptually-uniform CIELAB color matching
+- **Perspective transform** — pure-Dart homography warp from 2 finder centers; tries warp first, falls back to crop+resize if RS decode fails
+- **Anchor-based finder pattern detection** — bright→dark→bright run-length scanning replaces simple luma-threshold bounding box for locating barcode region in camera photos
+- **Average hash symbol detection** — 64-bit average hashes with fuzzy 9-position drift matching (±1px) and drift accumulation (capped ±15px) for camera decode
+- **Two-pass camera decode** — Pass 1 discovers per-cell drift via hash detection; Pass 2 samples color at drift-corrected positions, fixing systematic color misclassification from perspective distortion
+- **Von Kries white balance** from finder patterns for camera decode
+- **Relative color matching** with brightness normalization for camera decode
+- Runtime decode tuning settings: symbol sensitivity, white balance, relative color, quadrant offset, hash detection toggles — all persisted in SharedPreferences
+- 4 new tests: LAB palette self-mapping, LAB clean frame round-trip, interleave→de-interleave round-trip, error-spreading verification (76 total)
+
+### Changed
+- RS parameters upgraded from RS(255,223) to **RS(255,191)** — 64 ECC bytes per block, corrects up to 32 errors (12.5%), enabling camera decode at real-world error rates
+- Camera resolution set to 720p for optimal ~1.58× oversampling of 8px cells
+- Drift cap increased from ±7px to ±15px for crop+resize fallback paths
+
+### Fixed
+- Live camera decode producing all-0xFF bytes: symbol detection threshold now uses multiplicative `c * symbolThreshold` (default 0.85) instead of `c * 0.5 + 20`
+- `CameraPreview` crash when controller is disposed during navigation/lifecycle transitions (added `_disposed` guard)
+- Color misclassification from sampling at raw grid positions before drift was known (fixed by two-pass architecture)
+
+### Breaking
+- RS block interleaving changes the wire format — GIFs encoded with previous versions will not decode
 
 ## [0.8.4] — 2026-02-21
 
@@ -64,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flutter analyze errors, warnings, and infos
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
-[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/mezinster/cimbar/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/mezinster/cimbar/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/mezinster/cimbar/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/mezinster/cimbar/compare/v0.8.1...v0.8.2
