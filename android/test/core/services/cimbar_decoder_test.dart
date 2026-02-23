@@ -549,17 +549,10 @@ void main() {
       final rawTwoPass = decoder.decodeFramePixels(testFrame, frameSize,
           useHashDetection: true);
 
-      // Count how many bytes match ground truth
-      var twoPassMatch = 0;
-      for (var i = 0; i < rawClean.length; i++) {
-        if (rawTwoPass[i] == rawClean[i]) twoPassMatch++;
-      }
-
       // Two-pass should recover some data from the shifted frame
       // (won't be perfect since the finders are also shifted, confusing white balance).
       // With 4 finders, more cells are near finder boundaries and the shift causes
       // more interference, so we just verify it doesn't crash and produces output.
-      final matchPct = twoPassMatch * 100 / rawClean.length;
       expect(rawTwoPass.length, equals(rawClean.length),
           reason: 'Two-pass should produce same number of bytes as clean frame');
     });

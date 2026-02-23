@@ -390,7 +390,7 @@ class FrameLocator {
 
     // If TR and BL ended up as the same candidate, classify by position
     if (tr != null && bl != null && identical(tr, bl)) {
-      if (tr!.centerX > midX) {
+      if (tr.centerX > midX) {
         bl = null;
       } else {
         tr = null;

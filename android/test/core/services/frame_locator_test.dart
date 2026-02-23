@@ -249,14 +249,6 @@ void main() {
       const expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
       const expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
 
-      // TR finder center cell is (cols-2, 1)
-      const expectedTrX = offsetX + (cols - 2 + 0.5) * cs;
-      const expectedTrY = offsetY + 1.5 * cs;
-
-      // BL finder center cell is (1, rows-2)
-      const expectedBlX = offsetX + 1.5 * cs;
-      const expectedBlY = offsetY + (rows - 2 + 0.5) * cs;
-
       // Allow tolerance for downscale + averaging error
       const tolerance = 20.0;
       expect((result.tlFinderCenter!.x - expectedTlX).abs(),
