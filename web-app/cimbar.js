@@ -182,25 +182,35 @@ function dataBytesPerFrame(frameSize) {
  */
 function encodeRSFrame(dataChunk, frameSize, rs) {
   const raw = rawBytesPerFrame(frameSize);
-  const output = new Uint8Array(raw);
-  let inOff = 0, outOff = 0;
 
-  while (outOff < raw) {
-    const spaceLeft = raw - outOff;
-    if (spaceLeft <= ECC_BYTES) {
-      // Can't fit a meaningful block; pad with zeros
-      break;
-    }
+  // Phase 1: RS-encode each block into a temporary array
+  const blocks = [];
+  let inOff = 0, totalOut = 0;
+  while (totalOut < raw) {
+    const spaceLeft = raw - totalOut;
+    if (spaceLeft <= ECC_BYTES) break;
     const blockTotal = Math.min(BLOCK_TOTAL, spaceLeft);
     const blockData  = blockTotal - ECC_BYTES;
     const chunk = new Uint8Array(blockData);
     const take  = Math.min(blockData, dataChunk.length - inOff);
     if (take > 0) chunk.set(dataChunk.slice(inOff, inOff + take));
     inOff += take;
-
     const encoded = rs.encode(chunk);
-    output.set(encoded.slice(0, blockTotal), outOff);
-    outOff += blockTotal;
+    blocks.push(encoded.slice(0, blockTotal));
+    totalOut += blockTotal;
+  }
+
+  // Phase 2: Interleave — byte j of block i → position j * N + i
+  const output = new Uint8Array(raw);
+  const N = blocks.length;
+  const maxBlockLen = blocks.reduce((m, b) => Math.max(m, b.length), 0);
+  let pos = 0;
+  for (let j = 0; j < maxBlockLen; j++) {
+    for (let i = 0; i < N; i++) {
+      if (j < blocks[i].length) {
+        output[pos++] = blocks[i][j];
+      }
+    }
   }
   return output;
 }
@@ -214,24 +224,42 @@ function decodeRSFrame(rawBytes, frameSize, rs) {
   // decodeFramePixels returns ceil(cells*7/8) bytes, but encodeRSFrame used
   // floor(cells*7/8) bytes, so the block boundaries must match the encoder.
   const raw = rawBytesPerFrame(frameSize);
-  const result = [];
-  let off = 0;
 
-  while (off < raw) {
-    const spaceLeft = raw - off;
+  // Phase 1: Determine block structure
+  const blockSizes = [];
+  let totalOut = 0;
+  while (totalOut < raw) {
+    const spaceLeft = raw - totalOut;
     if (spaceLeft <= ECC_BYTES) break;
-
     const blockTotal = Math.min(BLOCK_TOTAL, spaceLeft);
-    const blockData  = blockTotal - ECC_BYTES;
-    const block = rawBytes.slice(off, off + blockTotal);
-    off += blockTotal;
+    blockSizes.push(blockTotal);
+    totalOut += blockTotal;
+  }
+  const N = blockSizes.length;
 
+  // Phase 2: De-interleave — position j * N + i → byte j of block i
+  const blocks = blockSizes.map(sz => new Uint8Array(sz));
+  const maxBlockLen = Math.max(...blockSizes);
+  let pos = 0;
+  for (let j = 0; j < maxBlockLen; j++) {
+    for (let i = 0; i < N; i++) {
+      if (j < blockSizes[i]) {
+        blocks[i][j] = (pos < rawBytes.length) ? rawBytes[pos] : 0;
+        pos++;
+      }
+    }
+  }
+
+  // Phase 3: RS-decode each block
+  const result = [];
+  for (let i = 0; i < N; i++) {
+    const blockData = blockSizes[i] - ECC_BYTES;
     try {
-      const decoded = rs.decode(block);
-      for (let i = 0; i < decoded.length; i++) result.push(decoded[i]);
+      const decoded = rs.decode(blocks[i]);
+      for (let k = 0; k < decoded.length; k++) result.push(decoded[k]);
     } catch (e) {
       // If RS decode fails, push zeros (frame may be unrecoverable)
-      for (let i = 0; i < blockData; i++) result.push(0);
+      for (let k = 0; k < blockData; k++) result.push(0);
     }
   }
   return new Uint8Array(result);

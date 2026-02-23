@@ -213,6 +213,23 @@ class CameraDecodePipeline {
       if (payloadLength >= 32 && payloadLength <= dataBytes.length - 4) {
         return dataBytes;
       }
+
+      // Failover: retry with LAB color space
+      final rawBytesLab = _decoder.decodeFramePixels(resized, frameSize,
+          enableWhiteBalance: config.enableWhiteBalance,
+          useRelativeColor: false, // LAB replaces relative color
+          symbolThreshold: config.symbolThreshold,
+          quadrantOffset: config.quadrantOffset,
+          useHashDetection: config.useHashDetection,
+          useLabColor: true);
+      final dataBytesLab = _decoder.decodeRSFrame(rawBytesLab, frameSize);
+      if (dataBytesLab.length < 4) return null;
+
+      final payloadLengthLab = readUint32BE(dataBytesLab);
+      if (payloadLengthLab >= 32 &&
+          payloadLengthLab <= dataBytesLab.length - 4) {
+        return dataBytesLab;
+      }
     } catch (_) {
       // RS decode or other failure
     }

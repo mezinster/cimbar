@@ -1,10 +1,13 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
 import 'package:cimbar_scanner/core/services/cimbar_decoder.dart';
 import 'package:cimbar_scanner/core/services/symbol_hash_detector.dart';
+
+import '../../test_utils/cimbar_encoder.dart';
 
 /// Draw one symbol on an image, matching web-app/cimbar.js drawSymbol.
 void drawSymbol(img.Image image, int symIdx, List<int> colorRGB, int ox, int oy, int size) {
@@ -631,6 +634,90 @@ void main() {
       expect(stats.cellCount, greaterThan(0));
       expect(stats.driftXFinal.abs(), lessThanOrEqualTo(7));
       expect(stats.driftYFinal.abs(), lessThanOrEqualTo(7));
+    });
+  });
+
+  group('LAB color matching', () {
+    test('all 8 palette colors map correctly through LAB matching', () {
+      // Each palette color fed into the LAB matcher should return itself
+      for (var i = 0; i < CimbarConstants.colors.length; i++) {
+        final c = CimbarConstants.colors[i];
+        final result = CimbarDecoder.nearestColorIdxLabForTest(c[0], c[1], c[2]);
+        expect(result, equals(i),
+            reason: 'Palette color $i (${c[0]},${c[1]},${c[2]}) should map to index $i but got $result');
+      }
+    });
+
+    test('LAB matching round-trips on clean frame', () {
+      const frameSize = 128;
+      final cleanFrame = _buildTestFrame(frameSize);
+      final decoder = CimbarDecoder();
+
+      // GIF path (baseline)
+      final rawGif = decoder.decodeFramePixels(cleanFrame, frameSize);
+      // LAB path
+      final rawLab = decoder.decodeFramePixels(cleanFrame, frameSize,
+          useHashDetection: true, useLabColor: true);
+
+      var mismatches = 0;
+      for (var i = 0; i < rawGif.length; i++) {
+        if (rawLab[i] != rawGif[i]) mismatches++;
+      }
+
+      expect(mismatches, equals(0),
+          reason: 'LAB color matching on clean frame should match GIF path '
+              '($mismatches/${rawGif.length} mismatches)');
+    });
+  });
+
+  group('RS block interleaving', () {
+    test('interleave then de-interleave round-trips', () {
+      // Create a known data payload, encode with interleaving, decode with de-interleaving
+      const frameSize = 128;
+      final dataLen = CimbarConstants.dataBytesPerFrame(frameSize);
+      final data = Uint8List(dataLen);
+      for (var i = 0; i < dataLen; i++) {
+        data[i] = (i * 7 + 13) & 0xFF; // deterministic non-zero pattern
+      }
+
+      final encoded = CimbarEncoder.encodeRSFrame(data, frameSize);
+      final decoder = CimbarDecoder();
+      final decoded = decoder.decodeRSFrame(encoded, frameSize);
+
+      // Should recover original data
+      expect(decoded.length, greaterThanOrEqualTo(dataLen));
+      for (var i = 0; i < dataLen; i++) {
+        expect(decoded[i], equals(data[i]),
+            reason: 'Byte $i mismatch: expected ${data[i]}, got ${decoded[i]}');
+      }
+    });
+
+    test('interleaving spreads errors across blocks', () {
+      // Use 256px frame: rawBytes=880, N=3+ blocks, so interleaving actually spreads
+      const frameSize = 256;
+      final dataLen = CimbarConstants.dataBytesPerFrame(frameSize);
+      final data = Uint8List(dataLen);
+      for (var i = 0; i < dataLen; i++) {
+        data[i] = (i * 3 + 5) & 0xFF;
+      }
+
+      final encoded = Uint8List.fromList(CimbarEncoder.encodeRSFrame(data, frameSize));
+
+      // Corrupt 60 contiguous bytes (would exceed 32-error RS capacity in 1 block
+      // without interleaving, but spreads across ~3 blocks with interleaving)
+      for (var i = 100; i < 160 && i < encoded.length; i++) {
+        encoded[i] ^= 0xFF;
+      }
+
+      final decoder = CimbarDecoder();
+      final decoded = decoder.decodeRSFrame(encoded, frameSize);
+
+      // Should still recover original data (60 errors / 3 blocks = ~20 per block < 32)
+      expect(decoded.length, greaterThanOrEqualTo(dataLen));
+      for (var i = 0; i < dataLen; i++) {
+        expect(decoded[i], equals(data[i]),
+            reason: 'Byte $i mismatch after error correction');
+      }
     });
   });
 }

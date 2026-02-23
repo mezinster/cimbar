@@ -238,6 +238,76 @@ class CimbarDecoder {
     return best;
   }
 
+  // ── CIELAB color matching ──
+
+  /// Convert sRGB component (0-255) to linear RGB (0.0-1.0).
+  static double _srgbToLinear(int v) {
+    final s = v / 255.0;
+    return s <= 0.04045 ? s / 12.92 : pow((s + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  /// Convert sRGB to CIELAB (D65 illuminant).
+  /// Returns [L, a, b].
+  static List<double> _rgbToLab(int r, int g, int b) {
+    // sRGB → linear RGB → XYZ (D65)
+    final rl = _srgbToLinear(r);
+    final gl = _srgbToLinear(g);
+    final bl = _srgbToLinear(b);
+
+    // sRGB to XYZ matrix (D65)
+    var x = 0.4124564 * rl + 0.3575761 * gl + 0.1804375 * bl;
+    var y = 0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl;
+    var z = 0.0193339 * rl + 0.1191920 * gl + 0.9503041 * bl;
+
+    // D65 reference white
+    x /= 0.95047;
+    y /= 1.00000;
+    z /= 1.08883;
+
+    double f(double t) {
+      return t > 0.008856 ? pow(t, 1.0 / 3.0).toDouble() : 7.787 * t + 16.0 / 116.0;
+    }
+
+    final fx = f(x);
+    final fy = f(y);
+    final fz = f(z);
+
+    return [
+      116.0 * fy - 16.0, // L
+      500.0 * (fx - fy),  // a
+      200.0 * (fy - fz),  // b
+    ];
+  }
+
+  /// Pre-computed LAB values for the 8-color palette.
+  static final List<List<double>> _paletteLab = CimbarConstants.colors
+      .map((c) => _rgbToLab(c[0], c[1], c[2]))
+      .toList();
+
+  /// Find nearest color index using CIELAB Euclidean distance.
+  /// Also exposed as [nearestColorIdxLabForTest] for unit testing.
+  static int _nearestColorIdxLab(int r, int g, int b) {
+    final lab = _rgbToLab(r, g, b);
+    var best = 0;
+    var bestDist = double.infinity;
+    for (var i = 0; i < _paletteLab.length; i++) {
+      final p = _paletteLab[i];
+      final dL = lab[0] - p[0];
+      final da = lab[1] - p[1];
+      final db = lab[2] - p[2];
+      final d = dL * dL + da * da + db * db;
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// Test-visible wrapper for [_nearestColorIdxLab].
+  static int nearestColorIdxLabForTest(int r, int g, int b) =>
+      _nearestColorIdxLab(r, g, b);
+
   /// Decode raw bytes from a frame image.
   /// [frame] must be a square image of [frameSize] pixels.
   ///
@@ -245,6 +315,8 @@ class CimbarDecoder {
   /// a Von Kries chromatic adaptation matrix and applies it to all pixels.
   /// When [useRelativeColor] is true, uses normalized relative color matching
   /// instead of absolute RGB distance.
+  /// When [useLabColor] is true, uses CIELAB color space for color matching
+  /// (perceptually uniform, better for camera-captured images with color shifts).
   Uint8List decodeFramePixels(
     img.Image frame,
     int frameSize, {
@@ -253,6 +325,7 @@ class CimbarDecoder {
     double? symbolThreshold,
     double? quadrantOffset,
     bool useHashDetection = false,
+    bool useLabColor = false,
     DecodeStats? stats,
   }) {
     const cs = CimbarConstants.cellSize;
@@ -355,9 +428,11 @@ class CimbarDecoder {
           pb = corrected[2];
         }
 
-        final colorIdx = useRelativeColor
-            ? _nearestColorIdxRelative(pr, pg, pb)
-            : _nearestColorIdx(pr, pg, pb);
+        final colorIdx = useLabColor
+            ? _nearestColorIdxLab(pr, pg, pb)
+            : useRelativeColor
+                ? _nearestColorIdxRelative(pr, pg, pb)
+                : _nearestColorIdx(pr, pg, pb);
 
         // Collect stats
         if (stats != null) {
@@ -438,26 +513,48 @@ class CimbarDecoder {
 
   /// RS-decode one frame's raw bytes back to data bytes.
   /// Matches web-app/cimbar.js decodeRSFrame exactly.
+  /// Uses byte-stride de-interleaving: position j * N + i → byte j of block i.
   Uint8List decodeRSFrame(Uint8List rawBytes, int frameSize) {
     final raw = CimbarConstants.rawBytesPerFrame(frameSize);
-    final result = <int>[];
-    var off = 0;
 
-    while (off < raw) {
-      final spaceLeft = raw - off;
+    // Phase 1: Determine block structure
+    final blockSizes = <int>[];
+    var totalOut = 0;
+    while (totalOut < raw) {
+      final spaceLeft = raw - totalOut;
       if (spaceLeft <= CimbarConstants.eccBytes) break;
-
       final blockTotal = min(CimbarConstants.blockTotal, spaceLeft);
-      final blockData = blockTotal - CimbarConstants.eccBytes;
-      final block = rawBytes.sublist(off, off + blockTotal);
-      off += blockTotal;
+      blockSizes.add(blockTotal);
+      totalOut += blockTotal;
+    }
+    final n = blockSizes.length;
 
+    // Phase 2: De-interleave — position j * N + i → byte j of block i
+    final blocks = blockSizes.map((sz) => Uint8List(sz)).toList();
+    var maxBlockLen = 0;
+    for (final sz in blockSizes) {
+      if (sz > maxBlockLen) maxBlockLen = sz;
+    }
+    var pos = 0;
+    for (var j = 0; j < maxBlockLen; j++) {
+      for (var i = 0; i < n; i++) {
+        if (j < blockSizes[i]) {
+          blocks[i][j] = (pos < rawBytes.length) ? rawBytes[pos] : 0;
+          pos++;
+        }
+      }
+    }
+
+    // Phase 3: RS-decode each block
+    final result = <int>[];
+    for (var i = 0; i < n; i++) {
+      final blockData = blockSizes[i] - CimbarConstants.eccBytes;
       try {
-        final decoded = _rs.decode(block);
+        final decoded = _rs.decode(blocks[i]);
         result.addAll(decoded);
       } catch (_) {
         // If RS decode fails, push zeros
-        for (var i = 0; i < blockData; i++) {
+        for (var k = 0; k < blockData; k++) {
           result.add(0);
         }
       }

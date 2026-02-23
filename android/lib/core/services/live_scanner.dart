@@ -383,8 +383,35 @@ class LiveScanner {
         if (dataBytes[i] != 0) nonZero++;
       }
       if (nonZero == 0) {
-        _emitDebug('quality_gate', 'REJECTED size=$frameSize nonZero=0/$checkLen');
-        return null;
+        _emitDebug('quality_gate', 'REJECTED size=$frameSize nonZero=0/$checkLen, retrying LAB');
+        // Retry with LAB color space
+        final statsLab = DecodeStats();
+        final rawBytesLab = _decoder.decodeFramePixels(resized, frameSize,
+            enableWhiteBalance: tuningConfig.enableWhiteBalance,
+            useRelativeColor: false, // LAB replaces relative color
+            symbolThreshold: tuningConfig.symbolThreshold,
+            quadrantOffset: tuningConfig.quadrantOffset,
+            useHashDetection: tuningConfig.useHashDetection,
+            useLabColor: true,
+            stats: statsLab);
+        final dataBytesLab = _decoder.decodeRSFrame(rawBytesLab, frameSize);
+
+        _emitDebug('decode_stats_lab', 'size=$frameSize $statsLab');
+
+        if (dataBytesLab.isEmpty) return null;
+
+        var nonZeroLab = 0;
+        final checkLenLab = min(64, dataBytesLab.length);
+        for (var i = 0; i < checkLenLab; i++) {
+          if (dataBytesLab[i] != 0) nonZeroLab++;
+        }
+        if (nonZeroLab == 0) {
+          _emitDebug('quality_gate', 'REJECTED LAB size=$frameSize nonZero=0/$checkLenLab');
+          return null;
+        }
+
+        _emitDebug('quality_gate', 'PASSED LAB size=$frameSize nonZero=$nonZeroLab/$checkLenLab');
+        return dataBytesLab;
       }
 
       _emitDebug('quality_gate', 'PASSED size=$frameSize nonZero=$nonZero/$checkLen');

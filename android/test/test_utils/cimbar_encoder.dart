@@ -139,13 +139,15 @@ class CimbarEncoder {
   }
 
   /// RS-encode a data chunk for one frame (matching encodeRSFrame in cimbar.js).
+  /// Uses byte-stride interleaving: byte j of block i → position j * N + i.
   static Uint8List encodeRSFrame(Uint8List dataChunk, int frameSize) {
     final raw = CimbarConstants.rawBytesPerFrame(frameSize);
-    final output = Uint8List(raw);
-    var inOff = 0, outOff = 0;
 
-    while (outOff < raw) {
-      final spaceLeft = raw - outOff;
+    // Phase 1: RS-encode each block into a temporary list
+    final blocks = <Uint8List>[];
+    var inOff = 0, totalOut = 0;
+    while (totalOut < raw) {
+      final spaceLeft = raw - totalOut;
       if (spaceLeft <= CimbarConstants.eccBytes) break;
 
       final blockTotal = min(CimbarConstants.blockTotal, spaceLeft);
@@ -158,8 +160,24 @@ class CimbarEncoder {
       inOff += take;
 
       final encoded = _rs.encode(chunk);
-      output.setRange(outOff, outOff + blockTotal, encoded);
-      outOff += blockTotal;
+      blocks.add(Uint8List.fromList(encoded.sublist(0, blockTotal)));
+      totalOut += blockTotal;
+    }
+
+    // Phase 2: Interleave — byte j of block i → position j * N + i
+    final output = Uint8List(raw);
+    final n = blocks.length;
+    var maxBlockLen = 0;
+    for (final b in blocks) {
+      if (b.length > maxBlockLen) maxBlockLen = b.length;
+    }
+    var pos = 0;
+    for (var j = 0; j < maxBlockLen; j++) {
+      for (var i = 0; i < n; i++) {
+        if (j < blocks[i].length) {
+          output[pos++] = blocks[i][j];
+        }
+      }
     }
     return output;
   }
