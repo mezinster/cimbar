@@ -116,38 +116,12 @@ class PerspectiveTransform {
         final srcX = (h[0] * px + h[1] * py + h[2]) / w;
         final srcY = (h[3] * px + h[4] * py + h[5]) / w;
 
-        // Bilinear interpolation
-        final sx = srcX - 0.5;
-        final sy = srcY - 0.5;
-        final x0 = sx.floor();
-        final y0 = sy.floor();
-        final fx = sx - x0;
-        final fy = sy - y0;
-
-        // Clamp to source bounds
-        final x0c = x0.clamp(0, srcW - 1);
-        final x1c = (x0 + 1).clamp(0, srcW - 1);
-        final y0c = y0.clamp(0, srcH - 1);
-        final y1c = (y0 + 1).clamp(0, srcH - 1);
-
-        final p00 = source.getPixel(x0c, y0c);
-        final p10 = source.getPixel(x1c, y0c);
-        final p01 = source.getPixel(x0c, y1c);
-        final p11 = source.getPixel(x1c, y1c);
-
-        final w00 = (1 - fx) * (1 - fy);
-        final w10 = fx * (1 - fy);
-        final w01 = (1 - fx) * fy;
-        final w11 = fx * fy;
-
-        final r = (p00.r * w00 + p10.r * w10 + p01.r * w01 + p11.r * w11)
-            .round().clamp(0, 255);
-        final g = (p00.g * w00 + p10.g * w10 + p01.g * w01 + p11.g * w11)
-            .round().clamp(0, 255);
-        final b = (p00.b * w00 + p10.b * w10 + p01.b * w01 + p11.b * w11)
-            .round().clamp(0, 255);
-
-        output.setPixelRgba(dx, dy, r, g, b, 255);
+        // Nearest-neighbor sampling: preserves sharp cell boundaries
+        // (bilinear blurs 8px cells, defeating color/symbol detection)
+        final srcXr = srcX.round().clamp(0, srcW - 1);
+        final srcYr = srcY.round().clamp(0, srcH - 1);
+        final p = source.getPixel(srcXr, srcYr);
+        output.setPixelRgba(dx, dy, p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
       }
     }
 

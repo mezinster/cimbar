@@ -3,9 +3,9 @@ class CimbarConstants {
   CimbarConstants._();
 
   static const int cellSize = 8;
-  static const int eccBytes = 32;
+  static const int eccBytes = 64;
   static const int blockTotal = 255;
-  static const int blockData = blockTotal - eccBytes; // 223
+  static const int blockData = blockTotal - eccBytes; // 191
 
   /// 8 perceptually distinct colors, matching web-app/cimbar.js and gif-encoder.js.
   static const List<List<int>> colors = [

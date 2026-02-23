@@ -305,8 +305,8 @@ class CimbarDecoder {
           final (sym, dx, dy, dist) = hashDetector.detectSymbolFuzzy(
               frame, ox, oy, cs, driftX: driftX, driftY: driftY);
           symIndices[ci] = sym;
-          driftX = (driftX + dx).clamp(-7, 7);
-          driftY = (driftY + dy).clamp(-7, 7);
+          driftX = (driftX + dx).clamp(-15, 15);
+          driftY = (driftY + dy).clamp(-15, 15);
           cellDriftX[ci] = driftX;
           cellDriftY[ci] = driftY;
 

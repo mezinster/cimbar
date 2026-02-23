@@ -7,8 +7,8 @@
  *   = 7 bits per cell
  *
  * Reed-Solomon is applied per chunk before frame layout.
- * Each "block" is RS(223, ECC_BYTES) over GF(256):
- *   dataBytes = 223 - ECC_BYTES, eccBytes = ECC_BYTES
+ * Each "block" is RS(255, ECC_BYTES) over GF(256):
+ *   dataBytes = 255 - ECC_BYTES, eccBytes = ECC_BYTES
  *
  * Frame payload capacity:
  *   cells = floor(frameSize/CELL_SIZE)^2
@@ -20,9 +20,9 @@
 'use strict';
 
 const CELL_SIZE = 8;   // pixels per cell side
-const ECC_BYTES = 32;  // RS check bytes per block
+const ECC_BYTES = 64;  // RS check bytes per block
 const BLOCK_TOTAL = 255; // max RS codeword length in GF(256)
-const BLOCK_DATA = BLOCK_TOTAL - ECC_BYTES; // 223 data bytes per block
+const BLOCK_DATA = BLOCK_TOTAL - ECC_BYTES; // 191 data bytes per block
 
 // 8 perceptually distinct colors, chosen to survive GIF palette quantization
 const COLORS = [

@@ -234,11 +234,11 @@ void main() {
         }
       }
 
-      // At least 70% of interior cells should have recognizable colors
-      // (rotation + bilinear interpolation may blur some edge cells)
+      // At least 90% of interior cells should have recognizable colors
+      // (nearest-neighbor warp preserves sharp cell boundaries)
       expect(totalChecked, greaterThan(0));
-      expect(correctColors / totalChecked, greaterThan(0.7),
-          reason: 'Expected >70% color match, got '
+      expect(correctColors / totalChecked, greaterThan(0.9),
+          reason: 'Expected >90% color match, got '
               '$correctColors/$totalChecked = '
               '${(correctColors * 100 / totalChecked).toStringAsFixed(1)}%');
     });
@@ -339,9 +339,9 @@ void main() {
         if (dataBytes[i] != chunk[i]) mismatches++;
       }
 
-      // With RS correction (32 ECC bytes per 255-byte block = up to 16 errors),
-      // perspective warp should produce a clean enough image for RS to fix
-      // any remaining artifacts from bilinear interpolation.
+      // With RS correction (64 ECC bytes per 255-byte block = up to 32 errors),
+      // nearest-neighbor perspective warp preserves sharp cell boundaries,
+      // producing a clean image that decodes with minimal or no RS corrections.
       expect(mismatches, equals(0),
           reason: '$mismatches byte mismatches in first $dataLen bytes');
     });

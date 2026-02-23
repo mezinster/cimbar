@@ -75,7 +75,6 @@ const rpf = Cimbar.rawBytesPerFrame(FRAME_SIZE);
 // ── Test 1: length prefix survives round-trip ──────────────────────────────
 test('length prefix round-trip (small payload, non-dpf-aligned)', () => {
   // Simulate an "encrypted" payload that is NOT a multiple of dpf
-  // 37345 bytes → dpf=752 → 49 full frames + 497 extra → last frame padded with 255 zeros
   const fakeEncLen = 37345;
   const fakeEnc = new Uint8Array(fakeEncLen);
   for (let i = 0; i < fakeEncLen; i++) fakeEnc[i] = (i * 7 + 13) & 0xFF; // deterministic pattern
@@ -180,7 +179,7 @@ test('length prefix round-trip (exact dpf-aligned payload)', () => {
 
 // ── Test 3: single-frame tiny payload ─────────────────────────────────────
 test('length prefix round-trip (tiny payload, single frame)', () => {
-  const fakeEncLen = 100; // well under dpf=752
+  const fakeEncLen = 100; // well under dpf
   const fakeEnc = new Uint8Array(fakeEncLen);
   nodeCrypto.randomFillSync(fakeEnc);
 

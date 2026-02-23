@@ -40,7 +40,7 @@ Animated GIF → GIF decode (gif-decoder.js) → sample pixels (cimbar.js) → R
 - `index.html` — all UI (tabs, drag-drop, progress, stats) and the orchestrating inline `<script>` that drives the full encode/decode flow
 - `cimbar.js` — core barcode logic: maps bytes→cells (3-bit color + 4-bit symbol = 7 bits/cell), draws finder patterns, reads pixel data back to bytes. Exposes `window.Cimbar`
 - `crypto.js` — AES-256-GCM via Web Crypto API; wire format is `[CB 42 01 00 magic | 16-byte salt | 12-byte IV | ciphertext+tag]`. PBKDF2 with 150,000 SHA-256 iterations for key derivation. Exposes `window.CimbarCrypto`
-- `rs.js` — Reed-Solomon RS(255, 223) over GF(256): 32 ECC bytes per 255-byte block, tolerates up to 16 byte errors. Berlekamp-Massey + Chien search + Forney. Exposes `class ReedSolomon`
+- `rs.js` — Reed-Solomon RS(255, 191) over GF(256): 64 ECC bytes per 255-byte block, tolerates up to 32 byte errors. Berlekamp-Massey + Chien search + Forney. Exposes `class ReedSolomon`
 - `gif-encoder.js` — pure-JS GIF89a encoder; builds a 256-color CimBar palette, quantizes frames, LZW-compresses. Exposes `class GifEncoder`
 - `gif-decoder.js` — pure-JS GIF89a parser; handles LZW decode, interlacing, disposal modes. Returns `Array<{imageData, width, height, delay}>`. Exposes `class GifDecoder`
 
@@ -100,9 +100,9 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 #### Core services (`android/lib/core/services/`)
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
-- `reed_solomon.dart` — RS(255,223) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
+- `reed_solomon.dart` — RS(255,191) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
 - `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting (port of cimbar.js decode side)
-- `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±7px)
+- `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
@@ -110,7 +110,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `frame_locator.dart` — finds the CimBar barcode region in a camera photo via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` containing the cropped square image, a `BarcodeRect` with bounding box coordinates in source image space (used for AR overlay), and optional `tlFinderCenter`/`brFinderCenter` (`Point<double>?`) for future perspective transform use
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion when all frames captured and chain is complete. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters. `ScanProgress` includes `barcodeRect`, `sourceImageWidth`, `sourceImageHeight` for AR overlay rendering
-- `perspective_transform.dart` — pure-Dart perspective warp: derives 4 barcode corners from 2 finder centers (assuming square barcode), computes 3×3 homography via DLT (8×8 linear system with Gaussian elimination), warps with inverse mapping + bilinear interpolation. Used by `live_scanner.dart` and `camera_decode_pipeline.dart` as a "try warp first, fallback to crop+resize" strategy
+- `perspective_transform.dart` — pure-Dart perspective warp: derives 4 barcode corners from 2 finder centers (assuming square barcode), computes 3×3 homography via DLT (8×8 linear system with Gaussian elimination), warps with inverse mapping + nearest-neighbor sampling (preserves sharp cell boundaries). Used by `live_scanner.dart` and `camera_decode_pipeline.dart` as a "try warp first, fallback to crop+resize" strategy
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus` (`shareResult` for `DecodeResult`, `shareFile` for existing paths)
 
 #### State management (Riverpod)
@@ -241,7 +241,7 @@ Requires Flutter 3.24+ and Java 17.
 
 **Camera-specific decode flags (`enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`):** `decodeFramePixels()` accepts optional flags that gate white balance correction, relative color matching, symbol detection sensitivity, corner sample positioning, and hash-based symbol detection. `enableWhiteBalance`, `useRelativeColor`, and `useHashDetection` default to `false`; `symbolThreshold` and `quadrantOffset` default to `null` (using the GIF formula and 0.28 respectively). Camera paths set all five via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`). GIF decode doesn't need these corrections because pixel colors are exact from the encoder. The flags avoid any regression in the GIF path while improving camera robustness.
 
-**Two-pass decode (camera path):** When `useHashDetection=true`, `decodeFramePixels` uses a two-pass architecture inspired by libcimbar's C++ implementation. Pass 1 iterates all cells in row-major order, running hash-based symbol detection with fuzzy drift matching. Per-cell drift offsets (accumulated ±7px max) and symbol indices are stored in pre-allocated typed arrays (`Uint8List`, `Int8List`). Pass 2 re-iterates cells, sampling color at drift-corrected center positions `(ox + driftX + cs/2, oy + driftY + cs/2)`. This fixes the root cause of camera decode failure: the original single-pass code sampled color at raw grid positions before drift was known, causing systematic color misclassification when perspective distortion shifted cells by 3–7 pixels. The GIF path remains single-pass (no drift, exact pixel colors).
+**Two-pass decode (camera path):** When `useHashDetection=true`, `decodeFramePixels` uses a two-pass architecture inspired by libcimbar's C++ implementation. Pass 1 iterates all cells in row-major order, running hash-based symbol detection with fuzzy drift matching. Per-cell drift offsets (accumulated ±15px max) and symbol indices are stored in pre-allocated typed arrays (`Uint8List`, `Int8List`). Pass 2 re-iterates cells, sampling color at drift-corrected center positions `(ox + driftX + cs/2, oy + driftY + cs/2)`. This fixes the root cause of camera decode failure: the original single-pass code sampled color at raw grid positions before drift was known, causing systematic color misclassification when perspective distortion shifted cells by 3–15 pixels. The GIF path remains single-pass (no drift, exact pixel colors).
 
 **White balance finder sampling:** The Von Kries white reference is sampled from the outer corner cells of the 3×3 finder patterns (grid positions 0,0 and cols-1,rows-1), NOT the center cell (1,1) which is dark gray. The center cell has a dark fill with only a tiny white dot — sampling it would produce an incorrect white reference and amplify color errors.
 
@@ -269,7 +269,7 @@ Implemented in `perspective_transform.dart` as a pure-Dart homography warp, inte
 
 **Homography computation:** DLT (Direct Linear Transform) with 4 point pairs yields an 8×8 linear system (h₈=1 normalization), solved via Gaussian elimination with partial pivoting. The 3×3 matrix maps destination pixels to source coordinates (inverse mapping).
 
-**Warp loop:** For each destination pixel `(x', y')`: multiply by the homography to get source coordinates, then bilinear interpolation from 4 neighboring source pixels (clamped at bounds). 256×256 output = 65K pixels, each requiring one 3×3 matrix-vector multiply and 4 pixel reads — well within the 4fps budget.
+**Warp loop:** For each destination pixel `(x', y')`: multiply by the homography to get source coordinates, then nearest-neighbor sampling (round to closest source pixel). Nearest-neighbor is critical for CimBar: bilinear interpolation blurs the 8px cell boundaries, creating intermediate colors that defeat color matching and smearing the 2×2 corner dots used for symbol detection. 256×256 output = 65K pixels, each requiring one 3×3 matrix-vector multiply and 1 pixel read — well within the 4fps budget.
 
 **Fallback chain:** (1) No finder centers → crop+resize unchanged. (2) Degenerate geometry → crop+resize. (3) Warp-based RS decode fails → crop+resize for same frame size. (4) All sizes fail → center-crop strategy. GIF decode path is unaffected.
 
@@ -291,7 +291,7 @@ Implemented in `frame_locator.dart` as the primary detection path, with the old 
 
 ### ~~Priority 4 — Average hash symbol detection with drift tracking~~ ✓ IMPLEMENTED
 
-Implemented in `symbol_hash_detector.dart` as a standalone class used by `cimbar_decoder.dart` when `useHashDetection` is true (camera paths). The detector pre-computes 64-bit average hashes for all 16 symbols using the same corner-dot geometry as `drawSymbol` (rendered on gray foreground, each bit = pixel luma > cell mean). For each camera cell, `detectSymbolFuzzy()` tries 9 overlapping positions (center + 8 neighbors at ±1px), computing a hash at each and matching via Hamming distance (`popcount(a ^ b)`) against all 16 reference hashes. The winning drift offset accumulates across cells in row-scan order (capped at ±7px), mimicking libcimbar's cell drift propagation. Gated by `DecodeTuningConfig.useHashDetection` (default true for camera, ignored for GIF decode). The GIF path continues using the existing 5-pixel quadrant luma threshold, which is exact for clean pixel data.
+Implemented in `symbol_hash_detector.dart` as a standalone class used by `cimbar_decoder.dart` when `useHashDetection` is true (camera paths). The detector pre-computes 64-bit average hashes for all 16 symbols using the same corner-dot geometry as `drawSymbol` (rendered on gray foreground, each bit = pixel luma > cell mean). For each camera cell, `detectSymbolFuzzy()` tries 9 overlapping positions (center + 8 neighbors at ±1px), computing a hash at each and matching via Hamming distance (`popcount(a ^ b)`) against all 16 reference hashes. The winning drift offset accumulates across cells in row-scan order (capped at ±15px), mimicking libcimbar's cell drift propagation. The ±15px cap (increased from ±7px) allows correction of larger offsets from crop+resize fallback paths where the initial crop can be shifted by 10–15px. Gated by `DecodeTuningConfig.useHashDetection` (default true for camera, ignored for GIF decode). The GIF path continues using the existing 5-pixel quadrant luma threshold, which is exact for clean pixel data.
 
 **Note:** This implementation uses simplified row-scan drift propagation rather than libcimbar's flood-fill from anchor corners via priority queue. The flood-fill approach (Priority 4b, not yet implemented) would decode high-confidence cells first and propagate drift outward, further improving robustness on severely distorted images.
 
@@ -323,7 +323,7 @@ The web app is available at https://nfcarchiver.com/cimbar/
 ## Key Constants (web-app/cimbar.js and android/lib/core/constants/cimbar_constants.dart)
 
 - `CELL_SIZE = 8` (pixels per cell)
-- `ECC_BYTES = 32` (RS parity bytes per 255-byte block)
+- `ECC_BYTES = 64` (RS parity bytes per 255-byte block; RS(255,191) corrects up to 32 errors/block = 12.5%)
 - 8-color palette embedded in `web-app/cimbar.js`, `web-app/gif-encoder.js`, and `android/lib/core/constants/cimbar_constants.dart` — must stay in sync across all three
 
 ## Test Suite
@@ -348,7 +348,7 @@ python tests/test_gif.py path/to/output.gif [size]   # standalone GIF check (nee
 | File | What it tests |
 |------|--------------|
 | `tests/test_symbols.js` | `drawSymbol` / `detectSymbol` round-trip for all 128 `(colorIdx 0–7, symIdx 0–15)` combinations via `MockCanvas`. Each cell must encode and decode back to the exact same 7-bit value. |
-| `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, correction of ≤16 injected errors, detection of >16 errors (uncorrectable), and Forney/Omega correctness with errors at known positions. |
+| `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, correction of ≤32 injected errors, detection of >32 errors (uncorrectable), and Forney/Omega correctness with errors at known positions. |
 | `tests/test_pipeline_node.js` | Full GIF encode → GIF decode pipeline in Node.js using `MockCanvas` + `GifEncoder` + `GifDecoder` + `encodeRSFrame`/`decodeRSFrame`. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: non-dpf-aligned payload, exactly dpf-aligned payload, and single-frame tiny payload. |
 | `tests/test_gif.py` | Structural check on a real GIF file: `GIF89a` magic, correct dimensions, global color table, frame count, and palette slots 0–7 matching the 8 CimBar base colors. Requires `pip install pillow`. |
 | `tests/test_pipeline.py` | Python subprocess orchestrator: runs `test_symbols.js`, `test_rs.js`, and optionally `test_gif.py`, prints a PASS/FAIL summary. |
@@ -366,13 +366,13 @@ flutter test
 | File | What it tests |
 |------|--------------|
 | `test/core/services/galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic identities. |
-| `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 16-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (223-byte) round-trips. |
+| `test/core/services/reed_solomon_test.dart` | Port of `test_rs.js`: clean round-trip, 32-error correction, uncorrectable detection, Forney/Omega correctness. Also full-block (191-byte) round-trips. |
 | `test/core/services/cimbar_decoder_test.dart` | Port of `test_symbols.js`: all 128 (colorIdx, symIdx) draw+detect round-trips using the `image` package instead of MockCanvas. Also tests Von Kries white balance correction (warm/cool tinted frames), relative color matching (brightness-shifted and clean frames), camera-exposure symbol detection with `symbolThreshold=0.85` (over-exposed frames), average hash symbol detection: reference hash distinctness (min pairwise Hamming distance ≥4), 128-combo round-trip with hash detection, ±1px drift tolerance via fuzzy matching, full frame round-trip, blur robustness, and two-pass decode: drift-corrected color on shifted cells, noisy frame handling, clean frame perfect round-trip, DecodeStats drift tracking. |
 | `test/core/services/crypto_service_test.dart` | AES-256-GCM encrypt/decrypt round-trip, wrong passphrase rejection, bad magic detection, passphrase strength scoring. |
 | `test/core/services/decode_pipeline_test.dart` | Port of `test_pipeline_node.js`: RS frame encode→draw→read→decode round-trip with length prefix. Three cases: non-dpf-aligned, dpf-aligned, and single-frame tiny payload. |
 | `test/core/services/frame_locator_test.dart` | Barcode region detection from camera photos: centered barcode, offset barcode, barcode filling entire image, dark image (no barcode), noisy background with scattered bright pixels (verifies anchor detection ignores noise), finder center position validation (detected centers within 20px of known positions), and fallback behavior (uniform bright rectangle without finder structure triggers luma-threshold fallback with null finder centers). 7 tests total. |
 | `test/core/services/yuv_converter_test.dart` | YUV420→RGB conversion: pure white/black, UV subsampling correctness, stride configurations (padded Y rows), semi-planar UV (uvPixelStride=2). |
-| `test/core/services/perspective_transform_test.dart` | Corner derivation (axis-aligned and 30° rotated barcodes produce correct square corners, degenerate inputs return null), identity warp preserves content, warp corrects rotated barcode (>70% cell colors match palette), full RS decode round-trip through perspective warp (256px barcode rotated 10° at 2× in 900px photo), fallback path with no finder centers. 7 tests. |
+| `test/core/services/perspective_transform_test.dart` | Corner derivation (axis-aligned and 30° rotated barcodes produce correct square corners, degenerate inputs return null), identity warp preserves content, warp corrects rotated barcode (>90% cell colors match palette with NN sampling), full RS decode round-trip through perspective warp (256px barcode rotated 10° at 2× in 900px photo), fallback path with no finder centers. 7 tests. |
 | `test/core/services/live_scanner_test.dart` | Multi-frame scanning logic via `processDecodedData`: single-frame complete scan, 5-frame progressive capture with assembly, duplicate handling, out-of-order adjacency-chain resolution ([2,3,4,0,1] → correct [0,1,2,3,4]), frame 0 detection, dark image graceful handling, reset. |
 
 ### Known subtleties

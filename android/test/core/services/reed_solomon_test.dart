@@ -15,40 +15,40 @@ Uint8List seqData(int n, int seed) {
 }
 
 void main() {
-  final rs = ReedSolomon(32); // ECC_BYTES = 32, correction capacity = 16
+  final rs = ReedSolomon(64); // ECC_BYTES = 64, correction capacity = 32
 
   group('ReedSolomon', () {
     test('encode/decode, no errors', () {
       final data = seqData(100, 42);
       final encoded = rs.encode(data);
-      expect(encoded.length, equals(132)); // 100 + 32
+      expect(encoded.length, equals(164)); // 100 + 64
 
       final decoded = rs.decode(encoded);
       expect(decoded, equals(data));
     });
 
-    test('correct 16 random errors', () {
+    test('correct 32 random errors', () {
       final data = seqData(100, 99);
       final encoded = rs.encode(data);
       final received = Uint8List.fromList(encoded);
 
-      // Inject 16 errors at fixed, spread-out positions
-      for (var k = 0; k < 16; k++) {
-        received[k * 8] ^= 0xA5;
+      // Inject 32 errors at fixed, spread-out positions
+      for (var k = 0; k < 32; k++) {
+        received[k * 5] ^= 0xA5;
       }
 
       final decoded = rs.decode(received);
       expect(decoded, equals(data));
     });
 
-    test('17+ errors detected as uncorrectable', () {
+    test('33+ errors detected as uncorrectable', () {
       final data = seqData(100, 7);
       final encoded = rs.encode(data);
       final received = Uint8List.fromList(encoded);
 
-      // Inject 20 errors
-      for (var k = 0; k < 20; k++) {
-        received[k * 6] ^= 0xFF;
+      // Inject 40 errors to reliably exceed correction capacity
+      for (var k = 0; k < 40; k++) {
+        received[k * 4] ^= 0xFF;
       }
 
       var threw = false;
@@ -64,7 +64,7 @@ void main() {
         threw || wrongDecode,
         isTrue,
         reason:
-            '20 injected errors were silently "corrected" to the original data',
+            '40 injected errors were silently "corrected" to the original data',
       );
     });
 
@@ -83,8 +83,8 @@ void main() {
       expect(decoded, equals(data));
     });
 
-    test('full-block (223 data bytes) round-trip', () {
-      final data = seqData(223, 55);
+    test('full-block (191 data bytes) round-trip', () {
+      final data = seqData(191, 55);
       final encoded = rs.encode(data);
       expect(encoded.length, equals(255));
 
@@ -93,12 +93,13 @@ void main() {
     });
 
     test('full-block with max correctable errors', () {
-      final data = seqData(223, 77);
+      final data = seqData(191, 77);
       final encoded = rs.encode(data);
       final received = Uint8List.fromList(encoded);
 
-      for (var k = 0; k < 16; k++) {
-        received[k * 15] ^= 0xBB;
+      // Inject 32 errors (max correctable for RS(255,191))
+      for (var k = 0; k < 32; k++) {
+        received[k * 7] ^= 0xBB;
       }
 
       final decoded = rs.decode(received);

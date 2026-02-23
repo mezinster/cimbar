@@ -7,7 +7,7 @@
 
 const { ReedSolomon } = require('../rs.js');
 
-const rs = new ReedSolomon(32); // ECC_BYTES = 32, correction capacity = 16
+const rs = new ReedSolomon(64); // ECC_BYTES = 64, correction capacity = 32
 
 let passed = 0, failed = 0;
 
@@ -43,37 +43,37 @@ function seqData(n, seed) {
 test('encode/decode, no errors', () => {
   const data    = seqData(100, 42);
   const encoded = rs.encode(data);
-  if (encoded.length !== 132)
-    throw new Error(`encoded length ${encoded.length} != 132`);
+  if (encoded.length !== 164)
+    throw new Error(`encoded length ${encoded.length} != 164`);
   const decoded = rs.decode(encoded);
   assertArrayEqual(decoded, data, 'no-error round-trip');
 });
 
-// ── Test 2: correct exactly 16 errors ─────────────────────────────────────────
-test('correct 16 random errors', () => {
+// ── Test 2: correct exactly 32 errors ─────────────────────────────────────────
+test('correct 32 random errors', () => {
   const data     = seqData(100, 99);
   const encoded  = rs.encode(data);
   const received = new Uint8Array(encoded);
 
-  // Inject 16 errors at fixed, spread-out positions
-  for (let k = 0; k < 16; k++) {
-    received[k * 8] ^= 0xA5;
+  // Inject 32 errors at fixed, spread-out positions
+  for (let k = 0; k < 32; k++) {
+    received[k * 5] ^= 0xA5;
   }
 
   const decoded = rs.decode(received);
-  assertArrayEqual(decoded, data, '16-error correction');
+  assertArrayEqual(decoded, data, '32-error correction');
 });
 
-// ── Test 3: 17+ errors → must be uncorrectable (throws OR wrong decode) ───────
-// RS(255,223) guarantees ≤16 errors correctable; 17 errors exceeds the bound.
-test('17+ errors detected as uncorrectable', () => {
+// ── Test 3: 33+ errors → must be uncorrectable (throws OR wrong decode) ───────
+// RS(255,191) guarantees ≤32 errors correctable; 33 errors exceeds the bound.
+test('33+ errors detected as uncorrectable', () => {
   const data     = seqData(100, 7);
   const encoded  = rs.encode(data);
   const received = new Uint8Array(encoded);
 
-  // Inject 20 errors to reliably exceed correction capacity
-  for (let k = 0; k < 20; k++) {
-    received[k * 6] ^= 0xFF;
+  // Inject 40 errors to reliably exceed correction capacity
+  for (let k = 0; k < 40; k++) {
+    received[k * 4] ^= 0xFF;
   }
 
   let threw = false;
@@ -87,7 +87,7 @@ test('17+ errors detected as uncorrectable', () => {
   }
 
   if (!threw && !wrongDecode) {
-    throw new Error('20 injected errors were silently "corrected" to the original data — impossible for this RS configuration');
+    throw new Error('40 injected errors were silently "corrected" to the original data — impossible for this RS configuration');
   }
 });
 
