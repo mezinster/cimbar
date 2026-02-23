@@ -97,7 +97,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
 
       final controller = CameraController(
         camera,
-        ResolutionPreset.medium,
+        ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );

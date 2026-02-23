@@ -24,11 +24,16 @@ class DecodeStats {
   int driftXFinal = 0;
   int driftYFinal = 0;
 
+  // Drift stats (two-pass decode)
+  int driftNonZeroCount = 0;
+  int driftAbsSum = 0;
+
   // White balance
   bool whiteBalanceApplied = false;
 
   double get hammingAvg => cellCount > 0 ? hammingSum / cellCount : 0;
   double get sym15Pct => cellCount > 0 ? sym15Count * 100 / cellCount : 0;
+  double get driftAbsAvg => driftNonZeroCount > 0 ? driftAbsSum / driftNonZeroCount : 0;
 
   @override
   String toString() {
@@ -41,7 +46,9 @@ class DecodeStats {
     if (hammingSum > 0) {
       sb.write(' hamming=avg${hammingAvg.toStringAsFixed(1)}'
           '/min$hammingMin/max$hammingMax '
-          'drift=($driftXFinal,$driftYFinal)');
+          'drift=($driftXFinal,$driftYFinal) '
+          'driftCells=$driftNonZeroCount '
+          'driftAvg=${driftAbsAvg.toStringAsFixed(1)}');
     }
     return sb.toString();
   }
@@ -268,26 +275,75 @@ class CimbarDecoder {
 
     // Hash detector for camera path
     final hashDetector = useHashDetection ? SymbolHashDetector() : null;
-    var driftX = 0;
-    var driftY = 0;
 
-    var bitBuf = 0;
-    var bitCount = 0;
-    var byteIdx = 0;
+    if (hashDetector != null) {
+      // ── Camera path: two-pass decode ──
+      // Pass 1: symbol detection + drift discovery
+      // Pass 2: color sampling at drift-corrected positions + bit packing
+      final cellCount = CimbarConstants.usableCells(frameSize);
+      final symIndices = Uint8List(cellCount);
+      final cellDriftX = Int8List(cellCount);
+      final cellDriftY = Int8List(cellCount);
+      final cellOx = Uint16List(cellCount);
+      final cellOy = Uint16List(cellCount);
 
-    for (var row = 0; row < rows; row++) {
-      for (var col = 0; col < cols; col++) {
-        // Skip finder pattern cells
-        final inTL = row < 3 && col < 3;
-        final inBR = row >= rows - 3 && col >= cols - 3;
-        if (inTL || inBR) continue;
+      // Pass 1: symbols + drift
+      var driftX = 0;
+      var driftY = 0;
+      var ci = 0;
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          final inTL = row < 3 && col < 3;
+          final inBR = row >= rows - 3 && col >= cols - 3;
+          if (inTL || inBR) continue;
 
-        final ox = col * cs;
-        final oy = row * cs;
+          final ox = col * cs;
+          final oy = row * cs;
+          cellOx[ci] = ox;
+          cellOy[ci] = oy;
 
-        // Color detection: sample center pixel
-        final cx = ox + cs ~/ 2;
-        final cy = oy + cs ~/ 2;
+          final (sym, dx, dy, dist) = hashDetector.detectSymbolFuzzy(
+              frame, ox, oy, cs, driftX: driftX, driftY: driftY);
+          symIndices[ci] = sym;
+          driftX = (driftX + dx).clamp(-7, 7);
+          driftY = (driftY + dy).clamp(-7, 7);
+          cellDriftX[ci] = driftX;
+          cellDriftY[ci] = driftY;
+
+          // Collect hash stats
+          if (stats != null) {
+            stats.hammingSum += dist;
+            if (dist < stats.hammingMin) stats.hammingMin = dist;
+            if (dist > stats.hammingMax) stats.hammingMax = dist;
+            if (driftX != 0 || driftY != 0) {
+              stats.driftNonZeroCount++;
+              stats.driftAbsSum += driftX.abs() + driftY.abs();
+            }
+          }
+          ci++;
+        }
+      }
+
+      // Record final drift
+      if (stats != null) {
+        stats.driftXFinal = driftX;
+        stats.driftYFinal = driftY;
+      }
+
+      // Pass 2: color at drift-corrected positions + bit packing
+      var bitBuf = 0;
+      var bitCount = 0;
+      var byteIdx = 0;
+      for (var i = 0; i < cellCount; i++) {
+        final ox = cellOx[i];
+        final oy = cellOy[i];
+        final dx = cellDriftX[i];
+        final dy = cellDriftY[i];
+        final symIdx = symIndices[i];
+
+        // Sample color at drift-corrected center pixel
+        final cx = (ox + dx + cs ~/ 2).clamp(0, frame.width - 1);
+        final cy = (oy + dy + cs ~/ 2).clamp(0, frame.height - 1);
         final pixel = frame.getPixel(cx, cy);
         var pr = pixel.r.toInt(), pg = pixel.g.toInt(), pb = pixel.b.toInt();
 
@@ -303,28 +359,6 @@ class CimbarDecoder {
             ? _nearestColorIdxRelative(pr, pg, pb)
             : _nearestColorIdx(pr, pg, pb);
 
-        // Symbol detection
-        int symIdx;
-        if (hashDetector != null) {
-          // Camera path: average hash with fuzzy drift matching
-          final (sym, dx, dy, dist) = hashDetector.detectSymbolFuzzy(
-              frame, ox, oy, cs, driftX: driftX, driftY: driftY);
-          symIdx = sym;
-          // Accumulate drift, capped at ±7px
-          driftX = (driftX + dx).clamp(-7, 7);
-          driftY = (driftY + dy).clamp(-7, 7);
-          // Collect hash stats
-          if (stats != null) {
-            stats.hammingSum += dist;
-            if (dist < stats.hammingMin) stats.hammingMin = dist;
-            if (dist > stats.hammingMax) stats.hammingMax = dist;
-          }
-        } else {
-          // GIF path: quadrant luma threshold
-          symIdx = _detectSymbol(frame, ox, oy, cs,
-              symbolThreshold: symbolThreshold, quadrantOffset: quadrantOffset);
-        }
-
         // Collect stats
         if (stats != null) {
           stats.cellCount++;
@@ -334,7 +368,6 @@ class CimbarDecoder {
         }
 
         final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
-
         bitBuf = (bitBuf << 7) | bits;
         bitCount += 7;
 
@@ -343,12 +376,61 @@ class CimbarDecoder {
           outBytes[byteIdx++] = (bitBuf >> bitCount) & 0xFF;
         }
       }
-    }
+    } else {
+      // ── GIF path: single-pass decode (unchanged) ──
+      var bitBuf = 0;
+      var bitCount = 0;
+      var byteIdx = 0;
 
-    // Record final drift
-    if (stats != null) {
-      stats.driftXFinal = driftX;
-      stats.driftYFinal = driftY;
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          final inTL = row < 3 && col < 3;
+          final inBR = row >= rows - 3 && col >= cols - 3;
+          if (inTL || inBR) continue;
+
+          final ox = col * cs;
+          final oy = row * cs;
+
+          // Color detection: sample center pixel
+          final cx = ox + cs ~/ 2;
+          final cy = oy + cs ~/ 2;
+          final pixel = frame.getPixel(cx, cy);
+          var pr = pixel.r.toInt(), pg = pixel.g.toInt(), pb = pixel.b.toInt();
+
+          // Apply white balance correction
+          if (adaptation != null) {
+            final corrected = applyAdaptation(adaptation, pr, pg, pb);
+            pr = corrected[0];
+            pg = corrected[1];
+            pb = corrected[2];
+          }
+
+          final colorIdx = useRelativeColor
+              ? _nearestColorIdxRelative(pr, pg, pb)
+              : _nearestColorIdx(pr, pg, pb);
+
+          // Symbol detection: quadrant luma threshold
+          final symIdx = _detectSymbol(frame, ox, oy, cs,
+              symbolThreshold: symbolThreshold, quadrantOffset: quadrantOffset);
+
+          // Collect stats
+          if (stats != null) {
+            stats.cellCount++;
+            stats.colorHist[colorIdx]++;
+            stats.symHist[symIdx]++;
+            if (symIdx == 15) stats.sym15Count++;
+          }
+
+          final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
+          bitBuf = (bitBuf << 7) | bits;
+          bitCount += 7;
+
+          while (bitCount >= 8 && byteIdx < totalBytes) {
+            bitCount -= 8;
+            outBytes[byteIdx++] = (bitBuf >> bitCount) & 0xFF;
+          }
+        }
+      }
     }
 
     return outBytes;
