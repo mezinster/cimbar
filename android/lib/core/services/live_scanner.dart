@@ -361,6 +361,9 @@ class LiveScanner {
   /// Decode a pre-sized image and apply quality gate.
   Uint8List? _tryDecodeResized(img.Image resized, int frameSize) {
     try {
+      _emitDebug('resize_info', 'input=${resized.width}x${resized.height} target=$frameSize '
+          'tuning=[wb=${tuningConfig.enableWhiteBalance} rel=${tuningConfig.useRelativeColor} '
+          'sym=${tuningConfig.symbolThreshold} quad=${tuningConfig.quadrantOffset}]');
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: tuningConfig.enableWhiteBalance,
           useRelativeColor: tuningConfig.useRelativeColor,

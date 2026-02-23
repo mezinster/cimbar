@@ -1,6 +1,6 @@
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 import '../constants/cimbar_constants.dart';
@@ -225,6 +225,10 @@ class CimbarDecoder {
     var bitBuf = 0;
     var bitCount = 0;
     var byteIdx = 0;
+    var cellCount = 0;
+    // Diagnostic counters
+    final colorHist = List<int>.filled(8, 0);
+    var sym15count = 0;
 
     for (var row = 0; row < rows; row++) {
       for (var col = 0; col < cols; col++) {
@@ -258,6 +262,24 @@ class CimbarDecoder {
         final symIdx = _detectSymbol(frame, ox, oy, cs,
             symbolThreshold: symbolThreshold, quadrantOffset: quadrantOffset);
 
+        // Log first 5 cells for diagnostics
+        if (cellCount < 5) {
+          final qFraction = quadrantOffset ?? 0.28;
+          final q = (cs * qFraction).floor().clamp(1, cs);
+          final cLuma = 0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b;
+          final tlP = frame.getPixel(ox + q, oy + q);
+          final tlLuma = 0.299 * tlP.r + 0.587 * tlP.g + 0.114 * tlP.b;
+          debugPrint('[cell_diag] row=$row col=$col '
+              'rawRGB=(${pixel.r.toInt()},${pixel.g.toInt()},${pixel.b.toInt()}) '
+              'wbRGB=($pr,$pg,$pb) '
+              'colorIdx=$colorIdx symIdx=$symIdx '
+              'centerLuma=${cLuma.toStringAsFixed(0)} '
+              'tlCornerLuma=${tlLuma.toStringAsFixed(0)}');
+        }
+        colorHist[colorIdx]++;
+        if (symIdx == 15) sym15count++;
+        cellCount++;
+
         final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
 
         bitBuf = (bitBuf << 7) | bits;
@@ -268,6 +290,16 @@ class CimbarDecoder {
           outBytes[byteIdx++] = (bitBuf >> bitCount) & 0xFF;
         }
       }
+    }
+
+    // Diagnostic summary
+    debugPrint('[decode_diag] frameSize=$frameSize cells=$cellCount '
+        'sym15=$sym15count/$cellCount '
+        'colorHist=$colorHist '
+        'wb=${adaptation != null} relColor=$useRelativeColor '
+        'symThresh=$symbolThreshold');
+    if (adaptation != null) {
+      debugPrint('[decode_diag] adaptMatrix=[${adaptation.map((v) => v.toStringAsFixed(3)).join(', ')}]');
     }
 
     return outBytes;
