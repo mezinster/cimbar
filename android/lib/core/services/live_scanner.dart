@@ -361,17 +361,17 @@ class LiveScanner {
   /// Decode a pre-sized image and apply quality gate.
   Uint8List? _tryDecodeResized(img.Image resized, int frameSize) {
     try {
+      final stats = DecodeStats();
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: tuningConfig.enableWhiteBalance,
           useRelativeColor: tuningConfig.useRelativeColor,
           symbolThreshold: tuningConfig.symbolThreshold,
           quadrantOffset: tuningConfig.quadrantOffset,
-          useHashDetection: tuningConfig.useHashDetection);
+          useHashDetection: tuningConfig.useHashDetection,
+          stats: stats);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
-      _emitDebug('try_decode', 'size=$frameSize '
-          'raw16=${_hexPreview(rawBytes, 16)} '
-          'rs16=${_hexPreview(dataBytes, 16)}');
+      _emitDebug('decode_stats', 'size=$frameSize $stats');
 
       if (dataBytes.isEmpty) return null;
 
@@ -392,19 +392,6 @@ class LiveScanner {
     } catch (_) {
       return null;
     }
-  }
-
-  /// Hex preview of first [n] bytes for debug output.
-  static String _hexPreview(Uint8List bytes, int n) {
-    final len = min(n, bytes.length);
-    if (len == 0) return '[]';
-    final sb = StringBuffer('[');
-    for (var i = 0; i < len; i++) {
-      if (i > 0) sb.write(' ');
-      sb.write(bytes[i].toRadixString(16).padLeft(2, '0'));
-    }
-    sb.write(']');
-    return sb.toString();
   }
 
   /// Check if scanning is complete.

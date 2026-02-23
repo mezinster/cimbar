@@ -7,6 +7,46 @@ import '../constants/cimbar_constants.dart';
 import 'reed_solomon.dart';
 import 'symbol_hash_detector.dart';
 
+/// Per-frame decode statistics for diagnostics.
+///
+/// Pass an instance to [CimbarDecoder.decodeFramePixels] to collect stats.
+/// All fields are populated during decode; no cost if not requested (null).
+class DecodeStats {
+  int cellCount = 0;
+  final colorHist = List<int>.filled(8, 0);
+  final symHist = List<int>.filled(16, 0);
+  int sym15Count = 0;
+
+  // Hash detection stats (only populated when useHashDetection=true)
+  int hammingSum = 0;
+  int hammingMin = 65;
+  int hammingMax = 0;
+  int driftXFinal = 0;
+  int driftYFinal = 0;
+
+  // White balance
+  bool whiteBalanceApplied = false;
+
+  double get hammingAvg => cellCount > 0 ? hammingSum / cellCount : 0;
+  double get sym15Pct => cellCount > 0 ? sym15Count * 100 / cellCount : 0;
+
+  @override
+  String toString() {
+    final sb = StringBuffer()
+      ..write('cells=$cellCount ')
+      ..write('sym15=$sym15Count/$cellCount(${sym15Pct.toStringAsFixed(0)}%) ')
+      ..write('colorHist=$colorHist ')
+      ..write('symHist=$symHist ')
+      ..write('wb=$whiteBalanceApplied');
+    if (hammingSum > 0) {
+      sb.write(' hamming=avg${hammingAvg.toStringAsFixed(1)}'
+          '/min$hammingMin/max$hammingMax '
+          'drift=($driftXFinal,$driftYFinal)');
+    }
+    return sb.toString();
+  }
+}
+
 /// Decode CimBar frames from pixel data.
 /// Port of decode-side functions from web-app/cimbar.js.
 class CimbarDecoder {
@@ -206,6 +246,7 @@ class CimbarDecoder {
     double? symbolThreshold,
     double? quadrantOffset,
     bool useHashDetection = false,
+    DecodeStats? stats,
   }) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
@@ -223,6 +264,7 @@ class CimbarDecoder {
             whitePoint[0], whitePoint[1], whitePoint[2]);
       }
     }
+    stats?.whiteBalanceApplied = adaptation != null;
 
     // Hash detector for camera path
     final hashDetector = useHashDetection ? SymbolHashDetector() : null;
@@ -265,16 +307,30 @@ class CimbarDecoder {
         int symIdx;
         if (hashDetector != null) {
           // Camera path: average hash with fuzzy drift matching
-          final (sym, dx, dy, _) = hashDetector.detectSymbolFuzzy(
+          final (sym, dx, dy, dist) = hashDetector.detectSymbolFuzzy(
               frame, ox, oy, cs, driftX: driftX, driftY: driftY);
           symIdx = sym;
           // Accumulate drift, capped at ±7px
           driftX = (driftX + dx).clamp(-7, 7);
           driftY = (driftY + dy).clamp(-7, 7);
+          // Collect hash stats
+          if (stats != null) {
+            stats.hammingSum += dist;
+            if (dist < stats.hammingMin) stats.hammingMin = dist;
+            if (dist > stats.hammingMax) stats.hammingMax = dist;
+          }
         } else {
           // GIF path: quadrant luma threshold
           symIdx = _detectSymbol(frame, ox, oy, cs,
               symbolThreshold: symbolThreshold, quadrantOffset: quadrantOffset);
+        }
+
+        // Collect stats
+        if (stats != null) {
+          stats.cellCount++;
+          stats.colorHist[colorIdx]++;
+          stats.symHist[symIdx]++;
+          if (symIdx == 15) stats.sym15Count++;
         }
 
         final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
@@ -287,6 +343,12 @@ class CimbarDecoder {
           outBytes[byteIdx++] = (bitBuf >> bitCount) & 0xFF;
         }
       }
+    }
+
+    // Record final drift
+    if (stats != null) {
+      stats.driftXFinal = driftX;
+      stats.driftYFinal = driftY;
     }
 
     return outBytes;

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -113,8 +113,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   }
 
   void _onDebug(ScanDebugInfo info) {
+    final msg = info.toString();
+    debugPrint('[cimbar_scan] $msg');
     Future.microtask(() {
-      final log = [...state.debugLog, info.toString()];
+      final log = [...state.debugLog, msg];
       if (log.length > _maxDebugEntries) {
         log.removeRange(0, log.length - _maxDebugEntries);
       }
