@@ -294,6 +294,20 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
               ),
             ),
 
+          // Debug capture button (visible when debug overlay is open)
+          if (scanState.debugEnabled && scanState.isScanning)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => controller.captureDebugFrame(),
+                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 28),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                ),
+              ),
+            ),
+
           // Bottom: status panel (triple-tap to toggle debug)
           Positioned(
             left: 0,
