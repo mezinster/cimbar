@@ -109,6 +109,12 @@ class LiveScanner {
   int? get detectedFrameSize => _frameSize;
   int get framesAnalyzed => _framesAnalyzed;
 
+  /// Increment frames-analyzed counter for failed decode attempts
+  /// (when decode runs in a background isolate).
+  void incrementFramesAnalyzed() {
+    _framesAnalyzed++;
+  }
+
   /// Process a single camera frame image.
   ///
   /// Returns [ScanProgress] with current state, or null if the frame

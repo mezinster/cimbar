@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +10,8 @@ import '../../core/models/barcode_rect.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/models/decode_tuning_config.dart';
 import '../../core/services/crypto_service.dart';
+import '../../core/services/frame_decode_isolate.dart';
 import '../../core/services/live_scanner.dart';
-import '../../core/services/yuv_converter.dart';
 import '../../core/utils/byte_utils.dart';
 
 final liveScanControllerProvider =
@@ -101,7 +102,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   static const _maxDebugEntries = 50;
   bool _debugMode = false;
 
+  DecodeTuningConfig _tuningConfig = const DecodeTuningConfig();
+
   void updateTuningConfig(DecodeTuningConfig config) {
+    _tuningConfig = config;
     _scanner.tuningConfig = config;
   }
 
@@ -139,9 +143,18 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     state = state.copyWith(isScanning: false);
   }
 
+  bool _captureNextFrame = false;
+
+  /// Request debug frame capture on the next processed frame.
+  void captureDebugFrame() {
+    _captureNextFrame = true;
+  }
+
   /// Process a camera frame. Called from the image stream callback.
   ///
   /// Accepts raw YUV plane data to decouple from CameraImage.
+  /// Heavy computation (YUV→RGB, locate, warp, decode) runs in a background
+  /// isolate. Stateful frame tracking (adjacency, dedup) stays on main isolate.
   void onCameraFrame({
     required int width,
     required int height,
@@ -160,9 +173,35 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _lastProcessedMs = now;
     _processing = true;
 
+    final capture = _captureNextFrame;
+    _captureNextFrame = false;
+
+    _processFrameAsync(
+      width: width,
+      height: height,
+      yPlane: yPlane,
+      uPlane: uPlane,
+      vPlane: vPlane,
+      yRowStride: yRowStride,
+      uvRowStride: uvRowStride,
+      uvPixelStride: uvPixelStride,
+      captureFrame: capture,
+    );
+  }
+
+  Future<void> _processFrameAsync({
+    required int width,
+    required int height,
+    required Uint8List yPlane,
+    required Uint8List uPlane,
+    required Uint8List vPlane,
+    required int yRowStride,
+    required int uvRowStride,
+    required int uvPixelStride,
+    required bool captureFrame,
+  }) async {
     try {
-      // Convert YUV to RGB
-      final image = YuvConverter.yuv420ToImage(
+      final input = IsolateFrameInput(
         width: width,
         height: height,
         yPlane: yPlane,
@@ -171,40 +210,72 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         yRowStride: yRowStride,
         uvRowStride: uvRowStride,
         uvPixelStride: uvPixelStride,
+        tuningConfig: _tuningConfig,
+        lockedFrameSize: _scanner.detectedFrameSize,
+        collectStats: _debugMode,
+        captureFrame: captureFrame,
       );
 
-      // Process through scanner
-      final progress = _scanner.processFrame(image);
+      final result = await Isolate.run(() => decodeFrameInIsolate(input));
 
-      // Capture values before deferring — _scanner fields are stable until
-      // the next onCameraFrame call, which can't run until _processing is
-      // cleared after the microtask.
-      final analyzed = _scanner.framesAnalyzed;
-      final unique = progress?.uniqueFrames ?? state.uniqueFrames;
-      final total = progress?.totalFrames ?? state.totalFrames;
-      final fSize = progress?.detectedFrameSize ?? state.detectedFrameSize;
-      final rect = progress?.barcodeRect;
-      final srcW = progress?.sourceImageWidth;
-      final srcH = progress?.sourceImageHeight;
+      // Process stateful tracking on main isolate
+      if (result.dataBytes != null && result.frameSize != null) {
+        final progress = _scanner.processDecodedData(
+            result.dataBytes!, result.frameSize!);
 
-      // Defer state update: the camera stream callback can fire while the
-      // widget tree is still building, and Riverpod forbids synchronous
-      // provider modifications during build.
-      Future.microtask(() {
-        state = state.copyWith(
-          framesAnalyzed: analyzed,
-          uniqueFrames: unique,
-          totalFrames: total,
-          detectedFrameSize: fSize,
-          barcodeRect: rect,
-          sourceImageWidth: srcW,
-          sourceImageHeight: srcH,
-          clearBarcodeRect: rect == null,
-        );
-        _processing = false;
-      });
+        Future.microtask(() {
+          state = state.copyWith(
+            framesAnalyzed: _scanner.framesAnalyzed + 1,
+            uniqueFrames: progress.uniqueFrames,
+            totalFrames: progress.totalFrames,
+            detectedFrameSize: progress.detectedFrameSize,
+            barcodeRect: result.barcodeRect,
+            sourceImageWidth: result.sourceImageWidth,
+            sourceImageHeight: result.sourceImageHeight,
+            clearBarcodeRect: result.barcodeRect == null,
+          );
+          _processing = false;
+        });
+      } else {
+        // Decode failed — still update UI with barcode rect if available
+        _scanner.incrementFramesAnalyzed();
+        Future.microtask(() {
+          state = state.copyWith(
+            framesAnalyzed: _scanner.framesAnalyzed,
+            barcodeRect: result.barcodeRect,
+            sourceImageWidth: result.sourceImageWidth,
+            sourceImageHeight: result.sourceImageHeight,
+            clearBarcodeRect: result.barcodeRect == null,
+          );
+          _processing = false;
+        });
+      }
+
+      // Save debug captures if present
+      if (result.rawFramePng != null || result.croppedFramePng != null) {
+        _saveDebugCaptures(result.rawFramePng, result.croppedFramePng);
+      }
     } catch (_) {
+      _scanner.incrementFramesAnalyzed();
       _processing = false;
+    }
+  }
+
+  Future<void> _saveDebugCaptures(
+      Uint8List? rawPng, Uint8List? croppedPng) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      if (rawPng != null) {
+        await File('${dir.path}/cimbar_debug_raw_$ts.png')
+            .writeAsBytes(rawPng);
+      }
+      if (croppedPng != null) {
+        await File('${dir.path}/cimbar_debug_crop_$ts.png')
+            .writeAsBytes(croppedPng);
+      }
+    } catch (_) {
+      // Ignore save errors for debug captures
     }
   }
 
