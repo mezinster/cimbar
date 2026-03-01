@@ -26,14 +26,14 @@ const BLOCK_DATA = BLOCK_TOTAL - ECC_BYTES; // 191 data bytes per block
 
 // 8 perceptually distinct colors, chosen to survive GIF palette quantization
 const COLORS = [
-  [  0, 150, 136],  // 0 teal
-  [244,  67,  54],  // 1 red
-  [ 33, 150, 243],  // 2 blue
-  [255, 152,   0],  // 3 amber
-  [156,  39, 176],  // 4 purple
-  [ 76, 175,  80],  // 5 green
-  [121,  85,  72],  // 6 brown
-  [ 64,  64,  64],  // 7 dark gray (not pure black: avoids invisible-symbol bug)
+  [  0, 200, 200],  // 0 cyan
+  [220,  40,  40],  // 1 red
+  [ 30, 100, 220],  // 2 blue
+  [255, 130,  20],  // 3 orange
+  [200,  40, 200],  // 4 magenta
+  [ 40, 200,  60],  // 5 green
+  [230, 220,  40],  // 6 yellow
+  [100,  20, 200],  // 7 indigo
 ];
 
 // Pre-parse hexâ†’RGB for fast nearest-color lookup

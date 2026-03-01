@@ -58,14 +58,14 @@ def test_gif(path, expected_size=256):
 
         # Verify palette slots 0-7 match the 8 CimBar base colors
         EXPECTED = [
-            (  0, 150, 136),
-            (244,  67,  54),
-            ( 33, 150, 243),
-            (255, 152,   0),
-            (156,  39, 176),
-            ( 76, 175,  80),
-            (121,  85,  72),
-            ( 64,  64,  64),  # dark gray (was pure black before the bug fix)
+            (  0, 200, 200),
+            (220,  40,  40),
+            ( 30, 100, 220),
+            (255, 130,  20),
+            (200,  40, 200),
+            ( 40, 200,  60),
+            (230, 220,  40),
+            (100,  20, 200),
         ]
         for i, (er, eg, eb) in enumerate(EXPECTED):
             r, g, b = pal[i*3], pal[i*3+1], pal[i*3+2]

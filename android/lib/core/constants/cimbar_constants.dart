@@ -9,14 +9,14 @@ class CimbarConstants {
 
   /// 8 perceptually distinct colors, matching web-app/cimbar.js and gif-encoder.js.
   static const List<List<int>> colors = [
-    [0, 150, 136],   // 0 teal
-    [244, 67, 54],   // 1 red
-    [33, 150, 243],  // 2 blue
-    [255, 152, 0],   // 3 amber
-    [156, 39, 176],  // 4 purple
-    [76, 175, 80],   // 5 green
-    [121, 85, 72],   // 6 brown
-    [64, 64, 64],    // 7 dark gray
+    [  0, 200, 200],  // 0 - Cyan
+    [220,  40,  40],  // 1 - Red
+    [ 30, 100, 220],  // 2 - Blue
+    [255, 130,  20],  // 3 - Orange
+    [200,  40, 200],  // 4 - Magenta
+    [ 40, 200,  60],  // 5 - Green
+    [230, 220,  40],  // 6 - Yellow
+    [100,  20, 200],  // 7 - Indigo
   ];
 
   /// Supported frame sizes in pixels.

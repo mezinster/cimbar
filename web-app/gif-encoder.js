@@ -109,14 +109,14 @@ function word(n) {
  */
 function buildPalette() {
   const CIMBAR_COLORS = [
-    [  0, 150, 136],
-    [244,  67,  54],
-    [ 33, 150, 243],
-    [255, 152,   0],
-    [156,  39, 176],
-    [ 76, 175,  80],
-    [121,  85,  72],
-    [ 64,  64,  64],  // dark gray — must match COLORS[7] in cimbar.js
+    [  0, 200, 200],
+    [220,  40,  40],
+    [ 30, 100, 220],
+    [255, 130,  20],
+    [200,  40, 200],
+    [ 40, 200,  60],
+    [230, 220,  40],
+    [100,  20, 200],  // indigo — must match COLORS[7] in cimbar.js
   ];
 
   const pal = new Uint8Array(256 * 3);
