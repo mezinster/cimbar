@@ -280,6 +280,145 @@ void main() {
       }
     });
 
+    test('classifies finders correctly when barcode is rotated 90°', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+      final cols = frameSize ~/ cs;
+      final rows = frameSize ~/ cs;
+
+      final frame = _synthesizeFrame(frameSize);
+
+      // Rotate 90° clockwise: (x,y) → (frameSize-1-y, x)
+      final rotated = img.Image(width: frameSize, height: frameSize);
+      for (var y = 0; y < frameSize; y++) {
+        for (var x = 0; x < frameSize; x++) {
+          final p = frame.getPixel(x, y);
+          rotated.setPixelRgba(frameSize - 1 - y, x,
+              p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
+        }
+      }
+
+      // Place rotated barcode in a larger photo
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+      const offsetX = 384;
+      const offsetY = 384;
+      img.compositeImage(photo, rotated, dstX: offsetX, dstY: offsetY);
+
+      final result = FrameLocator.locate(photo);
+
+      expect(result.tlFinderCenter, isNotNull,
+          reason: 'Should detect finders in rotated barcode');
+      expect(result.brFinderCenter, isNotNull);
+
+      // After 90° CW rotation, original TL (0,0) goes to (frameSize-1, 0)
+      // which is top-right in the rotated image.
+      // Original TL finder center cell (1,1) → rotated position:
+      //   x' = frameSize-1 - (1.5*cs) ≈ right side
+      //   y' = 1.5*cs ≈ top
+      // But TL *detection* should still find the asymmetric finder (no dot)
+      // wherever it ended up — that's the point of brightness-based detection.
+      //
+      // The TL finder (no dot, darkest center) should be identified regardless
+      // of where it is in the image. Verify it's detected as TL.
+      final tlCenter = result.tlFinderCenter!;
+
+      // After 90° CW rotation, original TL finder center (1.5*cs, 1.5*cs)
+      // maps to (frameSize - 1 - 1.5*cs, 1.5*cs) in the rotated frame,
+      // then add photo offset
+      final expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
+      final expectedTlY = offsetY + 1.5 * cs;
+
+      const tolerance = 25.0;
+      expect((tlCenter.x - expectedTlX).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder X should be near ${expectedTlX.toStringAsFixed(0)}, got ${tlCenter.x.toStringAsFixed(0)}');
+      expect((tlCenter.y - expectedTlY).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder Y should be near ${expectedTlY.toStringAsFixed(0)}, got ${tlCenter.y.toStringAsFixed(0)}');
+    });
+
+    test('classifies finders correctly when barcode is rotated 180°', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+
+      final frame = _synthesizeFrame(frameSize);
+
+      // Rotate 180°: (x,y) → (frameSize-1-x, frameSize-1-y)
+      final rotated = img.Image(width: frameSize, height: frameSize);
+      for (var y = 0; y < frameSize; y++) {
+        for (var x = 0; x < frameSize; x++) {
+          final p = frame.getPixel(x, y);
+          rotated.setPixelRgba(frameSize - 1 - x, frameSize - 1 - y,
+              p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
+        }
+      }
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+      const offsetX = 384;
+      const offsetY = 384;
+      img.compositeImage(photo, rotated, dstX: offsetX, dstY: offsetY);
+
+      final result = FrameLocator.locate(photo);
+
+      expect(result.tlFinderCenter, isNotNull,
+          reason: 'Should detect finders in 180° rotated barcode');
+      expect(result.brFinderCenter, isNotNull);
+
+      // After 180° rotation, original TL (1.5*cs, 1.5*cs) → bottom-right
+      final expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
+      final expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
+
+      final tlCenter = result.tlFinderCenter!;
+      const tolerance = 25.0;
+      expect((tlCenter.x - expectedTlX).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder X should be near ${expectedTlX.toStringAsFixed(0)}, got ${tlCenter.x.toStringAsFixed(0)}');
+      expect((tlCenter.y - expectedTlY).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder Y should be near ${expectedTlY.toStringAsFixed(0)}, got ${tlCenter.y.toStringAsFixed(0)}');
+    });
+
+    test('classifies finders correctly when barcode is rotated 270°', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+
+      final frame = _synthesizeFrame(frameSize);
+
+      // Rotate 270° CW (= 90° CCW): (x,y) → (y, frameSize-1-x)
+      final rotated = img.Image(width: frameSize, height: frameSize);
+      for (var y = 0; y < frameSize; y++) {
+        for (var x = 0; x < frameSize; x++) {
+          final p = frame.getPixel(x, y);
+          rotated.setPixelRgba(y, frameSize - 1 - x,
+              p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
+        }
+      }
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+      const offsetX = 384;
+      const offsetY = 384;
+      img.compositeImage(photo, rotated, dstX: offsetX, dstY: offsetY);
+
+      final result = FrameLocator.locate(photo);
+
+      expect(result.tlFinderCenter, isNotNull,
+          reason: 'Should detect finders in 270° rotated barcode');
+      expect(result.brFinderCenter, isNotNull);
+
+      // After 270° CW, original TL (1.5*cs, 1.5*cs) → (1.5*cs, frameSize-1-1.5*cs)
+      final expectedTlX = offsetX + 1.5 * cs;
+      final expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
+
+      final tlCenter = result.tlFinderCenter!;
+      const tolerance = 25.0;
+      expect((tlCenter.x - expectedTlX).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder X should be near ${expectedTlX.toStringAsFixed(0)}, got ${tlCenter.x.toStringAsFixed(0)}');
+      expect((tlCenter.y - expectedTlY).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'TL finder Y should be near ${expectedTlY.toStringAsFixed(0)}, got ${tlCenter.y.toStringAsFixed(0)}');
+    });
+
     test('falls back to luma-threshold when no finder structure present', () {
       const photoSize = 512;
 

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
@@ -71,19 +72,38 @@ class FrameLocator {
     final origW = photo.width;
     final origH = photo.height;
 
-    // Downscale for fast scanning
+    // Build full-resolution luma buffer (needed for brightness-based
+    // finder classification — downscaled luma is too coarse to distinguish
+    // the ~8px center cell with/without white dot)
+    final fullLuma = Uint8List(origW * origH);
+    for (var y = 0; y < origH; y++) {
+      for (var x = 0; x < origW; x++) {
+        final p = photo.getPixel(x, y);
+        fullLuma[y * origW + x] =
+            (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+      }
+    }
+
+    // Downsample luma for fast scanning
     final smallW = max(1, origW ~/ _downscale);
     final smallH = max(1, origH ~/ _downscale);
-    final small = img.copyResize(photo, width: smallW, height: smallH,
-        interpolation: img.Interpolation.average);
-
-    // Build luma buffer
     final luma = List<int>.filled(smallW * smallH, 0);
     for (var y = 0; y < smallH; y++) {
       for (var x = 0; x < smallW; x++) {
-        final p = small.getPixel(x, y);
-        luma[y * smallW + x] =
-            (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+        // Average a _downscale × _downscale block from full-res luma
+        var sum = 0;
+        var count = 0;
+        for (var dy = 0; dy < _downscale; dy++) {
+          final sy = y * _downscale + dy;
+          if (sy >= origH) break;
+          for (var dx = 0; dx < _downscale; dx++) {
+            final sx = x * _downscale + dx;
+            if (sx >= origW) break;
+            sum += fullLuma[sy * origW + sx];
+            count++;
+          }
+        }
+        luma[y * smallW + x] = count > 0 ? sum ~/ count : 0;
       }
     }
 
@@ -97,8 +117,9 @@ class FrameLocator {
     final mergeRadius = max(smallW, smallH) / 30.0;
     final merged = _deduplicateCandidates(candidates, mergeRadius);
 
-    // Phase 4: Selection & classification
-    final finders = _selectAndClassify(merged);
+    // Phase 4: Selection & classification (uses full-res luma for
+    // brightness-based TL identification)
+    final finders = _selectAndClassify(merged, fullLuma, origW, origH);
 
     // Phase 5: Crop from anchors or fallback
     if (finders != null) {
@@ -306,30 +327,131 @@ class FrameLocator {
     return merged;
   }
 
-  /// Phase 4: Classify finders as TL/TR/BL/BR using coordinate extremes.
+  /// Phase 4: Classify finders as TL/TR/BL/BR using brightness-based TL
+  /// identification + cross-product geometry.
   ///
-  /// Returns a record with TL and BR (required) plus optional TR and BL.
+  /// The TL finder has no inner white dot (solid dark center), making it
+  /// darker than the other three finders. This allows rotation-invariant
+  /// classification:
+  /// 1. Sample center brightness of each candidate in full-res luma
+  /// 2. Darkest center = TL
+  /// 3. BR = farthest from TL (Euclidean distance)
+  /// 4. TR vs BL: cross product sign of (BR-TL) × (C-TL)
+  /// 5. Fallback: if no distinctly dark candidate, use coordinate extremes
+  ///
   /// Returns null if fewer than 2 candidates found.
-  ///
-  /// Classification uses coordinate-sum/difference extremes:
-  /// - TL: minimize (x+y) — top-left corner
-  /// - BR: maximize (x+y) — bottom-right corner
-  /// - TR: maximize (x-y) — top-right corner (high x, low y)
-  /// - BL: minimize (x-y) — bottom-left corner (low x, high y)
-  ///
-  /// For robustness against spurious candidates from colored cells (e.g.,
-  /// yellow cells have luma ~226 > finder threshold 180), we first select
-  /// TL and BR by coordinate extremes from ALL candidates, then find TR
-  /// and BL among remaining candidates that are geometrically consistent.
   static ({
     _FinderCandidate tl,
     _FinderCandidate br,
     _FinderCandidate? tr,
     _FinderCandidate? bl,
-  })? _selectAndClassify(List<_FinderCandidate> candidates) {
+  })? _selectAndClassify(
+    List<_FinderCandidate> candidates,
+    Uint8List fullLuma,
+    int lumaW,
+    int lumaH,
+  ) {
     if (candidates.length < 2) return null;
 
-    // Find TL (min x+y) and BR (max x+y) from all candidates
+    // Sample center brightness of each candidate in full-res luma
+    final centerLumas = <double>[];
+    for (final c in candidates) {
+      // Scale from downscaled to full-res coordinates
+      final cx = (c.centerX * _downscale).round().clamp(0, lumaW - 1);
+      final cy = (c.centerY * _downscale).round().clamp(0, lumaH - 1);
+
+      // Sample a 5×5 patch around the center for robustness
+      var sum = 0;
+      var count = 0;
+      for (var dy = -2; dy <= 2; dy++) {
+        final sy = cy + dy;
+        if (sy < 0 || sy >= lumaH) continue;
+        for (var dx = -2; dx <= 2; dx++) {
+          final sx = cx + dx;
+          if (sx < 0 || sx >= lumaW) continue;
+          sum += fullLuma[sy * lumaW + sx];
+          count++;
+        }
+      }
+      centerLumas.add(count > 0 ? sum / count : 255.0);
+    }
+
+    // Find darkest and second-darkest center luma
+    var darkestIdx = 0;
+    var darkestLuma = centerLumas[0];
+    var secondDarkest = double.infinity;
+    for (var i = 1; i < centerLumas.length; i++) {
+      if (centerLumas[i] < darkestLuma) {
+        secondDarkest = darkestLuma;
+        darkestLuma = centerLumas[i];
+        darkestIdx = i;
+      } else if (centerLumas[i] < secondDarkest) {
+        secondDarkest = centerLumas[i];
+      }
+    }
+
+    // If no distinctly dark candidate (gap < 20 luma), fall back to
+    // coordinate-extreme classification (backward compat with old barcodes)
+    if (secondDarkest - darkestLuma < 20) {
+      return _selectAndClassifyByCoordinates(candidates);
+    }
+
+    // Brightness-based classification: darkest = TL
+    final tl = candidates[darkestIdx];
+    final remaining = <_FinderCandidate>[
+      for (var i = 0; i < candidates.length; i++)
+        if (i != darkestIdx) candidates[i],
+    ];
+
+    // BR = farthest from TL
+    _FinderCandidate br = remaining[0];
+    var maxDist = 0.0;
+    for (final c in remaining) {
+      final dx = c.centerX - tl.centerX;
+      final dy = c.centerY - tl.centerY;
+      final dist = dx * dx + dy * dy;
+      if (dist > maxDist) {
+        maxDist = dist;
+        br = c;
+      }
+    }
+
+    if (remaining.length == 1) {
+      return (tl: tl, br: br, tr: null, bl: null);
+    }
+
+    // TR vs BL: cross product sign of (BR-TL) × (C-TL)
+    // In screen coords (y-down): negative = TR side, positive = BL side
+    final bx = br.centerX - tl.centerX;
+    final by = br.centerY - tl.centerY;
+
+    _FinderCandidate? tr;
+    _FinderCandidate? bl;
+    for (final c in remaining) {
+      if (identical(c, br)) continue;
+      final cx = c.centerX - tl.centerX;
+      final cy = c.centerY - tl.centerY;
+      final cross = bx * cy - by * cx;
+      if (cross < 0) {
+        tr = c;
+      } else {
+        bl = c;
+      }
+    }
+
+    return (tl: tl, br: br, tr: tr, bl: bl);
+  }
+
+  /// Fallback coordinate-extreme classification for old barcodes without
+  /// asymmetric finders.
+  static ({
+    _FinderCandidate tl,
+    _FinderCandidate br,
+    _FinderCandidate? tr,
+    _FinderCandidate? bl,
+  })? _selectAndClassifyByCoordinates(List<_FinderCandidate> candidates) {
+    if (candidates.length < 2) return null;
+
     _FinderCandidate tl = candidates[0];
     _FinderCandidate br = candidates[0];
     var minSum = tl.centerX + tl.centerY;
@@ -347,16 +469,12 @@ class FrameLocator {
       }
     }
 
-    // TL and BR must be distinct
     if (identical(tl, br)) return null;
 
     if (candidates.length == 2) {
       return (tl: tl, br: br, tr: null, bl: null);
     }
 
-    // Find TR (max x-y) and BL (min x-y) among remaining candidates,
-    // but only accept them if they're geometrically consistent with TL/BR
-    // (i.e., within the bounding region of TL..BR).
     final midX = (tl.centerX + br.centerX) / 2;
     final midY = (tl.centerY + br.centerY) / 2;
     final spanX = (br.centerX - tl.centerX).abs();
@@ -371,7 +489,6 @@ class FrameLocator {
     for (final c in candidates) {
       if (identical(c, tl) || identical(c, br)) continue;
 
-      // Must be within reasonable distance of the barcode region
       if ((c.centerX - midX).abs() > span ||
           (c.centerY - midY).abs() > span) {
         continue;
@@ -388,7 +505,6 @@ class FrameLocator {
       }
     }
 
-    // If TR and BL ended up as the same candidate, classify by position
     if (tr != null && bl != null && identical(tr, bl)) {
       if (tr.centerX > midX) {
         bl = null;
