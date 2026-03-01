@@ -61,7 +61,8 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `frame_locator.dart` — finds the CimBar barcode region via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` with cropped image, `BarcodeRect`, and optional finder centers for perspective transform
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters
-- `perspective_transform.dart` — pure-Dart perspective warp: DLT homography, inverse mapping + nearest-neighbor sampling. Used by `live_scanner.dart` and `camera_decode_pipeline.dart` as "try warp first, fallback to crop+resize"
+- `perspective_transform.dart` — pure-Dart perspective warp: DLT homography, inverse mapping + nearest-neighbor sampling with `.floor()` (not `.round()` — Dart's banker's rounding corrupts cell alignment). Used by `frame_decode_isolate.dart` as "try warp first, fallback to crop+resize"
+- `frame_decode_isolate.dart` — isolate entry point for live scan: runs all heavy computation (YUV→RGB, locate, warp, decode) in `Isolate.run()` to keep UI at 30fps. Returns `IsolateFrameResult` with decoded bytes, bounding box, optional debug captures, and two-channel diagnostics. Stateful tracking (adjacency chains, dedup) stays on main isolate via `LiveScanner.processDecodedData()`
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus`
 
 ## State Management (Riverpod)
@@ -121,8 +122,27 @@ CimBar frames have no per-frame identifiers. Frames are distinguished only by co
 - **Completion condition** — all unique frames captured AND adjacency chain from frame 0 is complete
 - **Dual crop strategy** — tries FrameLocator first; if crop covers >80% of image area, falls back to center-square crop
 - **RS quality gate** — rejects frames where first 64 decoded bytes are all zero
+- **LAB color space failover** — when quality gate rejects, retry decode with CIELAB color matching
 - **Frame size locking** — after first successful decode, skips try-all-sizes for subsequent frames
 - **AR overlay** — `BarcodeOverlayPainter` maps camera coordinates to screen space (sensor rotation + `BoxFit.cover` scaling)
+
+### Isolate Architecture
+
+Heavy per-frame computation runs in a background isolate via `Isolate.run()` to keep the UI thread responsive:
+
+- **`IsolateFrameInput`** — all primitive/transferable types (YUV planes as `Uint8List`, strides, tuning config, flags)
+- **`IsolateFrameResult`** — decoded bytes, frame size, bounding box, optional PNG captures, `debugInfo` (verbose), `overlayLine` (short)
+- **`_runIsolate`** — top-level function wrapper required because `Isolate.run()` closures cannot capture `this` (Riverpod's `SynchronousFuture` is not sendable). See [Dart SDK #52661](https://github.com/dart-lang/sdk/issues/52661)
+- **State split:** compute in isolate → return result → state tracking (adjacency, dedup, frame counting) on main isolate via `LiveScanner.processDecodedData()`
+
+### Two-Channel Debug Logging
+
+Debug diagnostics are generated inside the isolate (where all data is available) and returned as strings:
+
+- **ADB logcat (`debugInfo`)** — verbose multi-line: timing breakdown, finder coordinates, per-strategy attempt results (RS outcome, quality gate, DecodeStats with hamming/drift/color histograms)
+- **AR overlay (`overlayLine`)** — short one-liner: `OK 256px 4pt 180ms f=4` or `FAIL 200ms f=3`
+- **Triple-tap** toggles the AR debug overlay; also auto-enables `_debugMode` and ADB logging if not already on
+- **Capture button** (visible when debug overlay is open) saves raw + warped PNGs to app documents; warped image captured even on decode failure for diagnostic analysis
 
 ## Dependencies (`pubspec.yaml`)
 
@@ -185,6 +205,8 @@ CimBar frames have no per-frame identifiers. Frames are distinguished only by co
 
 **Decode tuning config wiring:** `DecodeTuningConfig` is immutable, persisted in SharedPreferences via `DecodeTuningProvider`. Decoder is stateless — accepts tuning params as optional function arguments (testable without Riverpod).
 
+**Isolate decode strategy chain:** `frame_decode_isolate.dart` tries strategies in order: (1) FrameLocator → for each candidate frame size: 4-point warp → 2-point warp → crop+resize, (2) center-square crop → for each candidate frame size: resize. Each attempt runs RS decode + quality gate + optional LAB failover. The `_DecodeOutcome` class tracks which strategy succeeded and its `DecodeStats`. Per-attempt diagnostics are collected via a `List<String>? log` threaded through all decode functions.
+
 ## Camera Decode Improvements (from libcimbar C++ analysis)
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
@@ -203,7 +225,7 @@ Pure-Dart homography warp in `perspective_transform.dart`.
 
 **Homography:** DLT with 4 point pairs → 8×8 system, Gaussian elimination with partial pivoting. Maps destination to source (inverse mapping).
 
-**Warp:** Nearest-neighbor sampling (bilinear blurs 8px cell boundaries, defeating color/symbol detection). 256×256 = 65K pixels, within 4fps budget.
+**Warp:** Nearest-neighbor sampling with `.floor()` for pixel coordinate quantization (bilinear blurs 8px cell boundaries, defeating color/symbol detection). **Critical:** Dart's `.round()` uses banker's rounding (round-half-to-even), which causes systematic ~0.5px sampling bias that corrupts cell extraction — must use `.floor()`. 256×256 = 65K pixels, within 4fps budget.
 
 **Fallback chain:** 4-point warp → 2-point warp → crop+resize.
 
@@ -215,9 +237,16 @@ In `frame_locator.dart` as primary path, luma-threshold fallback kept.
 2. Horizontal scan every 2 rows — bright→dark→bright patterns (bright threshold 180: distinguishes white finder cells from colored barcode cells luma 64–171)
 3. Vertical confirmation at each hit — local window ±3× hSize (avoids colored cell interference)
 4. Deduplication — merge within `imageSize/30` radius
-5. Classification — TL=min(x+y), BR=max(x+y), TR=max(x-y), BL=min(x-y)
+5. **Brightness-based classification** (rotation-invariant):
+   - Sample 5×5 patch at each candidate center in **full-resolution** luma (not downscaled — the ~8px center cell is only ~4px after 2× downscale, too coarse to distinguish dot vs no-dot)
+   - **TL = darkest center** (asymmetric finder: no inner white dot → luma ~51 vs ~120-180 for others)
+   - **BR = farthest from TL** (Euclidean distance)
+   - **TR vs BL = cross-product**: `(BR-TL) × (candidate-TL)` sign — works at any rotation (0°, 90°, 180°, 270°)
+   - Fallback: if brightness gap < 20 → use coordinate-extreme method (backward compat with symmetric finders)
 6. Crop computation — cell size from finder width `/3`, 1.5-cell padding + 2% margin
 7. Fallback — <2 finders → luma > 30 bounding-box
+
+**Asymmetric finder patterns:** TL finder has no inner white dot (solid dark center); TR/BL/BR have white inner dot. This enables rotation-aware identification purely from brightness.
 
 `LocateResult` includes optional `tlFinderCenter`/`trFinderCenter`/`blFinderCenter`/`brFinderCenter` for perspective transform.
 
@@ -254,7 +283,7 @@ Run: `flutter test` from `android/` directory.
 | `cimbar_decoder_test.dart` | 128-combo draw+detect round-trips, white balance, relative color, camera-exposure symbol detection, hash detection (distinctness, drift, blur robustness), two-pass decode, LAB color matching, RS block interleaving + error spreading. |
 | `crypto_service_test.dart` | AES-256-GCM round-trip, wrong passphrase rejection, bad magic, strength scoring. |
 | `decode_pipeline_test.dart` | RS frame encode→draw→read→decode round-trip with length prefix. Three payload cases. |
-| `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior. 7 tests. |
+| `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior, rotation-invariant classification (0°/90°/180°/270°). |
 | `yuv_converter_test.dart` | YUV420→RGB: white/black, UV subsampling, stride configs, semi-planar UV. |
 | `perspective_transform_test.dart` | 2-point and 4-point corner derivation (axis-aligned + rotated), identity warp, rotated barcode warp, RS decode round-trips, fallback path. 9 tests. |
 | `live_scanner_test.dart` | Single/multi-frame scanning, duplicate handling, out-of-order adjacency chains, frame 0 detection, dark image, reset. |
@@ -265,3 +294,6 @@ Run: `flutter test` from `android/` directory.
 - `live_scanner_test.dart` tests via `processDecodedData(dataBytes, frameSize)` not `processFrame(image)`, because FrameLocator crop+resize introduces subpixel interpolation error.
 - `CameraImage` plane bytes are ephemeral — copy with `Uint8List.fromList(plane.bytes)` before passing to controller.
 - Live scan controller throttles to ~4fps (250ms interval) via timestamp check, not Timer.
+- **Dart `.round()` is banker's rounding** — use `.floor()` for pixel coordinates in perspective warp. `.round()` rounds 0.5 to nearest even integer (3.5→4, 4.5→4), causing systematic sampling misalignment that corrupts every warped cell.
+- **`_runIsolate` must be top-level** — `Isolate.run()` captures its closure; if it captures `this` from a `StateNotifier`, Riverpod's `SynchronousFuture` (not `Sendable`) causes a runtime error. Solution: top-level wrapper function.
+- **Full-res luma for finder classification** — after 2× downscale, the ~8px finder center cell becomes ~4px, too coarse to distinguish the asymmetric TL pattern (no dot, luma ~51) from TR/BL/BR (dot, luma ~120+). Sample in full-res image.

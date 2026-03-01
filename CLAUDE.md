@@ -118,8 +118,8 @@ Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 All implemented in the Android app. See `android/CLAUDE.md` for full details.
 
 1. **White-balance from finder patterns** — Von Kries chromatic adaptation from finder corner cells
-2. **Perspective transform** — DLT homography, 3-tier fallback (4-point → 2-point → crop+resize), NN sampling
-3. **Anchor-based finder pattern detection** — bright→dark→bright run-length scanning, 4-corner classification
+2. **Perspective transform** — DLT homography, 3-tier fallback (4-point → 2-point → crop+resize), NN sampling with `.floor()` (Dart's `.round()` uses banker's rounding which corrupts cell alignment)
+3. **Anchor-based finder pattern detection** — bright→dark→bright run-length scanning, brightness-based TL identification + cross-product rotation-invariant classification (asymmetric finders: TL has no inner dot)
 4. **Average hash symbol detection with drift tracking** — 64-bit hashes, Hamming distance, ±15px drift accumulation
 5. **Relative color matching** — channel-range normalization, (R-G, G-B, B-R) difference comparison
 
