@@ -243,6 +243,15 @@ class AppLocalizationsTr extends AppLocalizations {
   String get resetDefaults => 'Reset to Defaults';
 
   @override
+  String get developerSection => 'Geliştirici';
+
+  @override
+  String get debugModeLabel => 'Hata Ayıklama Modu';
+
+  @override
+  String get debugModeDescription => 'Hata ayıklama günlüğü ve kare yakalamayı etkinleştir';
+
+  @override
   String get privacyPolicy => 'Gizlilik Politikası';
 
   @override

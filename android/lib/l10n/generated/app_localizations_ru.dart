@@ -243,6 +243,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get resetDefaults => 'Сбросить настройки';
 
   @override
+  String get developerSection => 'Разработчик';
+
+  @override
+  String get debugModeLabel => 'Режим отладки';
+
+  @override
+  String get debugModeDescription => 'Включить журнал отладки и захват кадров';
+
+  @override
   String get privacyPolicy => 'Политика конфиденциальности';
 
   @override

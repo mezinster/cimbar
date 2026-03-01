@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
@@ -72,38 +71,18 @@ class FrameLocator {
     final origW = photo.width;
     final origH = photo.height;
 
-    // Build full-resolution luma buffer (needed for brightness-based
-    // finder classification — downscaled luma is too coarse to distinguish
-    // the ~8px center cell with/without white dot)
-    final fullLuma = Uint8List(origW * origH);
-    for (var y = 0; y < origH; y++) {
-      for (var x = 0; x < origW; x++) {
-        final p = photo.getPixel(x, y);
-        fullLuma[y * origW + x] =
-            (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
-      }
-    }
-
-    // Downsample luma for fast scanning
+    // Downsample for fast scanning (phases 1-3 only need coarse luma)
     final smallW = max(1, origW ~/ _downscale);
     final smallH = max(1, origH ~/ _downscale);
+    final small = img.copyResize(photo, width: smallW, height: smallH,
+        interpolation: img.Interpolation.average);
+
     final luma = List<int>.filled(smallW * smallH, 0);
     for (var y = 0; y < smallH; y++) {
       for (var x = 0; x < smallW; x++) {
-        // Average a _downscale × _downscale block from full-res luma
-        var sum = 0;
-        var count = 0;
-        for (var dy = 0; dy < _downscale; dy++) {
-          final sy = y * _downscale + dy;
-          if (sy >= origH) break;
-          for (var dx = 0; dx < _downscale; dx++) {
-            final sx = x * _downscale + dx;
-            if (sx >= origW) break;
-            sum += fullLuma[sy * origW + sx];
-            count++;
-          }
-        }
-        luma[y * smallW + x] = count > 0 ? sum ~/ count : 0;
+        final p = small.getPixel(x, y);
+        luma[y * smallW + x] =
+            (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
       }
     }
 
@@ -117,9 +96,10 @@ class FrameLocator {
     final mergeRadius = max(smallW, smallH) / 30.0;
     final merged = _deduplicateCandidates(candidates, mergeRadius);
 
-    // Phase 4: Selection & classification (uses full-res luma for
-    // brightness-based TL identification)
-    final finders = _selectAndClassify(merged, fullLuma, origW, origH);
+    // Phase 4: Selection & classification (samples full-res photo on
+    // demand — only ~25 pixels per candidate for brightness-based TL
+    // identification, vs 2M pixels for a full-res luma buffer)
+    final finders = _selectAndClassify(merged, photo);
 
     // Phase 5: Crop from anchors or fallback
     if (finders != null) {
@@ -347,13 +327,15 @@ class FrameLocator {
     _FinderCandidate? bl,
   })? _selectAndClassify(
     List<_FinderCandidate> candidates,
-    Uint8List fullLuma,
-    int lumaW,
-    int lumaH,
+    img.Image photo,
   ) {
     if (candidates.length < 2) return null;
 
-    // Sample center brightness of each candidate in full-res luma
+    final lumaW = photo.width;
+    final lumaH = photo.height;
+
+    // Sample center brightness of each candidate directly from full-res
+    // photo — only ~25 getPixel calls per candidate (vs 2M for full buffer)
     final centerLumas = <double>[];
     for (final c in candidates) {
       // Scale from downscaled to full-res coordinates
@@ -361,7 +343,7 @@ class FrameLocator {
       final cy = (c.centerY * _downscale).round().clamp(0, lumaH - 1);
 
       // Sample a 5×5 patch around the center for robustness
-      var sum = 0;
+      var sum = 0.0;
       var count = 0;
       for (var dy = -2; dy <= 2; dy++) {
         final sy = cy + dy;
@@ -369,7 +351,8 @@ class FrameLocator {
         for (var dx = -2; dx <= 2; dx++) {
           final sx = cx + dx;
           if (sx < 0 || sx >= lumaW) continue;
-          sum += fullLuma[sy * lumaW + sx];
+          final p = photo.getPixel(sx, sy);
+          sum += 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
           count++;
         }
       }

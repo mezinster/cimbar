@@ -33,6 +33,7 @@ class LiveScanState {
   final int? sourceImageHeight;
   final bool debugEnabled;
   final List<String> debugLog;
+  final String? captureStatus;
 
   const LiveScanState({
     this.isScanning = false,
@@ -48,6 +49,7 @@ class LiveScanState {
     this.sourceImageHeight,
     this.debugEnabled = false,
     this.debugLog = const [],
+    this.captureStatus,
   });
 
   LiveScanState copyWith({
@@ -64,9 +66,11 @@ class LiveScanState {
     int? sourceImageHeight,
     bool? debugEnabled,
     List<String>? debugLog,
+    String? captureStatus,
     bool clearResult = false,
     bool clearError = false,
     bool clearBarcodeRect = false,
+    bool clearCaptureStatus = false,
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
@@ -82,6 +86,9 @@ class LiveScanState {
       sourceImageHeight: sourceImageHeight ?? this.sourceImageHeight,
       debugEnabled: debugEnabled ?? this.debugEnabled,
       debugLog: debugLog ?? this.debugLog,
+      captureStatus: clearCaptureStatus
+          ? null
+          : (captureStatus ?? this.captureStatus),
     );
   }
 
@@ -136,7 +143,13 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   }
 
   void toggleDebug() {
+    // Only allow overlay toggle when master debug mode is enabled in Settings
+    if (!_debugMode) return;
     state = state.copyWith(debugEnabled: !state.debugEnabled);
+  }
+
+  void clearCaptureStatus() {
+    state = state.copyWith(clearCaptureStatus: true);
   }
 
   void stopScan() {
@@ -266,16 +279,24 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
+      var saved = 0;
       if (rawPng != null) {
         await File('${dir.path}/cimbar_debug_raw_$ts.png')
             .writeAsBytes(rawPng);
+        saved++;
       }
       if (croppedPng != null) {
         await File('${dir.path}/cimbar_debug_crop_$ts.png')
             .writeAsBytes(croppedPng);
+        saved++;
       }
-    } catch (_) {
-      // Ignore save errors for debug captures
+      if (saved > 0) {
+        debugPrint('[cimbar_scan] Captured $saved debug image(s)');
+        state = state.copyWith(captureStatus: 'saved');
+      }
+    } catch (e) {
+      debugPrint('[cimbar_scan] Capture failed: $e');
+      state = state.copyWith(captureStatus: 'failed');
     }
   }
 

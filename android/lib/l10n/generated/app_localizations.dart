@@ -545,6 +545,24 @@ abstract class AppLocalizations {
   /// **'Reset to Defaults'**
   String get resetDefaults;
 
+  /// Section title for developer settings
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get developerSection;
+
+  /// Label for debug mode toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Debug Mode'**
+  String get debugModeLabel;
+
+  /// Description for debug mode toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Enable debug logging and frame capture'**
+  String get debugModeDescription;
+
   /// Label for Privacy Policy link
   ///
   /// In en, this message translates to:

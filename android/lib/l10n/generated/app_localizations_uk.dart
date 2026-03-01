@@ -243,6 +243,15 @@ class AppLocalizationsUk extends AppLocalizations {
   String get resetDefaults => 'Reset to Defaults';
 
   @override
+  String get developerSection => 'Розробник';
+
+  @override
+  String get debugModeLabel => 'Режим налагодження';
+
+  @override
+  String get debugModeDescription => 'Увімкнути журнал налагодження та захоплення кадрів';
+
+  @override
   String get privacyPolicy => 'Політика конфіденційності';
 
   @override

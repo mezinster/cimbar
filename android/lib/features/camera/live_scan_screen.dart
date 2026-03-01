@@ -180,6 +180,27 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       });
     }
 
+    // Show SnackBar on capture status change
+    if (scanState.captureStatus != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final msg = scanState.captureStatus == 'saved'
+            ? 'Debug frame captured'
+            : 'Capture failed';
+        final color = scanState.captureStatus == 'saved'
+            ? Colors.green
+            : Colors.red;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: color,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        controller.clearCaptureStatus();
+      });
+    }
+
     // Auto-decrypt when scan is complete
     if (controller.scanComplete &&
         !_decryptTriggered &&

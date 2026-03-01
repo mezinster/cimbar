@@ -243,6 +243,15 @@ class AppLocalizationsKa extends AppLocalizations {
   String get resetDefaults => 'Reset to Defaults';
 
   @override
+  String get developerSection => 'დეველოპერი';
+
+  @override
+  String get debugModeLabel => 'გამართვის რეჟიმი';
+
+  @override
+  String get debugModeDescription => 'გამართვის ჟურნალის და კადრების გადაღების ჩართვა';
+
+  @override
   String get privacyPolicy => 'კონფიდენციალურობის პოლიტიკა';
 
   @override

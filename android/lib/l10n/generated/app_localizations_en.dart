@@ -243,6 +243,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetDefaults => 'Reset to Defaults';
 
   @override
+  String get developerSection => 'Developer';
+
+  @override
+  String get debugModeLabel => 'Debug Mode';
+
+  @override
+  String get debugModeDescription => 'Enable debug logging and frame capture';
+
+  @override
   String get privacyPolicy => 'Privacy Policy';
 
   @override
