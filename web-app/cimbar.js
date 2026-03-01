@@ -73,15 +73,17 @@ function drawSymbol(ctx, symIdx, colorRGB, ox, oy, size) {
  * Render a finder pattern (3Ã—3 cells) at corner ox,oy.
  * Used to orient/detect frames.
  */
-function drawFinder(ctx, ox, oy, size) {
+function drawFinder(ctx, ox, oy, size, drawDot = true) {
   const s = size * 3;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(ox, oy, s, s);
   ctx.fillStyle = '#333333';
   ctx.fillRect(ox+size, oy+size, size, size);
-  ctx.fillStyle = '#ffffff';
-  const inner = size * 0.4;
-  ctx.fillRect(ox+size+(size-inner)/2, oy+size+(size-inner)/2, inner, inner);
+  if (drawDot) {
+    ctx.fillStyle = '#ffffff';
+    const inner = size * 0.4;
+    ctx.fillRect(ox+size+(size-inner)/2, oy+size+(size-inner)/2, inner, inner);
+  }
 }
 
 /**
@@ -141,8 +143,8 @@ function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
     }
   }
 
-  // Draw finder patterns (four corners)
-  drawFinder(ctx, 0, 0, cs);
+  // Draw finder patterns (four corners) — TL has no inner dot (asymmetric)
+  drawFinder(ctx, 0, 0, cs, false);
   drawFinder(ctx, (cols-3)*cs, 0, cs);
   drawFinder(ctx, 0, (rows-3)*cs, cs);
   drawFinder(ctx, (cols-3)*cs, (rows-3)*cs, cs);

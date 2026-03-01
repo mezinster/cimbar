@@ -28,8 +28,10 @@ void _drawSymbol(
   if ((symIdx >> 0) & 1 == 0) paintBlack(ox + size - q - h, oy + size - q - h);
 }
 
-/// Draw finder pattern.
-void _drawFinder(img.Image image, int ox, int oy, int size) {
+/// Draw finder pattern. [drawDot] controls the inner white dot —
+/// TL finder omits it (asymmetric) for rotation detection.
+void _drawFinder(img.Image image, int ox, int oy, int size,
+    {bool drawDot = true}) {
   final s = size * 3;
   img.fillRect(image,
       x1: ox, y1: oy, x2: ox + s, y2: oy + s,
@@ -37,14 +39,16 @@ void _drawFinder(img.Image image, int ox, int oy, int size) {
   img.fillRect(image,
       x1: ox + size, y1: oy + size, x2: ox + 2 * size, y2: oy + 2 * size,
       color: img.ColorRgba8(51, 51, 51, 255));
-  final inner = (size * 0.4).floor();
-  final offset = ((size - inner) / 2).floor();
-  img.fillRect(image,
-      x1: ox + size + offset,
-      y1: oy + size + offset,
-      x2: ox + size + offset + inner,
-      y2: oy + size + offset + inner,
-      color: img.ColorRgba8(255, 255, 255, 255));
+  if (drawDot) {
+    final inner = (size * 0.4).floor();
+    final offset = ((size - inner) / 2).floor();
+    img.fillRect(image,
+        x1: ox + size + offset,
+        y1: oy + size + offset,
+        x2: ox + size + offset + inner,
+        y2: oy + size + offset + inner,
+        color: img.ColorRgba8(255, 255, 255, 255));
+  }
 }
 
 /// Synthesize a CimBar frame image at a given size with colored cells.
@@ -75,8 +79,8 @@ img.Image _synthesizeFrame(int frameSize) {
     }
   }
 
-  // Draw 4 finder patterns
-  _drawFinder(image, 0, 0, cs);
+  // Draw 4 finder patterns — TL has no inner dot (asymmetric)
+  _drawFinder(image, 0, 0, cs, drawDot: false);
   _drawFinder(image, (cols - 3) * cs, 0, cs);
   _drawFinder(image, 0, (rows - 3) * cs, cs);
   _drawFinder(image, (cols - 3) * cs, (rows - 3) * cs, cs);
