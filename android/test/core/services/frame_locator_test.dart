@@ -284,8 +284,6 @@ void main() {
       const photoSize = 1024;
       const frameSize = 256;
       const cs = CimbarConstants.cellSize;
-      final cols = frameSize ~/ cs;
-      final rows = frameSize ~/ cs;
 
       final frame = _synthesizeFrame(frameSize);
 
@@ -327,8 +325,8 @@ void main() {
       // After 90° CW rotation, original TL finder center (1.5*cs, 1.5*cs)
       // maps to (frameSize - 1 - 1.5*cs, 1.5*cs) in the rotated frame,
       // then add photo offset
-      final expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
-      final expectedTlY = offsetY + 1.5 * cs;
+      const expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
+      const expectedTlY = offsetY + 1.5 * cs;
 
       const tolerance = 25.0;
       expect((tlCenter.x - expectedTlX).abs(), lessThanOrEqualTo(tolerance),
@@ -367,8 +365,8 @@ void main() {
       expect(result.brFinderCenter, isNotNull);
 
       // After 180° rotation, original TL (1.5*cs, 1.5*cs) → bottom-right
-      final expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
-      final expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
+      const expectedTlX = offsetX + (frameSize - 1 - 1.5 * cs);
+      const expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
 
       final tlCenter = result.tlFinderCenter!;
       const tolerance = 25.0;
@@ -408,8 +406,8 @@ void main() {
       expect(result.brFinderCenter, isNotNull);
 
       // After 270° CW, original TL (1.5*cs, 1.5*cs) → (1.5*cs, frameSize-1-1.5*cs)
-      final expectedTlX = offsetX + 1.5 * cs;
-      final expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
+      const expectedTlX = offsetX + 1.5 * cs;
+      const expectedTlY = offsetY + (frameSize - 1 - 1.5 * cs);
 
       final tlCenter = result.tlFinderCenter!;
       const tolerance = 25.0;
