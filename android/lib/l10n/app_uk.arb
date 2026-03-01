@@ -77,6 +77,10 @@
   "hashDetectionLabel": "Хеш-визначення символів",
   "resetDefaults": "Reset to Defaults",
 
+  "developerSection": "Розробник",
+  "debugModeLabel": "Режим налагодження",
+  "debugModeDescription": "Увімкнути журнал налагодження та захоплення кадрів",
+
   "privacyPolicy": "Політика конфіденційності",
   "licenseInfo": "Ліцензія MIT",
   "sourceCode": "Вихідний код"

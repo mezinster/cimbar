@@ -171,6 +171,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     final controller = ref.read(liveScanControllerProvider.notifier);
     final tuningConfig = ref.watch(decodeTuningProvider);
     controller.updateTuningConfig(tuningConfig);
+    controller.updateDebugMode(tuningConfig.debugModeEnabled);
 
     // Auto-scroll debug log when new entries arrive
     if (scanState.debugEnabled && scanState.debugLog.isNotEmpty) {

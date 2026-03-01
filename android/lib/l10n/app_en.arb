@@ -201,6 +201,13 @@
   "resetDefaults": "Reset to Defaults",
   "@resetDefaults": { "description": "Button to reset tuning to default values" },
 
+  "developerSection": "Developer",
+  "@developerSection": { "description": "Section title for developer settings" },
+  "debugModeLabel": "Debug Mode",
+  "@debugModeLabel": { "description": "Label for debug mode toggle" },
+  "debugModeDescription": "Enable debug logging and frame capture",
+  "@debugModeDescription": { "description": "Description for debug mode toggle" },
+
   "privacyPolicy": "Privacy Policy",
   "@privacyPolicy": { "description": "Label for Privacy Policy link" },
   "licenseInfo": "MIT License",

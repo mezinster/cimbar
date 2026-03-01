@@ -77,6 +77,10 @@
   "hashDetectionLabel": "Hash Symbol Detection",
   "resetDefaults": "Reset to Defaults",
 
+  "developerSection": "დეველოპერი",
+  "debugModeLabel": "გამართვის რეჟიმი",
+  "debugModeDescription": "გამართვის ჟურნალის და კადრების გადაღების ჩართვა",
+
   "privacyPolicy": "კონფიდენციალურობის პოლიტიკა",
   "licenseInfo": "MIT ლიცენზია",
   "sourceCode": "საწყისი კოდი"

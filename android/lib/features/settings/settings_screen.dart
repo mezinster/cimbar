@@ -109,6 +109,31 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(),
 
+          // Developer section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.developerSection, style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  title: Text(l10n.debugModeLabel),
+                  subtitle: Text(
+                    l10n.debugModeDescription,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  value: tuning.debugModeEnabled,
+                  onChanged: (v) => tuningNotifier.setDebugModeEnabled(v),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+
           // About section
           Padding(
             padding: const EdgeInsets.all(16),

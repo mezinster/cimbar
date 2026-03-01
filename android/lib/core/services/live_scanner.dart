@@ -382,10 +382,13 @@ class LiveScanner {
         frameSize);
   }
 
+  /// Whether to collect per-frame decode statistics (controlled by debug mode).
+  bool collectStats = false;
+
   /// Decode a pre-sized image and apply quality gate.
   Uint8List? _tryDecodeResized(img.Image resized, int frameSize) {
     try {
-      final stats = DecodeStats();
+      final stats = collectStats ? DecodeStats() : null;
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: tuningConfig.enableWhiteBalance,
           useRelativeColor: tuningConfig.useRelativeColor,
@@ -395,7 +398,7 @@ class LiveScanner {
           stats: stats);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
 
-      _emitDebug('decode_stats', 'size=$frameSize $stats');
+      if (stats != null) _emitDebug('decode_stats', 'size=$frameSize $stats');
 
       if (dataBytes.isEmpty) return null;
 
@@ -409,7 +412,7 @@ class LiveScanner {
       if (nonZero == 0) {
         _emitDebug('quality_gate', 'REJECTED size=$frameSize nonZero=0/$checkLen, retrying LAB');
         // Retry with LAB color space
-        final statsLab = DecodeStats();
+        final statsLab = collectStats ? DecodeStats() : null;
         final rawBytesLab = _decoder.decodeFramePixels(resized, frameSize,
             enableWhiteBalance: tuningConfig.enableWhiteBalance,
             useRelativeColor: false, // LAB replaces relative color
@@ -420,7 +423,7 @@ class LiveScanner {
             stats: statsLab);
         final dataBytesLab = _decoder.decodeRSFrame(rawBytesLab, frameSize);
 
-        _emitDebug('decode_stats_lab', 'size=$frameSize $statsLab');
+        if (statsLab != null) _emitDebug('decode_stats_lab', 'size=$frameSize $statsLab');
 
         if (dataBytesLab.isEmpty) return null;
 

@@ -40,6 +40,11 @@ class DecodeTuningNotifier extends StateNotifier<DecodeTuningConfig> {
     state.toPrefs(_prefs);
   }
 
+  void setDebugModeEnabled(bool value) {
+    state = state.copyWith(debugModeEnabled: value);
+    state.toPrefs(_prefs);
+  }
+
   void resetDefaults() {
     state = const DecodeTuningConfig();
     state.toPrefs(_prefs);

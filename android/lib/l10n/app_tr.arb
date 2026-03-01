@@ -77,6 +77,10 @@
   "hashDetectionLabel": "Hash Symbol Detection",
   "resetDefaults": "Reset to Defaults",
 
+  "developerSection": "Geliştirici",
+  "debugModeLabel": "Hata Ayıklama Modu",
+  "debugModeDescription": "Hata ayıklama günlüğü ve kare yakalamayı etkinleştir",
+
   "privacyPolicy": "Gizlilik Politikası",
   "licenseInfo": "MIT Lisansı",
   "sourceCode": "Kaynak Kodu"

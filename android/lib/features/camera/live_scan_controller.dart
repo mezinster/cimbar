@@ -99,14 +99,21 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   bool _processing = false;
 
   static const _maxDebugEntries = 50;
+  bool _debugMode = false;
 
   void updateTuningConfig(DecodeTuningConfig config) {
     _scanner.tuningConfig = config;
   }
 
+  void updateDebugMode(bool enabled) {
+    _debugMode = enabled;
+    _scanner.onDebug = _debugMode ? _onDebug : null;
+    _scanner.collectStats = _debugMode;
+  }
+
   void startScan() {
     _scanner.reset();
-    _scanner.onDebug = _onDebug;
+    _scanner.onDebug = _debugMode ? _onDebug : null;
     _lastProcessedMs = 0;
     _processing = false;
     state = LiveScanState(isScanning: true, debugEnabled: state.debugEnabled);

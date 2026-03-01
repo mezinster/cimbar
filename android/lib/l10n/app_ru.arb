@@ -77,6 +77,10 @@
   "hashDetectionLabel": "Хеш-определение символов",
   "resetDefaults": "Сбросить настройки",
 
+  "developerSection": "Разработчик",
+  "debugModeLabel": "Режим отладки",
+  "debugModeDescription": "Включить журнал отладки и захват кадров",
+
   "privacyPolicy": "Политика конфиденциальности",
   "licenseInfo": "Лицензия MIT",
   "sourceCode": "Исходный код"

@@ -10,6 +10,7 @@ class DecodeTuningConfig {
   final bool useRelativeColor;
   final double quadrantOffset;
   final bool useHashDetection;
+  final bool debugModeEnabled;
 
   const DecodeTuningConfig({
     this.symbolThreshold = 0.85,
@@ -17,6 +18,7 @@ class DecodeTuningConfig {
     this.useRelativeColor = true,
     this.quadrantOffset = 0.28,
     this.useHashDetection = true,
+    this.debugModeEnabled = false,
   });
 
   DecodeTuningConfig copyWith({
@@ -25,6 +27,7 @@ class DecodeTuningConfig {
     bool? useRelativeColor,
     double? quadrantOffset,
     bool? useHashDetection,
+    bool? debugModeEnabled,
   }) {
     return DecodeTuningConfig(
       symbolThreshold: symbolThreshold ?? this.symbolThreshold,
@@ -32,6 +35,7 @@ class DecodeTuningConfig {
       useRelativeColor: useRelativeColor ?? this.useRelativeColor,
       quadrantOffset: quadrantOffset ?? this.quadrantOffset,
       useHashDetection: useHashDetection ?? this.useHashDetection,
+      debugModeEnabled: debugModeEnabled ?? this.debugModeEnabled,
     );
   }
 
@@ -40,6 +44,7 @@ class DecodeTuningConfig {
   static const _keyRelativeColor = 'tuning_relative_color';
   static const _keyQuadrantOffset = 'tuning_quadrant_offset';
   static const _keyHashDetection = 'tuning_hash_detection';
+  static const _keyDebugMode = 'tuning_debug_mode';
 
   void toPrefs(SharedPreferences prefs) {
     prefs.setDouble(_keySymbolThreshold, symbolThreshold);
@@ -47,6 +52,7 @@ class DecodeTuningConfig {
     prefs.setBool(_keyRelativeColor, useRelativeColor);
     prefs.setDouble(_keyQuadrantOffset, quadrantOffset);
     prefs.setBool(_keyHashDetection, useHashDetection);
+    prefs.setBool(_keyDebugMode, debugModeEnabled);
   }
 
   static DecodeTuningConfig fromPrefs(SharedPreferences prefs) {
@@ -56,6 +62,7 @@ class DecodeTuningConfig {
       useRelativeColor: prefs.getBool(_keyRelativeColor) ?? true,
       quadrantOffset: prefs.getDouble(_keyQuadrantOffset) ?? 0.28,
       useHashDetection: prefs.getBool(_keyHashDetection) ?? true,
+      debugModeEnabled: prefs.getBool(_keyDebugMode) ?? false,
     );
   }
 }
