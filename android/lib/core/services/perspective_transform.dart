@@ -179,8 +179,8 @@ class PerspectiveTransform {
 
         // Nearest-neighbor sampling: preserves sharp cell boundaries
         // (bilinear blurs 8px cells, defeating color/symbol detection)
-        final srcXr = srcX.round().clamp(0, srcW - 1);
-        final srcYr = srcY.round().clamp(0, srcH - 1);
+        final srcXr = srcX.floor().clamp(0, srcW - 1);
+        final srcYr = srcY.floor().clamp(0, srcH - 1);
         final p = source.getPixel(srcXr, srcYr);
         output.setPixelRgba(dx, dy, p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
       }

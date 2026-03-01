@@ -14,6 +14,14 @@ import '../../core/services/frame_decode_isolate.dart';
 import '../../core/services/live_scanner.dart';
 import '../../core/utils/byte_utils.dart';
 
+/// Top-level function to run isolate decode — must be top-level so the
+/// closure doesn't capture LiveScanController's `this` (which holds
+/// Riverpod's SynchronousFuture, an unsendable object).
+/// See: https://github.com/dart-lang/sdk/issues/52661
+Future<IsolateFrameResult> _runIsolate(IsolateFrameInput input) {
+  return Isolate.run(() => decodeFrameInIsolate(input));
+}
+
 final liveScanControllerProvider =
     StateNotifierProvider<LiveScanController, LiveScanState>((ref) {
   return LiveScanController();
@@ -131,8 +139,22 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   }
 
   void _onDebug(ScanDebugInfo info) {
-    final msg = info.toString();
-    debugPrint('[cimbar_scan] $msg');
+    _logAdb(info.toString());
+    _logOverlay(info.toString());
+  }
+
+  /// Verbose logging for ADB logcat — always prints when debug mode is on.
+  /// Multi-line messages are split into separate debugPrint calls.
+  void _logAdb(String msg) {
+    if (!_debugMode) return;
+    for (final line in msg.split('\n')) {
+      if (line.isNotEmpty) debugPrint('[cimbar_scan] $line');
+    }
+  }
+
+  /// Short one-liner for the AR debug overlay.
+  void _logOverlay(String msg) {
+    if (!_debugMode) return;
     Future.microtask(() {
       final log = [...state.debugLog, msg];
       if (log.length > _maxDebugEntries) {
@@ -161,6 +183,8 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   /// Request debug frame capture on the next processed frame.
   void captureDebugFrame() {
     _captureNextFrame = true;
+    _logAdb('capture requested (waiting for next frame)');
+    _logOverlay('capture requested');
   }
 
   /// Process a camera frame. Called from the image stream callback.
@@ -213,6 +237,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     required int uvPixelStride,
     required bool captureFrame,
   }) async {
+    final frameNum = _scanner.framesAnalyzed + 1;
     try {
       final input = IsolateFrameInput(
         width: width,
@@ -229,12 +254,26 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         captureFrame: captureFrame,
       );
 
-      final result = await Isolate.run(() => decodeFrameInIsolate(input));
+      final result = await _runIsolate(input);
+
+      // Verbose ADB log from isolate diagnostics
+      if (result.debugInfo != null) {
+        _logAdb('--- frame #$frameNum ---\n${result.debugInfo}');
+      }
+      // Short overlay line
+      if (result.overlayLine != null) {
+        _logOverlay('#$frameNum ${result.overlayLine}');
+      }
 
       // Process stateful tracking on main isolate
       if (result.dataBytes != null && result.frameSize != null) {
         final progress = _scanner.processDecodedData(
             result.dataBytes!, result.frameSize!);
+
+        if (_debugMode) {
+          _logAdb('  tracking: unique=${progress.uniqueFrames}/${progress.totalFrames} '
+              'locked=${progress.detectedFrameSize}');
+        }
 
         Future.microtask(() {
           state = state.copyWith(
@@ -267,10 +306,18 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       // Save debug captures if present
       if (result.rawFramePng != null || result.croppedFramePng != null) {
         _saveDebugCaptures(result.rawFramePng, result.croppedFramePng);
+      } else if (captureFrame) {
+        _logAdb('capture flag was set but isolate returned no PNGs');
+        state = state.copyWith(captureStatus: 'failed');
       }
-    } catch (_) {
+    } catch (e) {
+      _logAdb('frame #$frameNum isolate error: $e');
+      _logOverlay('#$frameNum ERR ${e.runtimeType}');
       _scanner.incrementFramesAnalyzed();
       _processing = false;
+      if (captureFrame) {
+        state = state.copyWith(captureStatus: 'failed');
+      }
     }
   }
 
@@ -291,11 +338,13 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         saved++;
       }
       if (saved > 0) {
-        debugPrint('[cimbar_scan] Captured $saved debug image(s)');
+        _logAdb('captured $saved debug image(s) to ${dir.path}');
+        _logOverlay('captured $saved image(s)');
         state = state.copyWith(captureStatus: 'saved');
       }
     } catch (e) {
-      debugPrint('[cimbar_scan] Capture failed: $e');
+      _logAdb('capture save failed: $e');
+      _logOverlay('capture FAILED');
       state = state.copyWith(captureStatus: 'failed');
     }
   }
