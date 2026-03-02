@@ -544,6 +544,8 @@ String _statsShort(DecodeStats s) {
   buf.write(' s15=${s.sym15Pct.toStringAsFixed(0)}%');
   if (s.hammingSum > 0) {
     buf.write(' h=${s.hammingAvg.toStringAsFixed(1)}');
+    buf.write(' h[<10/${s.hammingLt10} <15/${s.hammingLt15}'
+        ' <20/${s.hammingLt20} 20+/${s.hammingGe20}]');
     buf.write(' d=(${s.driftXFinal},${s.driftYFinal})');
   }
   buf.write(' wb=${s.whiteBalanceApplied}');

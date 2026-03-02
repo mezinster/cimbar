@@ -373,9 +373,12 @@ class FrameLocator {
       }
     }
 
-    // If no distinctly dark candidate (gap < 20 luma), fall back to
-    // coordinate-extreme classification (backward compat with old barcodes)
-    if (secondDarkest - darkestLuma < 20) {
+    // If no distinctly dark candidate (gap < 45 luma), fall back to
+    // coordinate-extreme classification. The TL finder's center (no dot)
+    // should be ~49+ luma darker than dotted finders after downscaling.
+    // Camera LCD backlighting variation easily creates 20-40 luma spread
+    // between identical finders, so threshold must exceed that range.
+    if (secondDarkest - darkestLuma < 45) {
       return _selectAndClassifyByCoordinates(candidates);
     }
 

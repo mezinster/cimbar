@@ -24,6 +24,12 @@ class DecodeStats {
   int driftXFinal = 0;
   int driftYFinal = 0;
 
+  // Hamming histogram bins for diagnostic insight
+  int hammingLt10 = 0;  // h < 10: strong match
+  int hammingLt15 = 0;  // h < 15: acceptable
+  int hammingLt20 = 0;  // h < 20: marginal
+  int hammingGe20 = 0;  // h >= 20: poor/random
+
   // Drift stats (two-pass decode)
   int driftNonZeroCount = 0;
   int driftAbsSum = 0;
@@ -392,6 +398,15 @@ class CimbarDecoder {
             stats.hammingSum += dist;
             if (dist < stats.hammingMin) stats.hammingMin = dist;
             if (dist > stats.hammingMax) stats.hammingMax = dist;
+            if (dist < 10) {
+              stats.hammingLt10++;
+            } else if (dist < 15) {
+              stats.hammingLt15++;
+            } else if (dist < 20) {
+              stats.hammingLt20++;
+            } else {
+              stats.hammingGe20++;
+            }
             if (driftX != 0 || driftY != 0) {
               stats.driftNonZeroCount++;
               stats.driftAbsSum += driftX.abs() + driftY.abs();

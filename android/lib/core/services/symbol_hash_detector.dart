@@ -118,10 +118,13 @@ class SymbolHashDetector {
     return _bestMatch(hash);
   }
 
-  /// Detect symbol with fuzzy drift-aware matching.
+  /// Detect symbol with adaptive fuzzy drift-aware matching.
   ///
-  /// Tries 9 overlapping positions (center + 8 neighbors at ±1px offsets),
-  /// returning the symbol and drift that produce the minimum Hamming distance.
+  /// First tries ±1 (9 positions). If the best match has h > [wideThreshold],
+  /// expands to ±[wideRadius] (default 3 → 49 positions) to handle larger
+  /// camera misalignments. This adaptive approach keeps well-aligned images
+  /// precise (no spurious drift from finder pattern bleed) while allowing
+  /// fast convergence on misaligned camera captures.
   ///
   /// [driftX] and [driftY] are accumulated drift offsets from previous cells.
   ///
@@ -133,34 +136,24 @@ class SymbolHashDetector {
     int cellSize, {
     int driftX = 0,
     int driftY = 0,
+    int wideRadius = 3,
+    int wideThreshold = 20,
   }) {
     // Apply accumulated drift
     final baseX = ox + driftX;
     final baseY = oy + driftY;
-
-    // 9 positions: center first, then 4 sides, then 4 corners
-    const offsets = [
-      [0, 0],   // center
-      [-1, 0],  // left
-      [1, 0],   // right
-      [0, -1],  // up
-      [0, 1],   // down
-      [-1, -1], // top-left
-      [1, -1],  // top-right
-      [-1, 1],  // bottom-left
-      [1, 1],   // bottom-right
-    ];
 
     var bestSym = 0;
     var bestDist = 65; // max possible is 64
     var bestDx = 0;
     var bestDy = 0;
 
-    for (final off in offsets) {
-      final sx = baseX + off[0];
-      final sy = baseY + off[1];
+    // Phase 1: narrow search (±1), center first for fast early exit
+    for (final off in _narrowOffsets) {
+      final dx = off[0], dy = off[1];
+      final sx = baseX + dx;
+      final sy = baseY + dy;
 
-      // Bounds check — skip if extraction would go out of frame
       if (sx < 0 || sy < 0 ||
           sx + cellSize > frame.width ||
           sy + cellSize > frame.height) {
@@ -170,21 +163,67 @@ class SymbolHashDetector {
       final luma = _extractLuma(frame, sx, sy, cellSize);
       final hash = _computeHash(luma, cellSize);
 
-      // Find best match among all 16 reference hashes
       for (var i = 0; i < 16; i++) {
         final dist = popcount(hash ^ _referenceHashes[i]);
         if (dist < bestDist) {
           bestDist = dist;
           bestSym = i;
-          bestDx = off[0];
-          bestDy = off[1];
-          if (dist == 0) return (bestSym, bestDx, bestDy, 0); // perfect match
+          bestDx = dx;
+          bestDy = dy;
+          if (dist == 0) return (bestSym, bestDx, bestDy, 0);
+        }
+      }
+    }
+
+    // Phase 2: if narrow search gave a poor match, widen to ±wideRadius
+    if (bestDist > wideThreshold) {
+      for (var dy = -wideRadius; dy <= wideRadius; dy++) {
+        for (var dx = -wideRadius; dx <= wideRadius; dx++) {
+          // Skip offsets already covered in phase 1
+          if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) continue;
+
+          final sx = baseX + dx;
+          final sy = baseY + dy;
+
+          if (sx < 0 || sy < 0 ||
+              sx + cellSize > frame.width ||
+              sy + cellSize > frame.height) {
+            continue;
+          }
+
+          final luma = _extractLuma(frame, sx, sy, cellSize);
+          final hash = _computeHash(luma, cellSize);
+
+          for (var i = 0; i < 16; i++) {
+            final dist = popcount(hash ^ _referenceHashes[i]);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestSym = i;
+              bestDx = dx;
+              bestDy = dy;
+              if (dist == 0) return (bestSym, bestDx, bestDy, 0);
+            }
+          }
         }
       }
     }
 
     return (bestSym, bestDx, bestDy, bestDist);
   }
+
+  /// Narrow search offsets: center first, then 4 sides, then 4 corners.
+  /// Center-first ordering enables fast early exit on well-aligned images.
+  static const _narrowOffsets = [
+    [0, 0],   // center
+    [-1, 0],  // left
+    [1, 0],   // right
+    [0, -1],  // up
+    [0, 1],   // down
+    [-1, -1], // top-left
+    [1, -1],  // top-right
+    [-1, 1],  // bottom-left
+    [1, 1],   // bottom-right
+  ];
 
   /// Find symbol index with minimum Hamming distance to [hash].
   int _bestMatch(int hash) {
