@@ -18,13 +18,23 @@ node_modules/
 __pycache__/
 *.pyc
 
-# Android
+# Android / Flutter
+android/.dart_tool/
+android/.flutter-plugins
+android/.flutter-plugins-dependencies
 android/.gradle/
 android/build/
 android/app/build/
+android/android/.gradle/
+android/android/gradle/wrapper/gradle-wrapper.jar
+android/android/gradlew
+android/android/gradlew.bat
+android/android/local.properties
 android/local.properties
+android/pubspec.lock
 android/*.iml
 android/.idea/
+android/android/app/src/main/java/io/
 
 # Generated files
 *.gif

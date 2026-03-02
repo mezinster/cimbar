@@ -52,7 +52,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,191) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference) and `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight)
 - `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px)
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
@@ -139,7 +139,7 @@ Heavy per-frame computation runs in a background isolate via `Isolate.run()` to 
 
 Debug diagnostics are generated inside the isolate (where all data is available) and returned as strings:
 
-- **ADB logcat (`debugInfo`)** — verbose multi-line: timing breakdown, finder coordinates, per-strategy attempt results (RS outcome, quality gate, DecodeStats with hamming/drift/color histograms)
+- **ADB logcat (`debugInfo`)** — verbose multi-line: timing breakdown, finder coordinates, per-strategy attempt results (RS outcome, quality gate, DecodeStats with hamming/drift/color histograms/WB white point/sample cell RGB)
 - **AR overlay (`overlayLine`)** — short one-liner: `OK 256px 4pt 180ms f=4` or `FAIL 200ms f=3`
 - **Triple-tap** toggles the AR debug overlay; also auto-enables `_debugMode` and ADB logging if not already on
 - **Capture button** (visible when debug overlay is open) saves raw + warped PNGs to app documents; warped image captured even on decode failure for diagnostic analysis

@@ -543,12 +543,26 @@ String _statsShort(DecodeStats s) {
   final buf = StringBuffer('c=${s.cellCount}');
   buf.write(' s15=${s.sym15Pct.toStringAsFixed(0)}%');
   if (s.hammingSum > 0) {
-    buf.write(' h=${s.hammingAvg.toStringAsFixed(1)}');
-    buf.write(' h[<10/${s.hammingLt10} <15/${s.hammingLt15}'
+    buf.write(' h=${s.hammingAvg.toStringAsFixed(1)} ');
+    buf.write('h[<10/${s.hammingLt10} <15/${s.hammingLt15}'
         ' <20/${s.hammingLt20} 20+/${s.hammingGe20}]');
     buf.write(' d=(${s.driftXFinal},${s.driftYFinal})');
   }
   buf.write(' wb=${s.whiteBalanceApplied}');
+  // Color histogram: how many cells per color index (0=Cyan..7=Indigo)
+  buf.write('\ncolor=${s.colorHist}');
+  // White balance observed white point
+  if (s.wbWhitePoint != null) {
+    final wp = s.wbWhitePoint!;
+    buf.write(' wbRef=(${wp[0].toStringAsFixed(0)},${wp[1].toStringAsFixed(0)},${wp[2].toStringAsFixed(0)})');
+  }
+  // Sample cells: raw→wb RGB + detected color
+  if (s.sampleCells.isNotEmpty) {
+    buf.write('\nsamples=');
+    for (final sc in s.sampleCells) {
+      buf.write('(${sc[0]},${sc[1]},${sc[2]})->(${sc[3]},${sc[4]},${sc[5]})=c${sc[6]} ');
+    }
+  }
   return buf.toString();
 }
 

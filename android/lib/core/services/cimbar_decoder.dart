@@ -36,6 +36,11 @@ class DecodeStats {
 
   // White balance
   bool whiteBalanceApplied = false;
+  List<double>? wbWhitePoint; // observed (R,G,B) white reference
+
+  // Sample cells: list of [rawR, rawG, rawB, wbR, wbG, wbB, colorIdx]
+  // Collected at cell indices 0, N/4, N/2, 3N/4, N-1 for diagnostic insight.
+  final sampleCells = <List<int>>[];
 
   double get hammingAvg => cellCount > 0 ? hammingSum / cellCount : 0;
   double get sym15Pct => cellCount > 0 ? sym15Count * 100 / cellCount : 0;
@@ -350,6 +355,7 @@ class CimbarDecoder {
       if (whitePoint != null) {
         adaptation = computeAdaptationMatrix(
             whitePoint[0], whitePoint[1], whitePoint[2]);
+        stats?.wbWhitePoint = whitePoint;
       }
     }
     stats?.whiteBalanceApplied = adaptation != null;
@@ -423,6 +429,11 @@ class CimbarDecoder {
       }
 
       // Pass 2: color at drift-corrected positions + bit packing
+      // Pre-compute sample cell indices for diagnostic capture
+      final sampleIndices = stats != null && cellCount > 0
+          ? <int>{0, cellCount ~/ 4, cellCount ~/ 2, 3 * cellCount ~/ 4, cellCount - 1}
+          : <int>{};
+
       var bitBuf = 0;
       var bitCount = 0;
       var byteIdx = 0;
@@ -437,7 +448,8 @@ class CimbarDecoder {
         final cx = (ox + dx + cs ~/ 2).clamp(0, frame.width - 1);
         final cy = (oy + dy + cs ~/ 2).clamp(0, frame.height - 1);
         final pixel = frame.getPixel(cx, cy);
-        var pr = pixel.r.toInt(), pg = pixel.g.toInt(), pb = pixel.b.toInt();
+        final rawR = pixel.r.toInt(), rawG = pixel.g.toInt(), rawB = pixel.b.toInt();
+        var pr = rawR, pg = rawG, pb = rawB;
 
         // Apply white balance correction
         if (adaptation != null) {
@@ -459,6 +471,9 @@ class CimbarDecoder {
           stats.colorHist[colorIdx]++;
           stats.symHist[symIdx]++;
           if (symIdx == 15) stats.sym15Count++;
+          if (sampleIndices.contains(i)) {
+            stats.sampleCells.add([rawR, rawG, rawB, pr, pg, pb, colorIdx]);
+          }
         }
 
         final bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
