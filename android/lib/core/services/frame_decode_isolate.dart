@@ -264,7 +264,7 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
 
     if (ok) {
       // Decode result
-      sb.writeln('  decoded=${outcome!.frameSize}px '
+      sb.writeln('  decoded=${outcome.frameSize}px '
           'warp=${outcome.warpStrategy}'
           '${outcome.labFallback ? ' LAB-fallback' : ''}');
 
@@ -289,9 +289,9 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
 
     // Short overlay line
     if (ok) {
-      overlayLine = 'OK ${outcome!.frameSize}px '
+      overlayLine = 'OK ${outcome.frameSize}px '
           '${outcome.warpStrategy} ${totalMs}ms '
-          'f=${findersFound}';
+          'f=$findersFound';
     } else {
       overlayLine = 'FAIL ${totalMs}ms f=$findersFound'
           '${locateError != null ? ' err' : ''}';
