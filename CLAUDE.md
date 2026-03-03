@@ -26,14 +26,16 @@ This repo has two components:
 **Encoding pipeline:**
 
 ```
-File → encrypt (crypto.js) → RS encode (rs.js) → draw frames (cimbar.js) → GIF encode (gif-encoder.js) → Animated GIF
+File → [optional: encrypt (crypto.js)] → RS encode (rs.js) → draw frames (cimbar.js) → GIF encode (gif-encoder.js) → Animated GIF
 ```
 
 **Decoding pipeline:**
 
 ```
-Animated GIF → GIF decode (gif-decoder.js) → sample pixels (cimbar.js) → RS decode (rs.js) → decrypt (crypto.js) → File
+Animated GIF → GIF decode (gif-decoder.js) → sample pixels (cimbar.js) → RS decode (rs.js) → [auto-detect: decrypt (crypto.js)] → File
 ```
+
+Encryption is optional. On encode, if a passphrase is provided, the payload is encrypted with AES-256-GCM before RS encoding. On decode, encryption is auto-detected by checking for magic bytes `CB 42` at the start of the recovered payload.
 
 **Module responsibilities (all in `web-app/`):**
 
@@ -87,7 +89,7 @@ Both encoder (`web-app/cimbar.js encodeRSFrame`) and decoder (`cimbar_decoder.da
 
 ## Interoperability
 
-The encrypted binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning) or scanned with a physical camera and decrypted via the "Import Binary" tab in either app.
+The binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning) or scanned with a physical camera and processed via the "Import Binary" tab in either app. Encryption is optional — unencrypted GIFs can be decoded without a passphrase. Encrypted payloads are auto-detected by their `CB 42 01 00` magic header.
 
 The web app is available at https://nfcarchiver.com/cimbar/
 

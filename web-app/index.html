@@ -523,7 +523,7 @@ footer {
 
   <header>
     <div class="logo">Cim<em>Bar</em></div>
-    <div class="tagline">Encrypt any file. Encode it into an animated image.</div>
+    <div class="tagline">Encode any file into an animated image. Optionally encrypt it first.</div>
     <div class="badge-row">
       <span class="badge">AES-256-GCM</span>
       <span class="badge">Reed-Solomon ECC</span>
@@ -544,7 +544,7 @@ footer {
     <div class="card">
 
       <div class="field">
-        <label>File to encrypt</label>
+        <label>File to encode</label>
         <div class="drop-zone" id="dropEnc">
           <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
           <div class="drop-icon">📄</div>
@@ -560,9 +560,9 @@ footer {
 
       <div class="field">
         <label>Passphrase</label>
-        <input type="password" id="passEnc" placeholder="Enter a strong passphrase…" oninput="updateStrength(this.value,'strengthFillEnc')">
+        <input type="password" id="passEnc" placeholder="Enter a passphrase (optional)…" oninput="updateStrength(this.value,'strengthFillEnc')">
         <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
-        <div class="field-hint">Used for AES-256-GCM encryption via PBKDF2 (150 000 iterations)</div>
+        <div class="field-hint">Optional — leave empty for no encryption. AES-256-GCM via PBKDF2 (150 000 iterations)</div>
       </div>
 
       <div class="two-col">
@@ -586,7 +586,7 @@ footer {
       </div>
 
       <button class="btn btn-primary" id="encBtn" onclick="startEncode()">
-        Encrypt &amp; Encode to GIF
+        Encode to GIF
       </button>
 
       <!-- Progress -->
@@ -636,11 +636,11 @@ footer {
 
       <div class="field">
         <label>Passphrase</label>
-        <input type="password" id="passDec" placeholder="Enter the decryption passphrase…">
+        <input type="password" id="passDec" placeholder="Enter passphrase (leave empty if not encrypted)…">
       </div>
 
       <button class="btn btn-danger" id="decBtn" onclick="startDecode()">
-        Decode &amp; Decrypt
+        Decode GIF
       </button>
 
       <div class="progress-section" id="progDec">
@@ -657,8 +657,8 @@ footer {
       <div class="callout callout-info" style="margin-top:20px;">
         <strong>How decoding works:</strong> The GIF is parsed frame-by-frame in your browser,
         pixels are decoded back to bytes via color + symbol detection,
-        Reed-Solomon error correction is applied per block, then AES-256-GCM decryption
-        restores the original file. Nothing leaves your device.
+        Reed-Solomon error correction is applied per block. If the data was encrypted,
+        AES-256-GCM decryption restores the original file. Nothing leaves your device.
       </div>
 
     </div>
@@ -671,14 +671,15 @@ footer {
       <p style="font-size:14px;line-height:1.8;color:var(--text2);margin-bottom:20px;">
         If you decoded a CimBar GIF using an <strong style="color:var(--text)">external decoder</strong>
         (e.g. the open-source C++ <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">cimbar</code> tool),
-        it will produce a raw binary file containing the encrypted payload.
-        Upload that binary here to decrypt and recover the original file.
+        it will produce a raw binary file containing the payload.
+        Upload that binary here to recover the original file.
       </p>
 
       <div class="callout callout-info" style="margin-bottom:20px;">
-        <strong>What the binary contains:</strong> The encrypted payload starts with a 4-byte
-        magic header (<code style="font-family:'DM Mono',monospace">CB 42 01 00</code>), followed by a 16-byte
-        PBKDF2 salt, a 12-byte AES-GCM IV, and the ciphertext. This tool reads that format directly.
+        <strong>What the binary contains:</strong> Encrypted payloads start with magic bytes
+        (<code style="font-family:'DM Mono',monospace">CB 42 01 00</code>), followed by a 16-byte
+        PBKDF2 salt, a 12-byte AES-GCM IV, and the ciphertext. Unencrypted payloads contain the file data directly.
+        Encryption is auto-detected from the magic bytes.
       </div>
 
       <div class="field">
@@ -698,12 +699,12 @@ footer {
 
       <div class="field">
         <label>Passphrase</label>
-        <input type="password" id="passBin" placeholder="Enter the decryption passphrase…">
-        <div class="field-hint">Must match the passphrase used when the GIF was encoded</div>
+        <input type="password" id="passBin" placeholder="Enter passphrase (leave empty if not encrypted)…">
+        <div class="field-hint">Leave empty if the GIF was encoded without encryption</div>
       </div>
 
       <button class="btn btn-danger" id="binBtn" onclick="decryptBinary()">
-        Decrypt Binary &amp; Download
+        Decode Binary &amp; Download
       </button>
 
       <div class="progress-section" id="progBin">
@@ -890,7 +891,7 @@ let outputBlob = null;
 async function startEncode() {
   if (!encFile) { alert('Please select a file first.'); return; }
   const pass = document.getElementById('passEnc').value.trim();
-  if (!pass)   { alert('Please enter a passphrase.'); return; }
+  const isEncrypted = pass.length > 0;
 
   const frameSize  = parseInt(document.getElementById('frameSize').value);
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
@@ -919,17 +920,26 @@ async function startEncode() {
     const payload = concat(header, raw);
     log(`File: ${encFile.name} (${fmtBytes(raw.length)})`, 'ok', 'logEnc');
 
-    // 2. Encrypt
-    log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
-    setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
-    const encrypted = await CimbarCrypto.encryptBytes(payload, pass);
-    encryptedPayload = encrypted; // save for binary download
-    log(`Encrypted: ${fmtBytes(encrypted.length)}`, 'ok', 'logEnc');
+    // 2. Encrypt (if passphrase provided) or use raw payload
+    let framedPayload;
+    if (isEncrypted) {
+      log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
+      setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
+      const encrypted = await CimbarCrypto.encryptBytes(payload, pass);
+      encryptedPayload = encrypted; // save for binary download
+      framedPayload = encrypted;
+      log(`Encrypted: ${fmtBytes(encrypted.length)}`, 'ok', 'logEnc');
+    } else {
+      log('Encoding (no encryption)…', 'info', 'logEnc');
+      setProgress(15, 'Encoding', 'progEncFill', 'progEncPct', 'progEncLabel');
+      framedPayload = payload;
+      log(`Payload: ${fmtBytes(payload.length)}`, 'ok', 'logEnc');
+    }
 
     // Prepend 4-byte big-endian length so decoder can strip RS zero-padding
     const lengthPrefix = new Uint8Array(4);
-    new DataView(lengthPrefix.buffer).setUint32(0, encrypted.length, false);
-    const framedData = concat(lengthPrefix, encrypted);
+    new DataView(lengthPrefix.buffer).setUint32(0, framedPayload.length, false);
+    const framedData = concat(lengthPrefix, framedPayload);
 
     // 3. Calculate frame layout
     const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
@@ -940,8 +950,11 @@ async function startEncode() {
 
     // Update stats
     document.getElementById('sFrames').textContent = numFrames;
-    document.getElementById('sBytes').textContent  = fmtBytes(encrypted.length);
+    document.getElementById('sBytes').textContent  = fmtBytes(framedPayload.length);
     document.getElementById('sCells').textContent  = Cimbar.usableCells(frameSize);
+
+    // Only show encrypted binary download when encryption was used
+    document.getElementById('dlBinBtn').style.display = isEncrypted ? '' : 'none';
 
     // 4. Render frames
     const canvas = document.getElementById('workCanvas');
@@ -962,7 +975,7 @@ async function startEncode() {
       const rsFrame = Cimbar.encodeRSFrame(chunk, frameSize, rs);
 
       // Draw frame (pass encryption state for metadata block)
-      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf, true);
+      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf, isEncrypted);
 
       gif.addFrame(canvas);
 
@@ -988,7 +1001,7 @@ async function startEncode() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = 'Encrypt &amp; Encode to GIF';
+  btn.innerHTML = 'Encode to GIF';
 }
 
 function downloadGif() {
@@ -1003,7 +1016,6 @@ function downloadGif() {
 async function startDecode() {
   if (!decFile) { alert('Please select a GIF file.'); return; }
   const pass = document.getElementById('passDec').value.trim();
-  if (!pass)   { alert('Please enter a passphrase.'); return; }
 
   const btn = document.getElementById('decBtn');
   btn.disabled = true;
@@ -1049,17 +1061,27 @@ async function startDecode() {
 
     // Strip RS zero-padding: read the 4-byte length prefix written by the encoder
     const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
-    if (payloadLength < 32 || payloadLength > allBytes.length - 4)
+    if (payloadLength < 5 || payloadLength > allBytes.length - 4)
       throw new Error(`Header corrupt: payload length ${payloadLength} is invalid`);
-    const encryptedBytes = allBytes.slice(4, 4 + payloadLength);
+    const payloadBytes = allBytes.slice(4, 4 + payloadLength);
 
-    log('Decrypting…', 'info', 'logDec');
-    setProgress(80, 'Decrypting', 'progDecFill', 'progDecPct', 'progDecLabel');
+    // Auto-detect encryption: CimBar encrypted format starts with magic CB 42
+    const isEncrypted = payloadBytes[0] === 0xCB && payloadBytes[1] === 0x42;
 
-    const decrypted = await CimbarCrypto.decryptBytes(encryptedBytes, pass);
+    let decrypted;
+    if (isEncrypted) {
+      if (!pass) { alert('This GIF is encrypted. Please enter a passphrase.'); throw new Error('Passphrase required for encrypted GIF'); }
+      log('Decrypting…', 'info', 'logDec');
+      setProgress(80, 'Decrypting', 'progDecFill', 'progDecPct', 'progDecLabel');
+      decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
+    } else {
+      log('Unencrypted payload detected', 'info', 'logDec');
+      setProgress(80, 'Parsing', 'progDecFill', 'progDecPct', 'progDecLabel');
+      decrypted = payloadBytes;
+    }
 
-    // Parse header
-    const view = new DataView(decrypted.buffer);
+    // Parse header: [4-byte nameLen][name][fileData]
+    const view = new DataView(decrypted.buffer, decrypted.byteOffset, decrypted.byteLength);
     const nameLen = view.getUint32(0, false);
     if (nameLen > 512) throw new Error('Header corrupt: filename length invalid');
     const filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
@@ -1082,7 +1104,7 @@ async function startDecode() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = 'Decode &amp; Decrypt';
+  btn.innerHTML = 'Decode GIF';
 }
 
 // ── Utilities ─────────────────────────────────────────────
@@ -1113,11 +1135,10 @@ function downloadBin() {
 async function decryptBinary() {
   if (!binFile) { alert('Please select a binary file first.'); return; }
   const pass = document.getElementById('passBin').value.trim();
-  if (!pass)   { alert('Please enter a passphrase.'); return; }
 
   const btn = document.getElementById('binBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Decrypting…';
+  btn.innerHTML = '<span class="spinner"></span> Processing…';
 
   document.getElementById('progBin').style.display = 'block';
   document.getElementById('logBin').innerHTML = '';
@@ -1129,28 +1150,31 @@ async function decryptBinary() {
     const raw = new Uint8Array(await binFile.arrayBuffer());
     log(`Binary: ${fmtBytes(raw.length)}`, 'ok', 'logBin');
 
-    // Validate magic bytes
-    if (raw.length < 32) throw new Error('File too small — not a valid CimBar payload');
-    if (raw[0] !== 0xCB || raw[1] !== 0x42) {
-      throw new Error(
-        `Invalid magic bytes (got ${raw[0].toString(16).padStart(2,'0')} ${raw[1].toString(16).padStart(2,'0')}, expected CB 42). ` +
-        'Make sure this is a binary produced by a CimBar decoder, not a raw GIF.'
-      );
+    if (raw.length < 5) throw new Error('File too small — not a valid CimBar payload');
+
+    // Auto-detect encryption via magic bytes
+    const isEncrypted = raw[0] === 0xCB && raw[1] === 0x42;
+
+    let decrypted;
+    if (isEncrypted) {
+      if (!pass) { alert('This binary is encrypted. Please enter a passphrase.'); throw new Error('Passphrase required for encrypted binary'); }
+      log('Magic bytes OK (CB 42 01 00) — decrypting…', 'info', 'logBin');
+      setProgress(40, 'Decrypting', 'progBinFill', 'progBinPct', 'progBinLabel');
+      decrypted = await CimbarCrypto.decryptBytes(raw, pass);
+    } else {
+      log('Unencrypted payload detected', 'info', 'logBin');
+      setProgress(40, 'Parsing', 'progBinFill', 'progBinPct', 'progBinLabel');
+      decrypted = raw;
     }
-
-    log('Magic bytes OK (CB 42 01 00) — decrypting…', 'info', 'logBin');
-    setProgress(40, 'Decrypting', 'progBinFill', 'progBinPct', 'progBinLabel');
-
-    const decrypted = await CimbarCrypto.decryptBytes(raw, pass);
 
     // Parse our filename header
     setProgress(80, 'Parsing header', 'progBinFill', 'progBinPct', 'progBinLabel');
-    const view    = new DataView(decrypted.buffer);
+    const view    = new DataView(decrypted.buffer, decrypted.byteOffset, decrypted.byteLength);
     const nameLen = view.getUint32(0, false);
 
     let filename, fileData;
 
-    if (nameLen > 0 && nameLen < 512 && 4 + nameLen < decrypted.length) {
+    if (nameLen > 0 && nameLen < 512 && 4 + nameLen <= decrypted.length) {
       // Has our embedded header
       filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
       fileData = decrypted.slice(4 + nameLen);
@@ -1179,7 +1203,7 @@ async function decryptBinary() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = 'Decrypt Binary &amp; Download';
+  btn.innerHTML = 'Decode Binary &amp; Download';
 }
 </script>
 </body>
