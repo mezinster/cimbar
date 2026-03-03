@@ -15,13 +15,14 @@ import 'package:cimbar_scanner/core/utils/byte_utils.dart';
 class CimbarEncoder {
   static final _rs = ReedSolomon(CimbarConstants.eccBytes);
 
-  /// Full pipeline: file → encrypt → RS encode → draw frames → GIF bytes.
+  /// Full pipeline: file → [optional: encrypt] → RS encode → draw frames → GIF bytes.
   ///
   /// Returns a valid animated GIF that can be decoded by [DecodePipeline].
+  /// When [passphrase] is null or empty, encryption is skipped.
   static Uint8List encodeToGif({
     required Uint8List fileData,
     required String filename,
-    required String passphrase,
+    String? passphrase,
     int frameSize = 256,
   }) {
     // 1. Build file header: [4-byte nameLen][nameBytes][fileData]
@@ -29,12 +30,19 @@ class CimbarEncoder {
     final header = writeUint32BE(nameBytes.length);
     final plaintext = concatBytes([header, nameBytes, fileData]);
 
-    // 2. Encrypt
-    final encrypted = CryptoService.encrypt(plaintext, passphrase);
+    final bool isEncrypted = passphrase != null && passphrase.isNotEmpty;
+
+    // 2. Optionally encrypt
+    final Uint8List payload;
+    if (isEncrypted) {
+      payload = CryptoService.encrypt(plaintext, passphrase);
+    } else {
+      payload = plaintext;
+    }
 
     // 3. Prepend 4-byte length prefix
-    final lengthPrefix = writeUint32BE(encrypted.length);
-    final framedData = concatBytes([lengthPrefix, encrypted]);
+    final lengthPrefix = writeUint32BE(payload.length);
+    final framedData = concatBytes([lengthPrefix, payload]);
 
     // 4. Split into frames and encode
     final dpf = CimbarConstants.dataBytesPerFrame(frameSize);
@@ -47,7 +55,7 @@ class CimbarEncoder {
       final chunk = framedData.sublist(start, end);
 
       final rsFrame = encodeRSFrame(chunk, frameSize);
-      frames.add(encodeFrame(rsFrame, frameSize));
+      frames.add(encodeFrame(rsFrame, frameSize, isEncrypted: isEncrypted));
     }
 
     // 5. Encode as animated GIF
@@ -226,7 +234,8 @@ class CimbarEncoder {
   }
 
   /// Encode a frame onto an image (matching encodeFrame in cimbar.js).
-  static img.Image encodeFrame(Uint8List rsData, int frameSize) {
+  static img.Image encodeFrame(Uint8List rsData, int frameSize,
+      {bool isEncrypted = true}) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
     final rows = frameSize ~/ cs;
@@ -275,8 +284,8 @@ class CimbarEncoder {
     drawFinder(image, 0, (rows - 3) * cs, cs);
     drawFinder(image, (cols - 3) * cs, (rows - 3) * cs, cs);
 
-    // Draw center metadata block (always encrypted in test encoder)
-    drawMetadataBlock(image, cols, frameSize, true);
+    // Draw center metadata block
+    drawMetadataBlock(image, cols, frameSize, isEncrypted);
 
     return image;
   }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+import '../constants/cimbar_constants.dart';
 import '../models/decode_result.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
@@ -71,7 +72,7 @@ class DecodePipeline {
     }
 
     final payloadLength = readUint32BE(allBytes);
-    if (payloadLength < 32 || payloadLength > allBytes.length - 4) {
+    if (payloadLength < 5 || payloadLength > allBytes.length - 4) {
       yield DecodeProgress(
         state: DecodeState.error,
         message: 'Invalid payload length: $payloadLength',
@@ -79,37 +80,45 @@ class DecodePipeline {
       return;
     }
 
-    final encryptedPayload = allBytes.sublist(4, 4 + payloadLength);
+    final payloadBytes = allBytes.sublist(4, 4 + payloadLength);
 
-    // 4. AES-GCM decrypt
-    yield const DecodeProgress(
-      state: DecodeState.decrypting,
-      progress: 0.5,
-      message: 'Decrypting...',
-    );
+    // 4. Auto-detect encryption via magic bytes, then parse file header
+    final Uint8List fileHeaderBytes;
+    final isEncrypted = payloadBytes.length >= 2 &&
+        payloadBytes[0] == CimbarConstants.magic[0] &&
+        payloadBytes[1] == CimbarConstants.magic[1];
 
-    final Uint8List plaintext;
-    try {
-      plaintext = CryptoService.decrypt(encryptedPayload, passphrase);
-    } catch (e) {
-      yield DecodeProgress(
-        state: DecodeState.error,
-        message: 'Decryption failed: $e',
+    if (isEncrypted) {
+      yield const DecodeProgress(
+        state: DecodeState.decrypting,
+        progress: 0.5,
+        message: 'Decrypting...',
       );
-      return;
+
+      try {
+        fileHeaderBytes = CryptoService.decrypt(payloadBytes, passphrase);
+      } catch (e) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'Decryption failed: $e',
+        );
+        return;
+      }
+    } else {
+      fileHeaderBytes = payloadBytes;
     }
 
     // 5. Parse file header: [4-byte nameLen][nameBytes][fileData]
-    if (plaintext.length < 4) {
+    if (fileHeaderBytes.length < 4) {
       yield const DecodeProgress(
         state: DecodeState.error,
-        message: 'Decrypted data too short for file header',
+        message: 'Data too short for file header',
       );
       return;
     }
 
-    final nameLen = readUint32BE(plaintext);
-    if (nameLen > plaintext.length - 4) {
+    final nameLen = readUint32BE(fileHeaderBytes);
+    if (nameLen > fileHeaderBytes.length - 4) {
       yield DecodeProgress(
         state: DecodeState.error,
         message: 'Invalid filename length: $nameLen',
@@ -117,8 +126,8 @@ class DecodePipeline {
       return;
     }
 
-    final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
-    final fileData = plaintext.sublist(4 + nameLen);
+    final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
+    final fileData = fileHeaderBytes.sublist(4 + nameLen);
 
     // Store result BEFORE yield — async* generators suspend at yield, so
     // the listener reads lastResult before the line after yield executes.
@@ -136,33 +145,42 @@ class DecodePipeline {
     Uint8List binaryData,
     String passphrase,
   ) async* {
-    yield const DecodeProgress(
-      state: DecodeState.decrypting,
-      progress: 0.5,
-      message: 'Decrypting binary...',
-    );
+    // Auto-detect encryption via magic bytes
+    final isEncrypted = binaryData.length >= 2 &&
+        binaryData[0] == CimbarConstants.magic[0] &&
+        binaryData[1] == CimbarConstants.magic[1];
 
-    final Uint8List plaintext;
-    try {
-      plaintext = CryptoService.decrypt(binaryData, passphrase);
-    } catch (e) {
-      yield DecodeProgress(
-        state: DecodeState.error,
-        message: 'Decryption failed: $e',
+    final Uint8List fileHeaderBytes;
+    if (isEncrypted) {
+      yield const DecodeProgress(
+        state: DecodeState.decrypting,
+        progress: 0.5,
+        message: 'Decrypting binary...',
       );
-      return;
+
+      try {
+        fileHeaderBytes = CryptoService.decrypt(binaryData, passphrase);
+      } catch (e) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'Decryption failed: $e',
+        );
+        return;
+      }
+    } else {
+      fileHeaderBytes = binaryData;
     }
 
-    if (plaintext.length < 4) {
+    if (fileHeaderBytes.length < 4) {
       yield const DecodeProgress(
         state: DecodeState.error,
-        message: 'Decrypted data too short for file header',
+        message: 'Data too short for file header',
       );
       return;
     }
 
-    final nameLen = readUint32BE(plaintext);
-    if (nameLen > plaintext.length - 4) {
+    final nameLen = readUint32BE(fileHeaderBytes);
+    if (nameLen > fileHeaderBytes.length - 4) {
       yield DecodeProgress(
         state: DecodeState.error,
         message: 'Invalid filename length: $nameLen',
@@ -170,8 +188,8 @@ class DecodePipeline {
       return;
     }
 
-    final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
-    final fileData = plaintext.sublist(4 + nameLen);
+    final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
+    final fileData = fileHeaderBytes.sublist(4 + nameLen);
 
     _lastResult = DecodeResult(filename: filename, data: fileData);
 

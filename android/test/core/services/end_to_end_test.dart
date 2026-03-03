@@ -104,6 +104,97 @@ void main() {
       expect(pipeline.lastResult, isNull);
     });
 
+    test('unencrypted single-frame round-trip', () async {
+      final fileData = Uint8List.fromList(utf8.encode('No encryption needed'));
+      const filename = 'plain.txt';
+
+      final gifBytes = CimbarEncoder.encodeToGif(
+        fileData: fileData,
+        filename: filename,
+        // no passphrase — unencrypted
+        frameSize: 256,
+      );
+
+      // Verify it's a valid GIF
+      expect(gifBytes[0], equals(0x47)); // 'G'
+
+      // Decode with empty passphrase
+      final pipeline = DecodePipeline();
+      DecodeProgress? lastProgress;
+
+      await for (final progress in pipeline.decodeGif(gifBytes, '')) {
+        lastProgress = progress;
+      }
+
+      expect(lastProgress?.state, equals(DecodeState.done));
+
+      final result = pipeline.lastResult;
+      expect(result, isNotNull);
+      expect(result!.filename, equals(filename));
+      expect(utf8.decode(result.data), equals('No encryption needed'));
+    });
+
+    test('unencrypted multi-frame round-trip', () async {
+      // Generate a payload large enough for multiple frames
+      final fileData = Uint8List(6000);
+      for (var i = 0; i < fileData.length; i++) {
+        fileData[i] = (i * 7 + 31) & 0xFF;
+      }
+      const filename = 'multi_plain.bin';
+
+      final gifBytes = CimbarEncoder.encodeToGif(
+        fileData: fileData,
+        filename: filename,
+        // no passphrase — unencrypted
+        frameSize: 256,
+      );
+
+      final pipeline = DecodePipeline();
+      DecodeProgress? lastProgress;
+
+      await for (final progress in pipeline.decodeGif(gifBytes, '')) {
+        lastProgress = progress;
+      }
+
+      expect(lastProgress?.state, equals(DecodeState.done));
+
+      final result = pipeline.lastResult;
+      expect(result, isNotNull);
+      expect(result!.filename, equals(filename));
+      expect(result.data.length, equals(6000));
+
+      // Verify data integrity
+      var mismatches = 0;
+      for (var i = 0; i < fileData.length; i++) {
+        if (result.data[i] != fileData[i]) mismatches++;
+      }
+      expect(mismatches, equals(0));
+    });
+
+    test('encrypted GIF with empty passphrase detects encryption', () async {
+      final fileData = Uint8List.fromList(utf8.encode('Secret'));
+      const filename = 'secret.txt';
+
+      final gifBytes = CimbarEncoder.encodeToGif(
+        fileData: fileData,
+        filename: filename,
+        passphrase: 'mypassword',
+        frameSize: 256,
+      );
+
+      // Try to decode with empty passphrase — should fail at decryption
+      final pipeline = DecodePipeline();
+      DecodeProgress? lastProgress;
+
+      await for (final progress in pipeline.decodeGif(gifBytes, '')) {
+        lastProgress = progress;
+      }
+
+      expect(lastProgress?.state, equals(DecodeState.error));
+      expect(lastProgress?.message, contains('Decryption failed'));
+      expect(pipeline.lastResult, isNull);
+    });
+
     test('different frame sizes', () async {
       final fileData = Uint8List.fromList(utf8.encode('Frame size test'));
       const filename = 'sizes.txt';

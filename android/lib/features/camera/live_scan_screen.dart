@@ -14,7 +14,7 @@ import 'live_scan_controller.dart';
 class LiveScanScreen extends ConsumerStatefulWidget {
   final String passphrase;
 
-  const LiveScanScreen({super.key, required this.passphrase});
+  const LiveScanScreen({super.key, this.passphrase = ''});
 
   @override
   ConsumerState<LiveScanScreen> createState() => _LiveScanScreenState();

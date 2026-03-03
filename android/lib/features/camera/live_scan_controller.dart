@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
+import '../../core/constants/cimbar_constants.dart';
 import '../../core/models/barcode_rect.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/models/decode_tuning_config.dart';
@@ -372,7 +373,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         return;
       }
 
-      // Extract encrypted payload using 4-byte length prefix
+      // Extract payload using 4-byte length prefix
       final payloadLength = readUint32BE(scanResult.data);
       if (payloadLength + 4 > scanResult.data.length) {
         state = state.copyWith(
@@ -381,31 +382,39 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         );
         return;
       }
-      final encryptedPayload = scanResult.data.sublist(4, 4 + payloadLength);
+      final payloadBytes = scanResult.data.sublist(4, 4 + payloadLength);
 
-      // Decrypt
-      final Uint8List plaintext;
-      try {
-        plaintext = CryptoService.decrypt(encryptedPayload, passphrase);
-      } catch (e) {
-        state = state.copyWith(
-          isDecrypting: false,
-          errorMessage: 'Decryption failed: $e',
-        );
-        return;
+      // Auto-detect encryption via magic bytes
+      final isEncrypted = payloadBytes.length >= 2 &&
+          payloadBytes[0] == CimbarConstants.magic[0] &&
+          payloadBytes[1] == CimbarConstants.magic[1];
+
+      final Uint8List fileHeaderBytes;
+      if (isEncrypted) {
+        try {
+          fileHeaderBytes = CryptoService.decrypt(payloadBytes, passphrase);
+        } catch (e) {
+          state = state.copyWith(
+            isDecrypting: false,
+            errorMessage: 'Decryption failed: $e',
+          );
+          return;
+        }
+      } else {
+        fileHeaderBytes = payloadBytes;
       }
 
       // Parse file header: [4-byte nameLen][nameBytes][fileData]
-      if (plaintext.length < 4) {
+      if (fileHeaderBytes.length < 4) {
         state = state.copyWith(
           isDecrypting: false,
-          errorMessage: 'Decrypted data too short',
+          errorMessage: 'Data too short for file header',
         );
         return;
       }
 
-      final nameLen = readUint32BE(plaintext);
-      if (nameLen > plaintext.length - 4) {
+      final nameLen = readUint32BE(fileHeaderBytes);
+      if (nameLen > fileHeaderBytes.length - 4) {
         state = state.copyWith(
           isDecrypting: false,
           errorMessage: 'Invalid filename length',
@@ -413,8 +422,8 @@ class LiveScanController extends StateNotifier<LiveScanState> {
         return;
       }
 
-      final filename = utf8.decode(plaintext.sublist(4, 4 + nameLen));
-      final fileData = plaintext.sublist(4 + nameLen);
+      final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
+      final fileData = fileHeaderBytes.sublist(4 + nameLen);
 
       final result = DecodeResult(filename: filename, data: fileData);
       state = state.copyWith(

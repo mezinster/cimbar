@@ -67,8 +67,7 @@ class _ImportBinaryScreenState extends ConsumerState<ImportBinaryScreen> {
 
           FilledButton(
             onPressed: state.selectedFileBytes != null &&
-                    !state.isDecoding &&
-                    _passphraseController.text.isNotEmpty
+                    !state.isDecoding
                 ? () => controller.decode(_passphraseController.text)
                 : null,
             child: Text(state.isDecoding ? l10n.decoding : l10n.decode),

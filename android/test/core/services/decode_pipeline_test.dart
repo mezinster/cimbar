@@ -99,6 +99,49 @@ void main() {
       expect(mismatches, equals(0));
     });
 
+    test('length prefix round-trip (unencrypted small payload)', () {
+      // Simulate an unencrypted payload: [nameLen][name][data]
+      // nameLen=5, name="a.txt", data=10 bytes -> total = 4+5+10 = 19 bytes
+      const fakeEncLen = 19;
+      final fakeEnc = Uint8List(fakeEncLen);
+      // Set first 4 bytes to nameLen=5
+      fakeEnc[0] = 0; fakeEnc[1] = 0; fakeEnc[2] = 0; fakeEnc[3] = 5;
+      // "a.txt" in ASCII
+      fakeEnc[4] = 0x61; fakeEnc[5] = 0x2E; fakeEnc[6] = 0x74;
+      fakeEnc[7] = 0x78; fakeEnc[8] = 0x74;
+      // 10 bytes of data
+      for (var i = 9; i < fakeEncLen; i++) {
+        fakeEnc[i] = (i * 11 + 3) & 0xFF;
+      }
+
+      final lengthPrefix = writeUint32BE(fakeEnc.length);
+      final framedData = concatBytes([lengthPrefix, fakeEnc]);
+
+      final chunk = Uint8List(_dpf);
+      chunk.setRange(0, framedData.length, framedData);
+
+      final rsFrame = CimbarEncoder.encodeRSFrame(chunk, _frameSize);
+      final frameImage = CimbarEncoder.encodeFrame(rsFrame, _frameSize,
+          isEncrypted: false);
+
+      final rawBytes = _decoder.decodeFramePixels(frameImage, _frameSize);
+      final dataBytes = _decoder.decodeRSFrame(rawBytes, _frameSize);
+
+      final allBytes = Uint8List.fromList(dataBytes);
+      final payloadLength = readUint32BE(allBytes);
+      expect(payloadLength, equals(fakeEncLen));
+
+      final recovered = allBytes.sublist(4, 4 + payloadLength);
+      var mismatches = 0;
+      for (var i = 0; i < fakeEncLen; i++) {
+        if (recovered[i] != fakeEnc[i]) mismatches++;
+      }
+      expect(mismatches, equals(0));
+
+      // Verify it does NOT start with magic bytes (unencrypted)
+      expect(recovered[0] != 0xCB || recovered[1] != 0x42, isTrue);
+    });
+
     test('length prefix round-trip (tiny payload, single frame)', () {
       const fakeEncLen = 100;
       final fakeEnc = Uint8List(fakeEncLen);

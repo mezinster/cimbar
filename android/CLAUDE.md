@@ -46,9 +46,9 @@ android/lib/
 ## Decoding Pipelines (Dart ports of the web-app JS modules)
 
 ```
-GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder) → RS decode (reed_solomon) → decrypt (crypto_service) → File
-Camera photo:  Photo → locate barcode (frame_locator) → white balance + try frame sizes → RS decode → decrypt → File
-Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white balance + decode per-frame (live_scanner) → adjacency-chain assembly → decrypt → File
+GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder) → RS decode (reed_solomon) → [auto-detect: decrypt (crypto_service)] → File
+Camera photo:  Photo → locate barcode (frame_locator) → white balance + try frame sizes → RS decode → [auto-detect: decrypt] → File
+Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white balance + decode per-frame (live_scanner) → adjacency-chain assembly → [auto-detect: decrypt] → File
 ```
 
 ## Core Services (`lib/core/services/`)
@@ -60,7 +60,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `image_preprocessing.dart` — adaptive threshold + sharpening for camera decode (port of C++ CimbReader pipeline): `rgbToGrayscale` (BT.601), `sharpen3x3` (Laplacian high-pass `[0,-1,0;-1,4.5,-1;0,-1,0]`), `adaptiveThresholdMean` (integral image for O(1) local mean), `preprocessSymbolGrid` (full pipeline). Only used for symbol detection; color detection uses original RGB
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
-- `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
+- `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates. Encryption auto-detected via `CB 42` magic bytes; passphrase optional
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
 - `frame_locator.dart` — finds the CimBar barcode region via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` with cropped image, `BarcodeRect`, and optional finder centers for perspective transform
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
@@ -177,8 +177,8 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 ## Features
 
-- **Import GIF** — pick a CimBar GIF, enter passphrase, decode and save/share
-- **Import Binary** — decrypt raw binary from C++ scanner, save/share result
+- **Import GIF** — pick a CimBar GIF, optionally enter passphrase, decode and save/share. Encryption auto-detected via `CB 42` magic bytes
+- **Import Binary** — decode raw binary from C++ scanner (encryption auto-detected), save/share result
 - **Camera** — single-photo capture + live multi-frame scanning with AR overlay
 - **Files** — browse decoded files, swipe-to-delete, share via system share sheet
 - **Settings** — decode tuning sliders/toggles, language selection (5 languages), about
@@ -187,7 +187,7 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 ## Design Decisions and Known Patterns
 
-**TextEditingController listener pattern:** Screens checking `_passphraseController.text.isNotEmpty` to enable/disable buttons must add `_passphraseController.addListener(() => setState(() {}))` in `initState`. `PassphraseField` is self-contained — its internal `setState` only rebuilds itself, not the parent screen.
+**TextEditingController listener pattern:** Screens use `_passphraseController.addListener(() => setState(() {}))` in `initState` to rebuild when the passphrase changes. Passphrase is optional — buttons are enabled without it. Encryption is auto-detected at decode time via `CB 42` magic bytes. `PassphraseField` is self-contained — its internal `setState` only rebuilds itself, not the parent screen.
 
 **`Future.microtask` for camera state updates:** The camera `startImageStream` callback can fire during widget tree builds. Synchronous state updates trigger Riverpod's "modify provider during build" exception. Fix: wrap in `Future.microtask(() { ... })`.
 

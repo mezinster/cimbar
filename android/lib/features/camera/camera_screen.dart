@@ -92,8 +92,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: !state.isDecoding &&
-                      _passphraseController.text.isNotEmpty
+              onPressed: !state.isDecoding
                   ? () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => LiveScanScreen(
@@ -127,8 +126,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
           FilledButton(
             onPressed: state.capturedPhotoBytes != null &&
-                    !state.isDecoding &&
-                    _passphraseController.text.isNotEmpty
+                    !state.isDecoding
                 ? () => controller.decode(_passphraseController.text)
                 : null,
             child: Text(state.isDecoding ? l10n.decoding : l10n.decode),
