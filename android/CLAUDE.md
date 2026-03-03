@@ -9,8 +9,11 @@ cd android
 flutter pub get
 flutter gen-l10n
 flutter build apk --debug
-flutter test
+sh tests/run_all.sh           # recommended: clean summary via JSON reporter
+sh tests/run_all.sh --verbose  # list each test name
 ```
+
+Note: Do not use bare `flutter test` — its `\r`-based progress animation produces a single huge line that triggers output truncation in CLI tools. The wrapper parses the JSON reporter into clean output.
 
 Requires Flutter 3.24+ and Java 17.
 
@@ -21,7 +24,7 @@ android/lib/
 ├── app.dart                    — Root MaterialApp.router + go_router config
 ├── main.dart                   — Entry point; initializes SharedPreferences, ProviderScope
 ├── core/
-│   ├── constants/cimbar_constants.dart  — Cell size, ECC bytes, frame sizes, 8-color palette, magic
+│   ├── constants/cimbar_constants.dart  — Cell size, ECC bytes, frame sizes, 8-color palette, magic, metadata block helpers
 │   ├── models/                 — DecodeProgress, DecodeState, DecodeResult, BarcodeRect, DecodeTuningConfig
 │   ├── providers/              — SharedPreferencesProvider, LocaleProvider, DecodeTuningProvider
 │   ├── services/               — All decode/crypto/camera/file logic (see below)
@@ -53,7 +56,8 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,191) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
 - `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference) and `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight)
-- `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px)
+- `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px). Supports `useBinaryHashes` mode for adaptive-threshold-preprocessed input, with `detectSymbolFuzzyFromGray()` that reads from a flat `Uint8List` buffer
+- `image_preprocessing.dart` — adaptive threshold + sharpening for camera decode (port of C++ CimbReader pipeline): `rgbToGrayscale` (BT.601), `sharpen3x3` (Laplacian high-pass `[0,-1,0;-1,4.5,-1;0,-1,0]`), `adaptiveThresholdMean` (integral image for O(1) local mean), `preprocessSymbolGrid` (full pipeline). Only used for symbol detection; color detection uses original RGB
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates
@@ -62,7 +66,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters
 - `perspective_transform.dart` — pure-Dart perspective warp: DLT homography, inverse mapping + nearest-neighbor sampling with `.floor()` (not `.round()` — Dart's banker's rounding corrupts cell alignment). Used by `frame_decode_isolate.dart` as "try warp first, fallback to crop+resize"
-- `frame_decode_isolate.dart` — isolate entry point for live scan: runs all heavy computation (YUV→RGB, locate, warp, decode) in `Isolate.run()` to keep UI at 30fps. Returns `IsolateFrameResult` with decoded bytes, bounding box, optional debug captures, and two-channel diagnostics. Stateful tracking (adjacency chains, dedup) stays on main isolate via `LiveScanner.processDecodedData()`
+- `frame_decode_isolate.dart` — isolate entry point for live scan: runs all heavy computation (YUV→RGB, locate, warp, decode) in `Isolate.run()` to keep UI at 30fps. Returns `IsolateFrameResult` with decoded bytes, bounding box, optional debug captures, two-channel diagnostics, and `isEncrypted` flag from the center metadata block. Uses metadata block shortcut: reads center 3×3 block before expensive RS decode to verify frame size match (skips mismatched candidates). Stateful tracking (adjacency chains, dedup) stays on main isolate via `LiveScanner.processDecodedData()`
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus`
 
 ## State Management (Riverpod)
@@ -193,7 +197,7 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access for `localeProvider`. Uses `showModalBottomSheet` with `RadioListTile` options. Not included in `LiveScanScreen` (no AppBar).
 
-**Camera-specific decode flags:** `decodeFramePixels()` accepts: `enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`, `useLabColor`. Camera paths set via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`). `useLabColor` is failover-only (not directly configurable). GIF decode uses default/null params (exact pixel colors need no correction).
+**Camera-specific decode flags:** `decodeFramePixels()` accepts: `enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`, `useLabColor`, `preprocessedGray`. Camera paths set via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`, `useAdaptiveThreshold=false`). `useLabColor` is failover-only (not directly configurable). `preprocessedGray` is computed by `frame_decode_isolate.dart` when `useAdaptiveThreshold=true`. GIF decode uses default/null params (exact pixel colors need no correction).
 
 **Two-pass decode (camera path):** When `useHashDetection=true`, Pass 1 runs hash-based symbol detection with fuzzy drift matching (stores drift/symbol in typed arrays). Pass 2 samples color at drift-corrected center positions. This fixes color misclassification when perspective distortion shifts cells by 3–15 pixels. GIF path remains single-pass.
 
@@ -268,9 +272,15 @@ Camera decode paths retry with CIELAB when RS quality gate rejects (nonZero==0).
 
 Radial distortion coefficient from edge midpoint deviation, corrected via `initUndistortRectifyMap()`.
 
-### Priority 7 — Pre-processing: adaptive threshold + sharpening (planned)
+### Priority 7 — Pre-processing: adaptive threshold + sharpening ✓
 
-Grayscale → optional 3×3 high-pass sharpen → adaptive threshold → bitmatrix. Sharpening only when barcode appears smaller than target resolution.
+`image_preprocessing.dart`: RGB → grayscale → optional 3×3 Laplacian sharpen (kernel `[0,-1,0;-1,4.5,-1;0,-1,0]`) → adaptive threshold (local mean, integral image for O(1) per-pixel). Returns binary `Uint8List` (0 or 255) for symbol hash detection only; color detection uses original RGB.
+
+**Auto-sharpen:** When source barcode region is smaller than target frame size (upscaling case), sharpening compensates for nearest-neighbor interpolation blur. `needsSharpen` determined per-strategy: 4pt warp checks finder edge distances, 2pt warp estimates side from diagonal, crop checks `cropped.width/height < frameSize`. When sharpening, uses `blockSize=7`; otherwise `blockSize=5`.
+
+**Opt-in:** Gated by `DecodeTuningConfig.useAdaptiveThreshold` (default: `false`). Only applies when `useHashDetection` is also true. Toggle available in Settings → Decode Tuning.
+
+**Binary reference hashes:** `SymbolHashDetector(useBinaryHashes: true)` renders reference symbols → grayscale → adaptive threshold → hash. Required because binarized cell hashes differ from raw luma hashes (local neighborhood context shifts the mean).
 
 ## Tests
 
@@ -280,7 +290,8 @@ Run: `flutter test` from `android/` directory.
 |------|--------------|
 | `galois_field_test.dart` | GF(256) table wraparound, mul/div inverse, polynomial arithmetic. |
 | `reed_solomon_test.dart` | Clean round-trip, 32-error correction, uncorrectable detection, Forney/Omega, full-block round-trips. |
-| `cimbar_decoder_test.dart` | 128-combo draw+detect round-trips, white balance, relative color, camera-exposure symbol detection, hash detection (distinctness, drift, blur robustness), two-pass decode, LAB color matching, RS block interleaving + error spreading. |
+| `cimbar_decoder_test.dart` | 128-combo draw+detect round-trips, white balance, relative color, camera-exposure symbol detection, hash detection (distinctness, drift, blur robustness), two-pass decode, LAB color matching, adaptive threshold preprocessing (binary hashes, clean/dimmed frames), RS block interleaving + error spreading. |
+| `image_preprocessing_test.dart` | Grayscale conversion, sharpening kernel, adaptive threshold (uniform, checkerboard, gradient, blockSize=7), full `preprocessSymbolGrid` pipeline with/without sharpening. |
 | `crypto_service_test.dart` | AES-256-GCM round-trip, wrong passphrase rejection, bad magic, strength scoring. |
 | `decode_pipeline_test.dart` | RS frame encode→draw→read→decode round-trip with length prefix. Three payload cases. |
 | `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior, rotation-invariant classification (0°/90°/180°/270°). |

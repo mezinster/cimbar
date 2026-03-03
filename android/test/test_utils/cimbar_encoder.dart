@@ -142,6 +142,45 @@ class CimbarEncoder {
     }
   }
 
+  /// Draw the center 3x3 metadata block.
+  /// Checkerboard corners: TL=Black, TR=White, BL=White, BR=Black.
+  /// Data bits: d0=frame size MSB, d1=frame size LSB, d2=encrypted, d3/d4=reserved.
+  static void drawMetadataBlock(
+    img.Image image, int cols, int frameSize, bool isEncrypted,
+  ) {
+    const cs = CimbarConstants.cellSize;
+    final cx = cols ~/ 2 - 1;
+
+    final sizeBits = CimbarConstants.frameSizeToBits[frameSize] ?? 0;
+    final d0 = (sizeBits >> 1) & 1;
+    final d1 = sizeBits & 1;
+    final d2 = isEncrypted ? 1 : 0;
+
+    final cells = [
+      [0, 0, 0],    // TL corner: Black
+      [1, 0, d0],   // top-center: frame size MSB
+      [2, 0, 1],    // TR corner: White
+      [0, 1, d1],   // mid-left: frame size LSB
+      [1, 1, d2],   // center: encrypted flag
+      [2, 1, 0],    // mid-right: reserved
+      [0, 2, 1],    // BL corner: White
+      [1, 2, 0],    // bottom-center: reserved
+      [2, 2, 0],    // BR corner: Black
+    ];
+
+    for (final cell in cells) {
+      final dx = cell[0], dy = cell[1], val = cell[2];
+      final ox = (cx + dx) * cs;
+      final oy = (cx + dy) * cs;
+      final color = val == 1
+          ? img.ColorRgba8(255, 255, 255, 255)
+          : img.ColorRgba8(0, 0, 0, 255);
+      img.fillRect(image,
+          x1: ox, y1: oy, x2: ox + cs, y2: oy + cs,
+          color: color);
+    }
+  }
+
   /// RS-encode a data chunk for one frame (matching encodeRSFrame in cimbar.js).
   /// Uses byte-stride interleaving: byte j of block i → position j * N + i.
   static Uint8List encodeRSFrame(Uint8List dataChunk, int frameSize) {
@@ -205,6 +244,7 @@ class CimbarEncoder {
         final inBL = row >= rows - 3 && col < 3;
         final inBR = row >= rows - 3 && col >= cols - 3;
         if (inTL || inTR || inBL || inBR) continue;
+        if (CimbarConstants.isMetadataCell(col, row, cols)) continue;
 
         final globalBit = cellIdx * 7;
         final bytePos = globalBit ~/ 8;
@@ -234,6 +274,9 @@ class CimbarEncoder {
     drawFinder(image, (cols - 3) * cs, 0, cs);
     drawFinder(image, 0, (rows - 3) * cs, cs);
     drawFinder(image, (cols - 3) * cs, (rows - 3) * cs, cs);
+
+    // Draw center metadata block (always encrypted in test encoder)
+    drawMetadataBlock(image, cols, frameSize, true);
 
     return image;
   }

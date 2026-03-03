@@ -198,6 +198,8 @@
   "@quadrantOffsetDesc": { "description": "Description for quadrant offset slider" },
   "hashDetectionLabel": "Hash Symbol Detection",
   "@hashDetectionLabel": { "description": "Label for hash-based symbol detection toggle" },
+  "adaptiveThresholdLabel": "Adaptive Threshold",
+  "@adaptiveThresholdLabel": { "description": "Label for adaptive threshold preprocessing toggle" },
   "resetDefaults": "Reset to Defaults",
   "@resetDefaults": { "description": "Button to reset tuning to default values" },
 

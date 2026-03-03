@@ -240,6 +240,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String get hashDetectionLabel => 'Hash Symbol Detection';
 
   @override
+  String get adaptiveThresholdLabel => 'Adaptive Threshold';
+
+  @override
   String get resetDefaults => 'Reset to Defaults';
 
   @override

@@ -240,6 +240,9 @@ class AppLocalizationsUk extends AppLocalizations {
   String get hashDetectionLabel => 'Хеш-визначення символів';
 
   @override
+  String get adaptiveThresholdLabel => 'Адаптивний поріг';
+
+  @override
   String get resetDefaults => 'Reset to Defaults';
 
   @override

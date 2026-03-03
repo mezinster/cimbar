@@ -539,6 +539,12 @@ abstract class AppLocalizations {
   /// **'Hash Symbol Detection'**
   String get hashDetectionLabel;
 
+  /// Label for adaptive threshold preprocessing toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Adaptive Threshold'**
+  String get adaptiveThresholdLabel;
+
   /// Button to reset tuning to default values
   ///
   /// In en, this message translates to:

@@ -75,6 +75,7 @@
   "quadrantOffsetLabel": "Quadrant Sample Offset",
   "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
   "hashDetectionLabel": "Хеш-визначення символів",
+  "adaptiveThresholdLabel": "Адаптивний поріг",
   "resetDefaults": "Reset to Defaults",
 
   "developerSection": "Розробник",

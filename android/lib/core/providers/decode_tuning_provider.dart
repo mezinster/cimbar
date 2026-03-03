@@ -40,6 +40,11 @@ class DecodeTuningNotifier extends StateNotifier<DecodeTuningConfig> {
     state.toPrefs(_prefs);
   }
 
+  void setUseAdaptiveThreshold(bool value) {
+    state = state.copyWith(useAdaptiveThreshold: value);
+    state.toPrefs(_prefs);
+  }
+
   void setDebugModeEnabled(bool value) {
     state = state.copyWith(debugModeEnabled: value);
     state.toPrefs(_prefs);

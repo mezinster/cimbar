@@ -92,7 +92,7 @@ function drawFinder(ctx, ox, oy, size, drawDot = true) {
  * byteOffset: start byte for this frame's RS-encoded block
  * capacity: bytes this frame holds (post-RS)
  */
-function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
+function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity, isEncrypted) {
   const size = canvas.width;
   const cs = CELL_SIZE;
   const cols = Math.floor(size / cs);
@@ -106,14 +106,15 @@ function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      // Skip finder pattern cells (top-left 3Ã—3 and bottom-right 3Ã—3)
+      // Skip finder pattern cells (four 3x3 corner blocks)
       const inTL = row < 3 && col < 3;
       const inTR = row < 3 && col >= cols - 3;
       const inBL = row >= rows - 3 && col < 3;
       const inBR = row >= rows-3 && col >= cols-3;
-      if (inTL || inTR || inBL || inBR) {
-        continue;
-      }
+      if (inTL || inTR || inBL || inBR) continue;
+
+      // Skip metadata block cells (center 3x3 block)
+      if (isMetadataCell(col, row, cols)) continue;
 
       const globalBit = cellIdx * 7;
       const bytePos   = Math.floor(globalBit / 8);
@@ -148,18 +149,97 @@ function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity) {
   drawFinder(ctx, (cols-3)*cs, 0, cs);
   drawFinder(ctx, 0, (rows-3)*cs, cs);
   drawFinder(ctx, (cols-3)*cs, (rows-3)*cs, cs);
+
+  // Draw center metadata block
+  drawMetadataBlock(ctx, cols, size, isEncrypted !== undefined ? isEncrypted : false);
 }
 
 /**
  * Compute how many usable (non-finder) cells a frame of `frameSize` has.
  */
+function isMetadataCell(col, row, cols) {
+  const cx = Math.floor(cols / 2) - 1;
+  return col >= cx && col <= cx + 2 && row >= cx && row <= cx + 2;
+}
+
+const FRAME_SIZE_TO_BITS = { 128: 0, 192: 1, 256: 2, 384: 3 };
+const BITS_TO_FRAME_SIZE = { 0: 128, 1: 192, 2: 256, 3: 384 };
+
+function drawMetadataBlock(ctx, cols, frameSize, isEncrypted) {
+  const cs = CELL_SIZE;
+  const cx = Math.floor(cols / 2) - 1;
+
+  const sizeBits = FRAME_SIZE_TO_BITS[frameSize] || 0;
+  const d0 = (sizeBits >> 1) & 1;
+  const d1 = sizeBits & 1;
+  const d2 = isEncrypted ? 1 : 0;
+  const d3 = 0;
+  const d4 = 0;
+
+  const cells = [
+    [0, 0, 0],    // TL corner: Black
+    [1, 0, d0],   // top-center: data bit 0 (frame size MSB)
+    [2, 0, 1],    // TR corner: White
+    [0, 1, d1],   // mid-left: data bit 1 (frame size LSB)
+    [1, 1, d2],   // center: data bit 2 (encrypted flag)
+    [2, 1, d3],   // mid-right: data bit 3 (reserved)
+    [0, 2, 1],    // BL corner: White
+    [1, 2, d4],   // bottom-center: data bit 4 (reserved)
+    [2, 2, 0],    // BR corner: Black
+  ];
+
+  for (const [dx, dy, val] of cells) {
+    const ox = (cx + dx) * cs;
+    const oy = (cx + dy) * cs;
+    ctx.fillStyle = val ? '#ffffff' : '#000000';
+    ctx.fillRect(ox, oy, cs, cs);
+  }
+}
+
+function readMetadataBlock(imageData, cols, frameSize) {
+  const cs = CELL_SIZE;
+  const cx = Math.floor(cols / 2) - 1;
+  const W = imageData.width;
+
+  function sampleLuma(col, row) {
+    const px = col * cs + Math.floor(cs / 2);
+    const py = row * cs + Math.floor(cs / 2);
+    const i = (py * W + px) * 4;
+    const r = imageData.data[i], g = imageData.data[i+1], b = imageData.data[i+2];
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+
+  const tlLuma = sampleLuma(cx, cx);
+  const trLuma = sampleLuma(cx + 2, cx);
+  const blLuma = sampleLuma(cx, cx + 2);
+  const brLuma = sampleLuma(cx + 2, cx + 2);
+
+  if (!(tlLuma < 128 && trLuma > 128 && blLuma > 128 && brLuma < 128)) {
+    return { valid: false };
+  }
+
+  const d0 = sampleLuma(cx + 1, cx) > 128 ? 1 : 0;
+  const d1 = sampleLuma(cx, cx + 1) > 128 ? 1 : 0;
+  const d2 = sampleLuma(cx + 1, cx + 1) > 128 ? 1 : 0;
+
+  const sizeBits = (d0 << 1) | d1;
+  const detectedSize = BITS_TO_FRAME_SIZE[sizeBits] || frameSize;
+
+  return {
+    valid: true,
+    frameSize: detectedSize,
+    isEncrypted: d2 === 1,
+  };
+}
+
 function usableCells(frameSize) {
   const cs = CELL_SIZE;
   const cols = Math.floor(frameSize / cs);
   const rows = Math.floor(frameSize / cs);
   const total = cols * rows;
-  const finderCells = 9 * 4; // four 3Ã—3 corner blocks
-  return total - finderCells;
+  const finderCells = 9 * 4;
+  const metadataCells = 9; // one 3x3 center block
+  return total - finderCells - metadataCells;
 }
 
 /**
@@ -296,6 +376,9 @@ function decodeFramePixels(imageData, frameSize) {
       const inBR = row >= rows-3 && col >= cols-3;
       if (inTL || inTR || inBL || inBR) continue;
 
+      // Skip metadata block cells (center 3x3 block)
+      if (isMetadataCell(col, row, cols)) continue;
+
       const ox = col * cs;
       const oy = row * cs;
 
@@ -366,7 +449,9 @@ if (typeof module !== 'undefined') {
     encodeFrame, decodeFramePixels,
     encodeRSFrame, decodeRSFrame,
     rawBytesPerFrame, dataBytesPerFrame, usableCells,
+    drawMetadataBlock, readMetadataBlock, isMetadataCell,
     CELL_SIZE, ECC_BYTES, BLOCK_DATA, COLORS,
+    FRAME_SIZE_TO_BITS, BITS_TO_FRAME_SIZE,
     // Exported for unit testing
     drawSymbol, detectSymbol, nearestColorIdx,
   };
@@ -375,6 +460,8 @@ if (typeof module !== 'undefined') {
     encodeFrame, decodeFramePixels,
     encodeRSFrame, decodeRSFrame,
     rawBytesPerFrame, dataBytesPerFrame, usableCells,
+    drawMetadataBlock, readMetadataBlock, isMetadataCell,
     CELL_SIZE, ECC_BYTES, BLOCK_DATA, COLORS,
+    FRAME_SIZE_TO_BITS, BITS_TO_FRAME_SIZE,
   };
 }

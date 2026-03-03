@@ -240,6 +240,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get hashDetectionLabel => 'Хеш-определение символов';
 
   @override
+  String get adaptiveThresholdLabel => 'Адаптивный порог';
+
+  @override
   String get resetDefaults => 'Сбросить настройки';
 
   @override

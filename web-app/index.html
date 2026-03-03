@@ -961,8 +961,8 @@ async function startEncode() {
       // RS-encode this chunk to fill one frame's raw byte capacity
       const rsFrame = Cimbar.encodeRSFrame(chunk, frameSize, rs);
 
-      // Draw frame
-      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf);
+      // Draw frame (pass encryption state for metadata block)
+      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf, true);
 
       gif.addFrame(canvas);
 

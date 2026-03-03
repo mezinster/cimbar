@@ -340,6 +340,7 @@ class CimbarDecoder {
     bool useHashDetection = false,
     bool useLabColor = false,
     DecodeStats? stats,
+    Uint8List? preprocessedGray,
   }) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
@@ -361,7 +362,9 @@ class CimbarDecoder {
     stats?.whiteBalanceApplied = adaptation != null;
 
     // Hash detector for camera path
-    final hashDetector = useHashDetection ? SymbolHashDetector() : null;
+    final hashDetector = useHashDetection
+        ? SymbolHashDetector(useBinaryHashes: preprocessedGray != null)
+        : null;
 
     if (hashDetector != null) {
       // ── Camera path: two-pass decode ──
@@ -385,14 +388,20 @@ class CimbarDecoder {
           final inBL = row >= rows - 3 && col < 3;
           final inBR = row >= rows - 3 && col >= cols - 3;
           if (inTL || inTR || inBL || inBR) continue;
+          if (CimbarConstants.isMetadataCell(col, row, cols)) continue;
 
           final ox = col * cs;
           final oy = row * cs;
           cellOx[ci] = ox;
           cellOy[ci] = oy;
 
-          final (sym, dx, dy, dist) = hashDetector.detectSymbolFuzzy(
-              frame, ox, oy, cs, driftX: driftX, driftY: driftY);
+          // Use preprocessed gray buffer for symbol detection when available
+          final (sym, dx, dy, dist) = preprocessedGray != null
+              ? hashDetector.detectSymbolFuzzyFromGray(
+                  preprocessedGray, frame.width, frame.height, ox, oy, cs,
+                  driftX: driftX, driftY: driftY)
+              : hashDetector.detectSymbolFuzzy(
+                  frame, ox, oy, cs, driftX: driftX, driftY: driftY);
           symIndices[ci] = sym;
           driftX = (driftX + dx).clamp(-15, 15);
           driftY = (driftY + dy).clamp(-15, 15);
@@ -498,6 +507,7 @@ class CimbarDecoder {
           final inBL = row >= rows - 3 && col < 3;
           final inBR = row >= rows - 3 && col >= cols - 3;
           if (inTL || inTR || inBL || inBR) continue;
+          if (CimbarConstants.isMetadataCell(col, row, cols)) continue;
 
           final ox = col * cs;
           final oy = row * cs;

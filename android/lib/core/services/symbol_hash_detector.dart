@@ -1,8 +1,10 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
 import '../constants/cimbar_constants.dart';
+import 'image_preprocessing.dart';
 
 /// Average-hash symbol detector for camera decode.
 ///
@@ -14,11 +16,67 @@ class SymbolHashDetector {
   /// 64-bit reference hash for each symbol index 0-15.
   final List<int> _referenceHashes;
 
+  /// Whether this detector uses binary (adaptive-threshold) reference hashes.
+  final bool useBinaryHashes;
+
   /// Pre-computed at construction time.
-  SymbolHashDetector() : _referenceHashes = _buildReferenceHashes();
+  /// When [useBinaryHashes] is true, reference symbols are rendered,
+  /// converted to grayscale, and adaptive-thresholded before hashing —
+  /// matching the preprocessing applied to camera input.
+  SymbolHashDetector({this.useBinaryHashes = false})
+      : _referenceHashes = useBinaryHashes
+            ? _buildBinaryReferenceHashes()
+            : _buildReferenceHashes();
 
   /// Access reference hashes (for testing).
   List<int> get referenceHashes => List.unmodifiable(_referenceHashes);
+
+  /// Build binary reference hashes: render → grayscale → adaptive threshold → hash.
+  ///
+  /// When the camera path uses adaptive threshold preprocessing, the cell
+  /// pixels are binarized (0 or 255). Reference hashes must be computed on
+  /// identically binarized symbols for good Hamming distance matching.
+  static List<int> _buildBinaryReferenceHashes() {
+    const cs = CimbarConstants.cellSize; // 8
+    final hashes = <int>[];
+
+    for (var symIdx = 0; symIdx < 16; symIdx++) {
+      // Render symbol into a small image
+      final cellImg = img.Image(width: cs, height: cs);
+      // Fill with gray foreground
+      img.fill(cellImg, color: img.ColorRgba8(180, 180, 180, 255));
+
+      // Paint black dots at corners for 0-bits
+      final q = max(1, (cs * 0.28).floor());
+      final h = max(1, (q * 0.75).floor());
+
+      void paintBlack(int bx, int by) {
+        for (var dy = 0; dy < 2 * h; dy++) {
+          for (var dx = 0; dx < 2 * h; dx++) {
+            final px = bx + dx;
+            final py = by + dy;
+            if (px >= 0 && px < cs && py >= 0 && py < cs) {
+              cellImg.setPixelRgba(px, py, 0, 0, 0, 255);
+            }
+          }
+        }
+      }
+
+      if ((symIdx >> 3) & 1 == 0) paintBlack(q - h, q - h);
+      if ((symIdx >> 2) & 1 == 0) paintBlack(cs - q - h, q - h);
+      if ((symIdx >> 1) & 1 == 0) paintBlack(q - h, cs - q - h);
+      if ((symIdx >> 0) & 1 == 0) paintBlack(cs - q - h, cs - q - h);
+
+      // Grayscale → adaptive threshold → hash
+      final gray = ImagePreprocessing.rgbToGrayscale(cellImg);
+      final binary = ImagePreprocessing.adaptiveThresholdMean(
+          gray, cs, cs, blockSize: 5);
+      final lumaList = List<int>.generate(cs * cs, (i) => binary[i]);
+      hashes.add(_computeHash(lumaList, cs));
+    }
+
+    return hashes;
+  }
 
   /// Build reference hashes for all 16 symbols.
   ///
@@ -209,6 +267,107 @@ class SymbolHashDetector {
     }
 
     return (bestSym, bestDx, bestDy, bestDist);
+  }
+
+  /// Detect symbol with fuzzy drift-aware matching from a pre-computed
+  /// grayscale buffer (e.g., adaptive-thresholded binary image).
+  ///
+  /// Same algorithm as [detectSymbolFuzzy] but reads luma from a flat
+  /// [Uint8List] of size [imgWidth] × imgHeight instead of [img.Image].
+  (int, int, int, int) detectSymbolFuzzyFromGray(
+    Uint8List gray,
+    int imgWidth,
+    int imgHeight,
+    int ox,
+    int oy,
+    int cellSize, {
+    int driftX = 0,
+    int driftY = 0,
+    int wideRadius = 3,
+    int wideThreshold = 20,
+  }) {
+    final baseX = ox + driftX;
+    final baseY = oy + driftY;
+
+    var bestSym = 0;
+    var bestDist = 65;
+    var bestDx = 0;
+    var bestDy = 0;
+
+    // Phase 1: narrow search (±1)
+    for (final off in _narrowOffsets) {
+      final dx = off[0], dy = off[1];
+      final sx = baseX + dx;
+      final sy = baseY + dy;
+
+      if (sx < 0 || sy < 0 ||
+          sx + cellSize > imgWidth ||
+          sy + cellSize > imgHeight) {
+        continue;
+      }
+
+      final luma = _extractLumaFromGray(gray, imgWidth, sx, sy, cellSize);
+      final hash = _computeHash(luma, cellSize);
+
+      for (var i = 0; i < 16; i++) {
+        final dist = popcount(hash ^ _referenceHashes[i]);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestSym = i;
+          bestDx = dx;
+          bestDy = dy;
+          if (dist == 0) return (bestSym, bestDx, bestDy, 0);
+        }
+      }
+    }
+
+    // Phase 2: widen if narrow search gave poor match
+    if (bestDist > wideThreshold) {
+      for (var dy = -wideRadius; dy <= wideRadius; dy++) {
+        for (var dx = -wideRadius; dx <= wideRadius; dx++) {
+          if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) continue;
+
+          final sx = baseX + dx;
+          final sy = baseY + dy;
+
+          if (sx < 0 || sy < 0 ||
+              sx + cellSize > imgWidth ||
+              sy + cellSize > imgHeight) {
+            continue;
+          }
+
+          final luma = _extractLumaFromGray(gray, imgWidth, sx, sy, cellSize);
+          final hash = _computeHash(luma, cellSize);
+
+          for (var i = 0; i < 16; i++) {
+            final dist = popcount(hash ^ _referenceHashes[i]);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestSym = i;
+              bestDx = dx;
+              bestDy = dy;
+              if (dist == 0) return (bestSym, bestDx, bestDy, 0);
+            }
+          }
+        }
+      }
+    }
+
+    return (bestSym, bestDx, bestDy, bestDist);
+  }
+
+  /// Extract cellSize×cellSize luma from a flat grayscale buffer.
+  static List<int> _extractLumaFromGray(
+      Uint8List gray, int imgWidth, int ox, int oy, int cs) {
+    final luma = List<int>.filled(cs * cs, 0);
+    for (var row = 0; row < cs; row++) {
+      final srcOff = (oy + row) * imgWidth + ox;
+      final dstOff = row * cs;
+      for (var col = 0; col < cs; col++) {
+        luma[dstOff + col] = gray[srcOff + col];
+      }
+    }
+    return luma;
   }
 
   /// Narrow search offsets: center first, then 4 sides, then 4 corners.

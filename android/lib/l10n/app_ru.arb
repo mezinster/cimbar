@@ -75,6 +75,7 @@
   "quadrantOffsetLabel": "Смещение квадранта",
   "quadrantOffsetDesc": "Позиция углового образца как доля размера ячейки",
   "hashDetectionLabel": "Хеш-определение символов",
+  "adaptiveThresholdLabel": "Адаптивный порог",
   "resetDefaults": "Сбросить настройки",
 
   "developerSection": "Разработчик",

@@ -46,7 +46,7 @@ Animated GIF → GIF decode (gif-decoder.js) → sample pixels (cimbar.js) → R
 
 ## Cell Encoding
 
-Each cell is `CELL_SIZE=8` pixels. A `floor(frameSize/8) × floor(frameSize/8)` grid minus 36 finder-pattern cells (four 3×3 corner blocks) gives usable cells. Each cell encodes 7 bits (3 = color index into 8 colors; 4 = symbol index into 16 shapes). Supported frame sizes: 128, 192, 256, 384 px.
+Each cell is `CELL_SIZE=8` pixels. A `floor(frameSize/8) × floor(frameSize/8)` grid minus 36 finder-pattern cells (four 3×3 corner blocks) minus 9 metadata-block cells (one 3×3 center block) gives usable cells. Each cell encodes 7 bits (3 = color index into 8 colors; 4 = symbol index into 16 shapes). Supported frame sizes: 128, 192, 256, 384 px.
 
 **Symbol design (4-quadrant corner dots):** The 16 symbols are all possible combinations of 4 binary corner markers. For an 8×8 cell, `q = floor(8 × 0.28) = 2 px` and `h = floor(q × 0.75) = 1 px`. The cell is filled with the foreground color; then for each 0-bit in `symIdx`, a `2h × 2h` (2×2) black square is painted at the corresponding corner sample point:
 
@@ -60,6 +60,24 @@ bit 0 → BR corner at (size-q-h, size-q-h)
 `detectSymbol` samples luma at those same four points plus the center. For the GIF path (no `symbolThreshold`), a point brighter than `center × 0.5 + 20` reads as 1. For the camera path, a configurable multiplicative threshold `center × symbolThreshold` is used instead (default 0.85). The `quadrantOffset` parameter (default 0.28) controls the corner sample position as a fraction of cell size. The center pixel is never covered by a dot, so it always reflects the foreground color and is used for color detection by `nearestColorIdx`.
 
 The visible result is colored squares with 0–4 small black dots at the corners. `symIdx=15` (all bits 1) has no dots. `symIdx=0` (all bits 0) has all four corners dotted.
+
+## Center Metadata Block
+
+A 3×3 B/W metadata block at the center of each frame encodes frame size and encryption state. Cell iteration skips these 9 cells (same as finder skip pattern). The block uses checkerboard corners (TL=Black, TR=White, BL=White, BR=Black) for detection, plus 5 data bit cells:
+
+| Bit | Cell position | Meaning |
+|-----|---------------|---------|
+| d0 | top-center | Frame size bit 1 (MSB) |
+| d1 | mid-left | Frame size bit 0 (LSB) |
+| d2 | center | Encryption flag (1=encrypted) |
+| d3 | mid-right | Reserved (0) |
+| d4 | bottom-center | Reserved (0) |
+
+Frame size encoding: `00`=128, `01`=192, `10`=256, `11`=384. Center block top-left is at grid position `(cols/2 - 1, cols/2 - 1)`.
+
+Reading: sample center pixel luma of each cell. Verify checkerboard (TL<128, TR>128, BL>128, BR<128). Data bits: luma > 128 → 1.
+
+**Breaking change:** Old GIFs without the metadata block will not decode with the new encoder/decoder (different usableCells count).
 
 ## RS Block Interleaving
 
@@ -113,7 +131,7 @@ python tests/test_gif.py path/to/output.gif [size]   # standalone GIF check (nee
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
-### Implemented (Priorities 1–5)
+### Implemented (Priorities 1–5, 7)
 
 All implemented in the Android app. See `android/CLAUDE.md` for full details.
 
@@ -122,11 +140,11 @@ All implemented in the Android app. See `android/CLAUDE.md` for full details.
 3. **Anchor-based finder pattern detection** — bright→dark→bright run-length scanning, brightness-based TL identification + cross-product rotation-invariant classification (asymmetric finders: TL has no inner dot)
 4. **Average hash symbol detection with drift tracking** — 64-bit hashes, Hamming distance, ±15px drift accumulation
 5. **Relative color matching** — channel-range normalization, (R-G, G-B, B-R) difference comparison
+7. **Pre-processing: adaptive threshold + sharpening** — grayscale → optional 3×3 Laplacian sharpen → adaptive threshold (integral image for O(1) local mean). Auto-sharpens when source region < target frame size. Opt-in via `DecodeTuningConfig.useAdaptiveThreshold`. Only affects symbol detection (Pass 1); color detection uses original RGB.
 
 ### Planned (not yet implemented)
 
 6. **Lens distortion correction** — radial distortion coefficient from edge midpoint deviation
-7. **Pre-processing: adaptive threshold + sharpening** — grayscale → sharpen → adaptive threshold → bitmatrix
 
 ### Not planned
 

@@ -28,11 +28,21 @@ class CimbarConstants {
   /// PBKDF2 iterations for key derivation.
   static const int pbkdf2Iterations = 150000;
 
-  /// Usable (non-finder) cells for a given frame size.
+  /// Frame size encoding for metadata block: 00=128, 01=192, 10=256, 11=384.
+  static const Map<int, int> frameSizeToBits = {128: 0, 192: 1, 256: 2, 384: 3};
+  static const Map<int, int> bitsToFrameSize = {0: 128, 1: 192, 2: 256, 3: 384};
+
+  /// Check whether (col, row) falls within the center 3x3 metadata block.
+  static bool isMetadataCell(int col, int row, int cols) {
+    final cx = cols ~/ 2 - 1;
+    return col >= cx && col <= cx + 2 && row >= cx && row <= cx + 2;
+  }
+
+  /// Usable (non-finder, non-metadata) cells for a given frame size.
   static int usableCells(int frameSize) {
     final cols = frameSize ~/ cellSize;
     final rows = frameSize ~/ cellSize;
-    return cols * rows - 36; // four 3x3 finder blocks
+    return cols * rows - 36 - 9; // four 3x3 finder blocks + one 3x3 metadata block
   }
 
   /// Raw byte capacity of a frame (before RS overhead).

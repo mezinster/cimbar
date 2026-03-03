@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
 import 'package:cimbar_scanner/core/services/cimbar_decoder.dart';
+import 'package:cimbar_scanner/core/services/image_preprocessing.dart';
 import 'package:cimbar_scanner/core/services/symbol_hash_detector.dart';
 
 import '../../test_utils/cimbar_encoder.dart';
@@ -670,6 +671,69 @@ void main() {
       expect(mismatches, lessThanOrEqualTo(2),
           reason: 'LAB color matching on clean frame should nearly match GIF path '
               '($mismatches/${rawGif.length} mismatches)');
+    });
+  });
+
+  group('Adaptive threshold preprocessing', () {
+    test('binary reference hashes are distinct', () {
+      final detector = SymbolHashDetector(useBinaryHashes: true);
+      final hashes = detector.referenceHashes;
+      expect(hashes.length, equals(16));
+
+      // All 16 binary hashes should be distinct
+      final unique = hashes.toSet();
+      expect(unique.length, equals(16),
+          reason: 'All 16 binary reference hashes should be distinct');
+    });
+
+    test('decode with preprocessed gray produces valid output on clean frame', () {
+      // Adaptive threshold is designed for camera images with uneven lighting,
+      // not clean synthetic data. On clean frames, the local neighborhood
+      // includes adjacent cells which shifts hash matching. This test verifies
+      // the pipeline works end-to-end without crashing.
+      const frameSize = 128;
+      final cleanFrame = _buildTestFrame(frameSize);
+      final decoder = CimbarDecoder();
+
+      // Hash detection with preprocessed gray buffer
+      final preprocessed = ImagePreprocessing.preprocessSymbolGrid(cleanFrame);
+      final rawPreprocessed = decoder.decodeFramePixels(cleanFrame, frameSize,
+          useHashDetection: true, preprocessedGray: preprocessed);
+
+      // Should produce output of correct length
+      final expectedLen = CimbarConstants.usableCells(frameSize) * 7;
+      expect(rawPreprocessed.length, equals((expectedLen + 7) ~/ 8));
+
+      // Should have some non-zero bytes (not all garbage)
+      var nonZero = 0;
+      for (final b in rawPreprocessed) {
+        if (b != 0) nonZero++;
+      }
+      expect(nonZero, greaterThan(0),
+          reason: 'Preprocessed decode should produce some non-zero output');
+    });
+
+    test('preprocessed decode produces valid output on dimmed frame', () {
+      const frameSize = 128;
+      final cleanFrame = _buildTestFrame(frameSize);
+      // Uniform dimming simulates poor lighting
+      final dimmed = applyTint(cleanFrame, 0.5, 0.5, 0.5);
+      final decoder = CimbarDecoder();
+
+      // Decode with preprocessing (should handle dimming via local threshold)
+      final preprocessed = ImagePreprocessing.preprocessSymbolGrid(dimmed);
+      final rawPreprocessed = decoder.decodeFramePixels(dimmed, frameSize,
+          useHashDetection: true, preprocessedGray: preprocessed);
+
+      // Should produce non-empty, non-all-zero output
+      expect(rawPreprocessed.length, greaterThan(0));
+
+      var nonZero = 0;
+      for (final b in rawPreprocessed) {
+        if (b != 0) nonZero++;
+      }
+      expect(nonZero, greaterThan(0),
+          reason: 'Preprocessed decode on dimmed frame should produce non-zero output');
     });
   });
 

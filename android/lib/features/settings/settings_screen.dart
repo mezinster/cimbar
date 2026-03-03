@@ -78,6 +78,14 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (v) => tuningNotifier.setUseHashDetection(v),
                   contentPadding: EdgeInsets.zero,
                 ),
+
+                // Adaptive Threshold toggle
+                SwitchListTile(
+                  title: Text(l10n.adaptiveThresholdLabel),
+                  value: tuning.useAdaptiveThreshold,
+                  onChanged: (v) => tuningNotifier.setUseAdaptiveThreshold(v),
+                  contentPadding: EdgeInsets.zero,
+                ),
                 const SizedBox(height: 8),
 
                 // Quadrant Offset slider

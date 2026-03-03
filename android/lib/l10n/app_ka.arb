@@ -75,6 +75,7 @@
   "quadrantOffsetLabel": "Quadrant Sample Offset",
   "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
   "hashDetectionLabel": "Hash Symbol Detection",
+  "adaptiveThresholdLabel": "Adaptive Threshold",
   "resetDefaults": "Reset to Defaults",
 
   "developerSection": "დეველოპერი",

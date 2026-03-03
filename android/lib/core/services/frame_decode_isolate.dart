@@ -8,6 +8,7 @@ import '../models/barcode_rect.dart';
 import '../models/decode_tuning_config.dart';
 import 'cimbar_decoder.dart';
 import 'frame_locator.dart';
+import 'image_preprocessing.dart';
 import 'perspective_transform.dart';
 import 'yuv_converter.dart';
 
@@ -59,6 +60,9 @@ class IsolateFrameResult {
   /// Short one-liner for AR overlay (only when collectStats).
   final String? overlayLine;
 
+  /// Whether the metadata block indicates the payload is encrypted.
+  final bool? isEncrypted;
+
   const IsolateFrameResult({
     this.dataBytes,
     this.frameSize,
@@ -69,7 +73,54 @@ class IsolateFrameResult {
     this.croppedFramePng,
     this.debugInfo,
     this.overlayLine,
+    this.isEncrypted,
   });
+}
+
+/// Metadata block read result.
+class MetadataBlockResult {
+  final bool valid;
+  final int? frameSize;
+  final bool? isEncrypted;
+  const MetadataBlockResult({required this.valid, this.frameSize, this.isEncrypted});
+}
+
+/// Read the center 3x3 metadata block from a frame image.
+/// Verifies checkerboard corners (TL=dark, TR=bright, BL=bright, BR=dark).
+MetadataBlockResult readMetadataBlock(img.Image image, int cols, int frameSize) {
+  const cs = CimbarConstants.cellSize;
+  final cx = cols ~/ 2 - 1;
+
+  double sampleLuma(int col, int row) {
+    final px = (col * cs + cs ~/ 2).clamp(0, image.width - 1);
+    final py = (row * cs + cs ~/ 2).clamp(0, image.height - 1);
+    final p = image.getPixel(px, py);
+    return 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
+  }
+
+  // Verify checkerboard corners
+  final tlLuma = sampleLuma(cx, cx);
+  final trLuma = sampleLuma(cx + 2, cx);
+  final blLuma = sampleLuma(cx, cx + 2);
+  final brLuma = sampleLuma(cx + 2, cx + 2);
+
+  if (!(tlLuma < 128 && trLuma > 128 && blLuma > 128 && brLuma < 128)) {
+    return const MetadataBlockResult(valid: false);
+  }
+
+  // Read data bits
+  final d0 = sampleLuma(cx + 1, cx) > 128 ? 1 : 0;
+  final d1 = sampleLuma(cx, cx + 1) > 128 ? 1 : 0;
+  final d2 = sampleLuma(cx + 1, cx + 1) > 128 ? 1 : 0;
+
+  final sizeBits = (d0 << 1) | d1;
+  final detectedSize = CimbarConstants.bitsToFrameSize[sizeBits] ?? frameSize;
+
+  return MetadataBlockResult(
+    valid: true,
+    frameSize: detectedSize,
+    isEncrypted: d2 == 1,
+  );
 }
 
 /// Internal decode result carrying the strategy that worked and stats.
@@ -79,6 +130,7 @@ class _DecodeOutcome {
   final String warpStrategy; // '4pt', '2pt', 'crop', 'center-crop'
   final DecodeStats? stats;
   final bool labFallback;
+  final bool? isEncrypted;
 
   _DecodeOutcome({
     required this.data,
@@ -86,6 +138,7 @@ class _DecodeOutcome {
     required this.warpStrategy,
     this.stats,
     this.labFallback = false,
+    this.isEncrypted,
   });
 }
 
@@ -222,6 +275,7 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
         warpStrategy: 'center-crop',
         stats: outcome.stats,
         labFallback: outcome.labFallback,
+        isEncrypted: outcome.isEncrypted,
       );
       barcodeRect = BarcodeRect(
           x: cropX, y: cropY, width: minDim, height: minDim);
@@ -308,6 +362,7 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
     croppedFramePng: croppedFramePng,
     debugInfo: debugInfo,
     overlayLine: overlayLine,
+    isEncrypted: outcome?.isEncrypted,
   );
 }
 
@@ -376,12 +431,23 @@ _DecodeOutcome? _tryDecode(
           locateResult.brFinderCenter!,
           frameSize);
       if (corners != null) {
+        // Determine if source region is smaller than frameSize (→ upscaling)
+        final tl = locateResult.tlFinderCenter!;
+        final tr = locateResult.trFinderCenter!;
+        final bl = locateResult.blFinderCenter!;
+        final edgeTop = sqrt((tr.x - tl.x) * (tr.x - tl.x) +
+            (tr.y - tl.y) * (tr.y - tl.y));
+        final edgeLeft = sqrt((bl.x - tl.x) * (bl.x - tl.x) +
+            (bl.y - tl.y) * (bl.y - tl.y));
+        final needsSharpen = edgeTop < frameSize && edgeLeft < frameSize;
+
         final sw = Stopwatch()..start();
         final warped = PerspectiveTransform.warpPerspective(
             sourcePhoto, corners, frameSize);
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
-            label: '$logPrefix/4pt/${frameSize}px');
+            label: '$logPrefix/4pt/${frameSize}px',
+            needsSharpen: needsSharpen);
         log?.add('$logPrefix/4pt/${frameSize}px: '
             '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
         if (result != null) {
@@ -391,6 +457,7 @@ _DecodeOutcome? _tryDecode(
             warpStrategy: '4pt',
             stats: result.stats,
             labFallback: result.labFallback,
+            isEncrypted: result.isEncrypted,
           );
         }
       } else {
@@ -404,12 +471,22 @@ _DecodeOutcome? _tryDecode(
       final corners = PerspectiveTransform.computeBarcodeCorners(
           locateResult.tlFinderCenter!, locateResult.brFinderCenter!, frameSize);
       if (corners != null) {
+        // Estimate source size from TL-BR diagonal
+        final tl = locateResult.tlFinderCenter!;
+        final br = locateResult.brFinderCenter!;
+        final diag = sqrt((br.x - tl.x) * (br.x - tl.x) +
+            (br.y - tl.y) * (br.y - tl.y));
+        // Diagonal of a square of side s = s*sqrt(2), so side ≈ diag/1.414
+        final estSide = diag / 1.414;
+        final needsSharpen = estSide < frameSize;
+
         final sw = Stopwatch()..start();
         final warped = PerspectiveTransform.warpPerspective(
             sourcePhoto, corners, frameSize);
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
-            label: '$logPrefix/2pt/${frameSize}px');
+            label: '$logPrefix/2pt/${frameSize}px',
+            needsSharpen: needsSharpen);
         log?.add('$logPrefix/2pt/${frameSize}px: '
             '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
         if (result != null) {
@@ -419,6 +496,7 @@ _DecodeOutcome? _tryDecode(
             warpStrategy: '2pt',
             stats: result.stats,
             labFallback: result.labFallback,
+            isEncrypted: result.isEncrypted,
           );
         }
       } else {
@@ -428,6 +506,7 @@ _DecodeOutcome? _tryDecode(
   }
 
   // Strategy C: crop+resize
+  final needsSharpen = cropped.width < frameSize || cropped.height < frameSize;
   final sw = Stopwatch()..start();
   final result = _tryDecodeResized(
       decoder,
@@ -435,7 +514,8 @@ _DecodeOutcome? _tryDecode(
           width: frameSize, height: frameSize,
           interpolation: img.Interpolation.nearest),
       frameSize, tuning, collectStats: collectStats, log: log,
-      label: '$logPrefix/crop/${frameSize}px');
+      label: '$logPrefix/crop/${frameSize}px',
+      needsSharpen: needsSharpen);
   log?.add('$logPrefix/crop/${frameSize}px: '
       '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
   if (result != null) {
@@ -455,7 +535,8 @@ class _ResizedResult {
   final Uint8List data;
   final DecodeStats? stats;
   final bool labFallback;
-  _ResizedResult(this.data, {this.stats, this.labFallback = false});
+  final bool? isEncrypted;
+  _ResizedResult(this.data, {this.stats, this.labFallback = false, this.isEncrypted});
 }
 
 /// Decode a pre-sized image and apply quality gate + LAB failover.
@@ -467,8 +548,24 @@ _ResizedResult? _tryDecodeResized(
   bool collectStats = false,
   List<String>? log,
   String label = '',
+  bool needsSharpen = false,
 }) {
   try {
+    // Metadata block shortcut: verify frame size before expensive decode
+    final cols = frameSize ~/ CimbarConstants.cellSize;
+    final meta = readMetadataBlock(resized, cols, frameSize);
+    if (meta.valid && meta.frameSize != frameSize) {
+      log?.add('  $label metadata: size=${meta.frameSize} != $frameSize, skip');
+      return null;
+    }
+
+    // Preprocess for symbol detection if adaptive threshold is enabled
+    Uint8List? preprocessedGray;
+    if (tuning.useAdaptiveThreshold && tuning.useHashDetection) {
+      preprocessedGray = ImagePreprocessing.preprocessSymbolGrid(
+          resized, needsSharpen: needsSharpen);
+    }
+
     final stats = collectStats ? DecodeStats() : null;
     final rawBytes = decoder.decodeFramePixels(resized, frameSize,
         enableWhiteBalance: tuning.enableWhiteBalance,
@@ -476,6 +573,7 @@ _ResizedResult? _tryDecodeResized(
         symbolThreshold: tuning.symbolThreshold,
         quadrantOffset: tuning.quadrantOffset,
         useHashDetection: tuning.useHashDetection,
+        preprocessedGray: preprocessedGray,
         stats: stats);
     final dataBytes = decoder.decodeRSFrame(rawBytes, frameSize);
 
@@ -496,7 +594,7 @@ _ResizedResult? _tryDecodeResized(
       if (stats != null) {
         log?.add('  $label RS=ok qgate=ZERO ${_statsShort(stats)}');
       }
-      // Retry with LAB color space
+      // Retry with LAB color space (reuse same preprocessed gray — symbols unchanged)
       final statsLab = collectStats ? DecodeStats() : null;
       final rawBytesLab = decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: tuning.enableWhiteBalance,
@@ -505,6 +603,7 @@ _ResizedResult? _tryDecodeResized(
           quadrantOffset: tuning.quadrantOffset,
           useHashDetection: tuning.useHashDetection,
           useLabColor: true,
+          preprocessedGray: preprocessedGray,
           stats: statsLab);
       final dataBytesLab = decoder.decodeRSFrame(rawBytesLab, frameSize);
 
@@ -525,13 +624,15 @@ _ResizedResult? _tryDecodeResized(
 
       log?.add('  $label LAB OK nz=$nonZeroLab/64');
       return _ResizedResult(dataBytesLab,
-          stats: statsLab, labFallback: true);
+          stats: statsLab, labFallback: true,
+          isEncrypted: meta.valid ? meta.isEncrypted : null);
     }
 
     if (stats != null) {
       log?.add('  $label RS=ok nz=$nonZero/64 ${_statsShort(stats)}');
     }
-    return _ResizedResult(dataBytes, stats: stats);
+    return _ResizedResult(dataBytes, stats: stats,
+        isEncrypted: meta.valid ? meta.isEncrypted : null);
   } catch (e) {
     log?.add('  $label exception: $e');
     return null;
