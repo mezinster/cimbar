@@ -417,6 +417,126 @@ void main() {
           reason: 'TL finder Y should be near ${expectedTlY.toStringAsFixed(0)}, got ${tlCenter.y.toStringAsFixed(0)}');
     });
 
+    test('rejects spurious candidates from colored data cells', () {
+      // Simulate a CimBar barcode on a dark background with spurious
+      // finder-like bright→dark→bright patches in the data region.
+      // These mimic the real-world failure where colored cells create
+      // false finder candidates that can steal the TR/BL assignment.
+      const photoW = 1024;
+      const photoH = 768;
+      const frameSize = 256;
+      const cs = CimbarConstants.cellSize;
+      const cols = frameSize ~/ cs;
+      const rows = frameSize ~/ cs;
+
+      final photo = img.Image(width: photoW, height: photoH);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+
+      // Draw a CimBar frame centered in the photo
+      final frame = _synthesizeFrame(frameSize);
+      final offsetX = (photoW - frameSize) ~/ 2; // 384
+      final offsetY = (photoH - frameSize) ~/ 2; // 256
+      img.compositeImage(photo, frame, dstX: offsetX, dstY: offsetY);
+
+      // Inject 2 spurious finder-like patches (bright→dark→bright)
+      // inside the barcode data region, between TL and TR finders.
+      // Each patch is a 3-cell-wide (24px) structure that mimics a
+      // finder pattern: bright border → dark center → bright border,
+      // both horizontally and vertically, to survive both scan phases.
+      void injectSpurious(int px, int py) {
+        // 3×3 cell finder-like patch: white surround + dark center
+        final s = cs; // cell size = 8
+        // White 3×3 background
+        img.fillRect(photo,
+            x1: px, y1: py, x2: px + s * 3, y2: py + s * 3,
+            color: img.ColorRgba8(240, 240, 240, 255));
+        // Dark 1×1 center cell
+        img.fillRect(photo,
+            x1: px + s, y1: py + s, x2: px + s * 2, y2: py + s * 2,
+            color: img.ColorRgba8(30, 30, 30, 255));
+      }
+
+      // Place spurious patches mid-barcode (between TL and TR, near top
+      // row) — this is where the real-world misdetection occurred
+      injectSpurious(offsetX + 100, offsetY + 4);
+      injectSpurious(offsetX + 150, offsetY + frameSize - 28);
+
+      final result = FrameLocator.locate(photo);
+
+      expect(result.tlFinderCenter, isNotNull,
+          reason: 'Should detect finders despite spurious candidates');
+      expect(result.brFinderCenter, isNotNull);
+
+      // Expected finder centers in photo coordinates
+      final expectedTlX = offsetX + 1.5 * cs;
+      final expectedTlY = offsetY + 1.5 * cs;
+      final expectedTrX = offsetX + (cols - 2 + 0.5) * cs;
+      final expectedTrY = offsetY + 1.5 * cs;
+      final expectedBlX = offsetX + 1.5 * cs;
+      final expectedBlY = offsetY + (rows - 2 + 0.5) * cs;
+      final expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
+      final expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
+
+      const tolerance = 25.0;
+
+      // TL must be near real TL finder, not a spurious patch
+      expect((result.tlFinderCenter!.x - expectedTlX).abs(),
+          lessThanOrEqualTo(tolerance),
+          reason: 'TL X: expected ~${expectedTlX.toStringAsFixed(0)}, '
+              'got ${result.tlFinderCenter!.x.toStringAsFixed(0)}');
+      expect((result.tlFinderCenter!.y - expectedTlY).abs(),
+          lessThanOrEqualTo(tolerance),
+          reason: 'TL Y: expected ~${expectedTlY.toStringAsFixed(0)}, '
+              'got ${result.tlFinderCenter!.y.toStringAsFixed(0)}');
+
+      // BR must be near real BR finder
+      expect((result.brFinderCenter!.x - expectedBrX).abs(),
+          lessThanOrEqualTo(tolerance),
+          reason: 'BR X: expected ~${expectedBrX.toStringAsFixed(0)}, '
+              'got ${result.brFinderCenter!.x.toStringAsFixed(0)}');
+      expect((result.brFinderCenter!.y - expectedBrY).abs(),
+          lessThanOrEqualTo(tolerance),
+          reason: 'BR Y: expected ~${expectedBrY.toStringAsFixed(0)}, '
+              'got ${result.brFinderCenter!.y.toStringAsFixed(0)}');
+
+      // TR and BL (when detected) must be near real positions, not spurious
+      if (result.trFinderCenter != null) {
+        expect((result.trFinderCenter!.x - expectedTrX).abs(),
+            lessThanOrEqualTo(tolerance),
+            reason: 'TR X: expected ~${expectedTrX.toStringAsFixed(0)}, '
+                'got ${result.trFinderCenter!.x.toStringAsFixed(0)}');
+        expect((result.trFinderCenter!.y - expectedTrY).abs(),
+            lessThanOrEqualTo(tolerance),
+            reason: 'TR Y: expected ~${expectedTrY.toStringAsFixed(0)}, '
+                'got ${result.trFinderCenter!.y.toStringAsFixed(0)}');
+      }
+      if (result.blFinderCenter != null) {
+        expect((result.blFinderCenter!.x - expectedBlX).abs(),
+            lessThanOrEqualTo(tolerance),
+            reason: 'BL X: expected ~${expectedBlX.toStringAsFixed(0)}, '
+                'got ${result.blFinderCenter!.x.toStringAsFixed(0)}');
+        expect((result.blFinderCenter!.y - expectedBlY).abs(),
+            lessThanOrEqualTo(tolerance),
+            reason: 'BL Y: expected ~${expectedBlY.toStringAsFixed(0)}, '
+                'got ${result.blFinderCenter!.y.toStringAsFixed(0)}');
+      }
+
+      // If both TR and BL detected, verify opposite-side ratio is sane
+      if (result.trFinderCenter != null && result.blFinderCenter != null) {
+        final tlTr = sqrt(
+            pow(result.tlFinderCenter!.x - result.trFinderCenter!.x, 2) +
+                pow(result.tlFinderCenter!.y - result.trFinderCenter!.y, 2));
+        final blBr = sqrt(
+            pow(result.blFinderCenter!.x - result.brFinderCenter!.x, 2) +
+                pow(result.blFinderCenter!.y - result.brFinderCenter!.y, 2));
+        final ratio = tlTr / blBr;
+        expect(ratio, greaterThanOrEqualTo(0.7),
+            reason: 'TL-TR / BL-BR distance ratio $ratio too small');
+        expect(ratio, lessThanOrEqualTo(1.4),
+            reason: 'TL-TR / BL-BR distance ratio $ratio too large');
+      }
+    });
+
     test('falls back to luma-threshold when no finder structure present', () {
       const photoSize = 512;
 

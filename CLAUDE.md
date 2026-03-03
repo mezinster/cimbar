@@ -133,7 +133,7 @@ python tests/test_gif.py path/to/output.gif [size]   # standalone GIF check (nee
 
 Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
-### Implemented (Priorities 1–5, 7)
+### Implemented (Priorities 1–5, 7–8)
 
 All implemented in the Android app. See `android/CLAUDE.md` for full details.
 
@@ -143,6 +143,7 @@ All implemented in the Android app. See `android/CLAUDE.md` for full details.
 4. **Average hash symbol detection with drift tracking** — 64-bit hashes, Hamming distance, ±15px drift accumulation
 5. **Relative color matching** — channel-range normalization, (R-G, G-B, B-R) difference comparison
 7. **Pre-processing: adaptive threshold + sharpening** — grayscale → optional 3×3 Laplacian sharpen → adaptive threshold (integral image for O(1) local mean). Auto-sharpens when source region < target frame size. Opt-in via `DecodeTuningConfig.useAdaptiveThreshold`. Only affects symbol detection (Pass 1); color detection uses original RGB.
+8. **Center-cross color averaging** — 5-pixel cross (center + 4 cardinal neighbors) at grid position for camera color detection, absorbing JPEG noise, subpixel fringing, and interpolation artifacts. GIF path keeps single center pixel. Grid position used (not drift-corrected) because corner dots are at grid-relative positions.
 
 ### Planned (not yet implemented)
 

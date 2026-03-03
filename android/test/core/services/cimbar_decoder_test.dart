@@ -560,6 +560,75 @@ void main() {
           reason: 'Two-pass should produce same number of bytes as clean frame');
     });
 
+    test('center-cross averaging absorbs center-pixel noise', () {
+      // Inject random noise at center pixels of ~10% of cells.
+      // With single-pixel sampling this would cause color misclassification;
+      // averaging the 5-pixel center cross absorbs the noise.
+      const frameSize = 128;
+      const cs = CimbarConstants.cellSize;
+      final cols = frameSize ~/ cs;
+      final rows = frameSize ~/ cs;
+
+      final cleanFrame = _buildTestFrame(frameSize);
+      final noisyFrame = img.Image(width: frameSize, height: frameSize);
+      // Copy clean frame
+      for (var y = 0; y < frameSize; y++) {
+        for (var x = 0; x < frameSize; x++) {
+          final p = cleanFrame.getPixel(x, y);
+          noisyFrame.setPixelRgba(x, y, p.r.toInt(), p.g.toInt(), p.b.toInt(), 255);
+        }
+      }
+
+      // Inject noise at center pixel of ~10% of data cells
+      final rng = Random(123);
+      var noisedCells = 0;
+      var cellIdx = 0;
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < cols; col++) {
+          final inTL = row < 3 && col < 3;
+          final inTR = row < 3 && col >= cols - 3;
+          final inBL = row >= rows - 3 && col < 3;
+          final inBR = row >= rows - 3 && col >= cols - 3;
+          if (inTL || inTR || inBL || inBR) continue;
+          if (CimbarConstants.isMetadataCell(col, row, cols)) continue;
+
+          if (rng.nextDouble() < 0.10) {
+            final cx = col * cs + cs ~/ 2;
+            final cy = row * cs + cs ~/ 2;
+            // Set center pixel to a random wrong color
+            noisyFrame.setPixelRgba(cx, cy,
+                rng.nextInt(256), rng.nextInt(256), rng.nextInt(256), 255);
+            noisedCells++;
+          }
+          cellIdx++;
+        }
+      }
+
+      final decoder = CimbarDecoder();
+      final rawClean = decoder.decodeFramePixels(cleanFrame, frameSize);
+
+      // Two-pass camera path (uses _avgCellColor)
+      final rawNoisy = decoder.decodeFramePixels(noisyFrame, frameSize,
+          useHashDetection: true);
+
+      // RS decode both
+      final decodedClean = decoder.decodeRSFrame(rawClean, frameSize);
+      final decodedNoisy = decoder.decodeRSFrame(rawNoisy, frameSize);
+
+      // The RS-decoded output should match despite center-pixel noise
+      final dataLen = CimbarConstants.dataBytesPerFrame(frameSize);
+      var mismatches = 0;
+      for (var i = 0; i < dataLen && i < decodedClean.length && i < decodedNoisy.length; i++) {
+        if (decodedClean[i] != decodedNoisy[i]) mismatches++;
+      }
+
+      expect(noisedCells, greaterThan(0),
+          reason: 'Test should have noised some cells (got $noisedCells)');
+      expect(mismatches, equals(0),
+          reason: 'Center-cross averaging should absorb center-pixel noise '
+              '(noised $noisedCells cells, $mismatches/$dataLen RS-decoded byte mismatches)');
+    });
+
     test('two-pass decode handles noisy frame at least as well as single-pass', () {
       // Build a clean frame, add per-pixel noise, compare two-pass vs single-pass
       const frameSize = 128;

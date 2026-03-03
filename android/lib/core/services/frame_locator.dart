@@ -413,15 +413,53 @@ class FrameLocator {
 
     _FinderCandidate? tr;
     _FinderCandidate? bl;
+    var trBestDist = 0.0;
+    var blBestDist = 0.0;
     for (final c in remaining) {
       if (identical(c, br)) continue;
       final cx = c.centerX - tl.centerX;
       final cy = c.centerY - tl.centerY;
       final cross = bx * cy - by * cx;
+      final dist = cx * cx + cy * cy;
       if (cross < 0) {
-        tr = c;
+        if (dist > trBestDist) {
+          trBestDist = dist;
+          tr = c;
+        }
       } else {
-        bl = c;
+        if (dist > blBestDist) {
+          blBestDist = dist;
+          bl = c;
+        }
+      }
+    }
+
+    // Geometric validation: opposite sides of the barcode should be
+    // roughly equal length. If the ratio is too skewed, the suspect
+    // finder is likely a spurious candidate — null it out so warp
+    // falls back to 2-point.
+    if (tr != null && bl != null) {
+      final tlTrSq = _distSq(tl, tr);
+      final blBrSq = _distSq(bl, br);
+      final tlBlSq = _distSq(tl, bl);
+      final trBrSq = _distSq(tr, br);
+
+      // Check top/bottom ratio and left/right ratio
+      // Ratio of squared distances [0.25, 4.0] ≡ length ratio [0.5, 2.0]
+      if (tlTrSq > 0 && blBrSq > 0) {
+        final tbRatio = tlTrSq / blBrSq;
+        if (tbRatio < 0.25 || tbRatio > 4.0) {
+          // One of the horizontal edges is wrong — null out the suspect
+          tr = null;
+          bl = null;
+        }
+      }
+      if (tr != null && bl != null && tlBlSq > 0 && trBrSq > 0) {
+        final lrRatio = tlBlSq / trBrSq;
+        if (lrRatio < 0.25 || lrRatio > 4.0) {
+          tr = null;
+          bl = null;
+        }
       }
     }
 
@@ -500,6 +538,13 @@ class FrameLocator {
     }
 
     return (tl: tl, br: br, tr: tr, bl: bl);
+  }
+
+  /// Squared Euclidean distance between two candidates.
+  static double _distSq(_FinderCandidate a, _FinderCandidate b) {
+    final dx = a.centerX - b.centerX;
+    final dy = a.centerY - b.centerY;
+    return dx * dx + dy * dy;
   }
 
   /// Phase 5: Compute crop region from TL and BR finder centers,

@@ -453,11 +453,10 @@ class CimbarDecoder {
         final dy = cellDriftY[i];
         final symIdx = symIndices[i];
 
-        // Sample color at drift-corrected center pixel
-        final cx = (ox + dx + cs ~/ 2).clamp(0, frame.width - 1);
-        final cy = (oy + dy + cs ~/ 2).clamp(0, frame.height - 1);
-        final pixel = frame.getPixel(cx, cy);
-        final rawR = pixel.r.toInt(), rawG = pixel.g.toInt(), rawB = pixel.b.toInt();
+        // Sample color: average center cross at grid position.
+        // Uses grid position (not drift-corrected) because corner dots are
+        // at grid-relative positions — drift is only needed for symbols.
+        final (rawR, rawG, rawB) = _avgCellColor(frame, ox, oy, cs);
         var pr = rawR, pg = rawG, pb = rawB;
 
         // Apply white balance correction
@@ -607,6 +606,44 @@ class CimbarDecoder {
     }
 
     return Uint8List.fromList(result);
+  }
+
+  /// Average RGB of the center cross (center pixel + 4 cardinal neighbors)
+  /// of a cell at grid position [cellX],[cellY]. The center column and center
+  /// row of CimBar cells are always free of corner dots, making this inherently
+  /// safe. Averages 5 pixels instead of 1, absorbing camera noise/artifacts.
+  ///
+  /// Color sampling uses the grid position (not drift-corrected), because
+  /// corner dots are at grid-relative positions — drift-correcting the cross
+  /// can shift neighbors into dot regions. Drift is only needed for Pass 1
+  /// (symbol detection); for color, the grid center is close enough.
+  static (int r, int g, int b) _avgCellColor(
+      img.Image frame, int cellX, int cellY, int cs) {
+    var sumR = 0, sumG = 0, sumB = 0;
+    var count = 0;
+    final mid = cs ~/ 2;
+    final cx = cellX + mid;
+    final cy = cellY + mid;
+
+    // 5-pixel cross: center + 4 cardinal neighbors
+    const offsets = [(0, 0), (0, -1), (0, 1), (-1, 0), (1, 0)];
+    for (final (dx, dy) in offsets) {
+      final px = cx + dx;
+      final py = cy + dy;
+      if (px < 0 || px >= frame.width || py < 0 || py >= frame.height) continue;
+      final p = frame.getPixel(px, py);
+      sumR += p.r.toInt();
+      sumG += p.g.toInt();
+      sumB += p.b.toInt();
+      count++;
+    }
+
+    if (count == 0) {
+      final p = frame.getPixel(
+          cx.clamp(0, frame.width - 1), cy.clamp(0, frame.height - 1));
+      return (p.r.toInt(), p.g.toInt(), p.b.toInt());
+    }
+    return (sumR ~/ count, sumG ~/ count, sumB ~/ count);
   }
 
   /// Find nearest color index using weighted distance.
