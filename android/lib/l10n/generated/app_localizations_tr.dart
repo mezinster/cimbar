@@ -13,9 +13,6 @@ class AppLocalizationsTr extends AppLocalizations {
   String get tabImport => 'GIF İçe Aktar';
 
   @override
-  String get tabBinary => 'İkili İçe Aktar';
-
-  @override
   String get tabCamera => 'Kamera';
 
   @override
@@ -23,9 +20,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get importTitle => 'CimBar GIF İçe Aktar';
-
-  @override
-  String get importBinaryTitle => 'İkili Dosya İçe Aktar';
 
   @override
   String get cameraTitle => 'Kamera Tarayıcı';
@@ -41,9 +35,6 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get selectGifFile => 'Çözümlemek için bir CimBar GIF dosyası seçin';
-
-  @override
-  String get selectBinaryFile => 'C++ tarayıcıdan bir ikili dosya seçin';
 
   @override
   String get passphrase => 'Parola';

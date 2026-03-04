@@ -140,66 +140,6 @@ class DecodePipeline {
     );
   }
 
-  /// Decode a raw binary file (from C++ scanner) with a passphrase.
-  Stream<DecodeProgress> decodeBinary(
-    Uint8List binaryData,
-    String passphrase,
-  ) async* {
-    // Auto-detect encryption via magic bytes
-    final isEncrypted = binaryData.length >= 2 &&
-        binaryData[0] == CimbarConstants.magic[0] &&
-        binaryData[1] == CimbarConstants.magic[1];
-
-    final Uint8List fileHeaderBytes;
-    if (isEncrypted) {
-      yield const DecodeProgress(
-        state: DecodeState.decrypting,
-        progress: 0.5,
-        message: 'Decrypting binary...',
-      );
-
-      try {
-        fileHeaderBytes = CryptoService.decrypt(binaryData, passphrase);
-      } catch (e) {
-        yield DecodeProgress(
-          state: DecodeState.error,
-          message: 'Decryption failed: $e',
-        );
-        return;
-      }
-    } else {
-      fileHeaderBytes = binaryData;
-    }
-
-    if (fileHeaderBytes.length < 4) {
-      yield const DecodeProgress(
-        state: DecodeState.error,
-        message: 'Data too short for file header',
-      );
-      return;
-    }
-
-    final nameLen = readUint32BE(fileHeaderBytes);
-    if (nameLen > fileHeaderBytes.length - 4) {
-      yield DecodeProgress(
-        state: DecodeState.error,
-        message: 'Invalid filename length: $nameLen',
-      );
-      return;
-    }
-
-    final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
-    final fileData = fileHeaderBytes.sublist(4 + nameLen);
-
-    _lastResult = DecodeResult(filename: filename, data: fileData);
-
-    yield DecodeProgress(
-      state: DecodeState.done,
-      progress: 1.0,
-      message: 'Decoded: $filename (${fileData.length} bytes)',
-    );
-  }
-
   DecodeResult? _lastResult;
   DecodeResult? get lastResult => _lastResult;
 }

@@ -535,7 +535,6 @@ footer {
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(event,'encode')">Encode</button>
     <button class="tab-btn" onclick="switchTab(event,'decode')">Decode GIF</button>
-    <button class="tab-btn" onclick="switchTab(event,'import')">Import Binary</button>
     <button class="tab-btn" onclick="switchTab(event,'about')">About</button>
   </div>
 
@@ -612,7 +611,6 @@ footer {
           <img id="gifOut" alt="Encoded GIF">
         </div>
         <button class="btn btn-primary" onclick="downloadGif()">Download GIF</button>
-        <button class="btn btn-outline" onclick="downloadBin()" id="dlBinBtn">Download encrypted binary <span style="font-size:11px;opacity:0.7">(for external CimBar decoders)</span></button>
       </div>
 
     </div>
@@ -659,73 +657,6 @@ footer {
         pixels are decoded back to bytes via color + symbol detection,
         Reed-Solomon error correction is applied per block. If the data was encrypted,
         AES-256-GCM decryption restores the original file. Nothing leaves your device.
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ═══════════════════ IMPORT BINARY ═══════════════════ -->
-  <div class="tab-panel" id="tab-import">
-    <div class="card">
-
-      <p style="font-size:14px;line-height:1.8;color:var(--text2);margin-bottom:20px;">
-        If you decoded a CimBar GIF using an <strong style="color:var(--text)">external decoder</strong>
-        (e.g. the open-source C++ <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">cimbar</code> tool),
-        it will produce a raw binary file containing the payload.
-        Upload that binary here to recover the original file.
-      </p>
-
-      <div class="callout callout-info" style="margin-bottom:20px;">
-        <strong>What the binary contains:</strong> Encrypted payloads start with magic bytes
-        (<code style="font-family:'DM Mono',monospace">CB 42 01 00</code>), followed by a 16-byte
-        PBKDF2 salt, a 12-byte AES-GCM IV, and the ciphertext. Unencrypted payloads contain the file data directly.
-        Encryption is auto-detected from the magic bytes.
-      </div>
-
-      <div class="field">
-        <label>Encrypted binary file</label>
-        <div class="drop-zone" id="dropBin">
-          <input type="file" id="fileBin" onchange="onFileSelect(this,'bin')">
-          <div class="drop-icon">🗜️</div>
-          <div class="drop-text">Drop the <strong>.bin</strong> file from your external decoder here</div>
-          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)">
-            Any file extension accepted — only the magic bytes are validated
-          </div>
-        </div>
-        <div class="file-pill" id="pillBin">
-          <span>✓</span><span id="pillBinText"></span>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Passphrase</label>
-        <input type="password" id="passBin" placeholder="Enter passphrase (leave empty if not encrypted)…">
-        <div class="field-hint">Leave empty if the GIF was encoded without encryption</div>
-      </div>
-
-      <button class="btn btn-danger" id="binBtn" onclick="decryptBinary()">
-        Decode Binary &amp; Download
-      </button>
-
-      <div class="progress-section" id="progBin">
-        <div class="progress-header">
-          <span id="progBinLabel">Decrypting…</span>
-          <span id="progBinPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progBinFill" style="background:var(--warn)"></div>
-        </div>
-        <div class="log" id="logBin"></div>
-      </div>
-
-      <hr class="divider">
-
-      <div style="font-size:13px;color:var(--text2);line-height:1.8;">
-        <strong style="color:var(--text)">Typical workflow with an external decoder:</strong><br>
-        1. Encode a file here → download the GIF<br>
-        2. Show the GIF on a screen (or send it)<br>
-        3. Scan with a real CimBar scanner (camera + C++ tool) → get a <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">.bin</code> file<br>
-        4. Upload the <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:4px;">.bin</code> here → decrypt → recover original file
       </div>
 
     </div>
@@ -822,14 +753,13 @@ function switchTab(evt, name) {
 }
 
 // ── File selection ────────────────────────────────────────
-let encFile = null, decFile = null, binFile = null;
+let encFile = null, decFile = null;
 
 function onFileSelect(input, side) {
   const file = input.files[0];
   if (!file) return;
   if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); }
   else if (side === 'dec') { decFile = file; showPill('pillDec','pillDecText', file.name, file.size); }
-  else if (side === 'bin') { binFile = file; showPill('pillBin','pillBinText', file.name, file.size); }
 }
 
 function showPill(pillId, textId, name, size) {
@@ -845,7 +775,7 @@ function fmtBytes(b) {
 }
 
 // Drag-and-drop
-['dropEnc','dropDec','dropBin'].forEach(id => {
+['dropEnc','dropDec'].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
@@ -856,7 +786,6 @@ function fmtBytes(b) {
     if (!f) return;
     if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); }
     else if (id === 'dropDec') { decFile = f; showPill('pillDec','pillDecText', f.name, f.size); }
-    else if (id === 'dropBin') { binFile = f; showPill('pillBin','pillBinText', f.name, f.size); }
   });
 });
 
@@ -904,7 +833,6 @@ async function startEncode() {
   document.getElementById('outEnc').style.display  = 'none';
   document.getElementById('logEnc').innerHTML = '';
   outputBlob = null;
-  encryptedPayload = null;
 
   try {
     // 1. Read file
@@ -926,7 +854,6 @@ async function startEncode() {
       log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
       setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
       const encrypted = await CimbarCrypto.encryptBytes(payload, pass);
-      encryptedPayload = encrypted; // save for binary download
       framedPayload = encrypted;
       log(`Encrypted: ${fmtBytes(encrypted.length)}`, 'ok', 'logEnc');
     } else {
@@ -952,9 +879,6 @@ async function startEncode() {
     document.getElementById('sFrames').textContent = numFrames;
     document.getElementById('sBytes').textContent  = fmtBytes(framedPayload.length);
     document.getElementById('sCells').textContent  = Cimbar.usableCells(frameSize);
-
-    // Only show encrypted binary download when encryption was used
-    document.getElementById('dlBinBtn').style.display = isEncrypted ? '' : 'none';
 
     // 4. Render frames
     const canvas = document.getElementById('workCanvas');
@@ -1118,93 +1042,6 @@ function concat(...arrays) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── Binary export (for external CimBar decoders) ──────────
-// Stored during encode so we can offer it as a download
-let encryptedPayload = null;
-
-function downloadBin() {
-  if (!encryptedPayload) { alert('Please encode a file first.'); return; }
-  const blob = new Blob([encryptedPayload], { type: 'application/octet-stream' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'cimbar_payload_' + Date.now() + '.bin';
-  a.click();
-}
-
-// ── Import Binary: decrypt raw payload from external decoder ─
-async function decryptBinary() {
-  if (!binFile) { alert('Please select a binary file first.'); return; }
-  const pass = document.getElementById('passBin').value.trim();
-
-  const btn = document.getElementById('binBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Processing…';
-
-  document.getElementById('progBin').style.display = 'block';
-  document.getElementById('logBin').innerHTML = '';
-
-  try {
-    log('Reading binary file…', 'info', 'logBin');
-    setProgress(10, 'Reading', 'progBinFill', 'progBinPct', 'progBinLabel');
-
-    const raw = new Uint8Array(await binFile.arrayBuffer());
-    log(`Binary: ${fmtBytes(raw.length)}`, 'ok', 'logBin');
-
-    if (raw.length < 5) throw new Error('File too small — not a valid CimBar payload');
-
-    // Auto-detect encryption via magic bytes
-    const isEncrypted = raw[0] === 0xCB && raw[1] === 0x42;
-
-    let decrypted;
-    if (isEncrypted) {
-      if (!pass) { alert('This binary is encrypted. Please enter a passphrase.'); throw new Error('Passphrase required for encrypted binary'); }
-      log('Magic bytes OK (CB 42 01 00) — decrypting…', 'info', 'logBin');
-      setProgress(40, 'Decrypting', 'progBinFill', 'progBinPct', 'progBinLabel');
-      decrypted = await CimbarCrypto.decryptBytes(raw, pass);
-    } else {
-      log('Unencrypted payload detected', 'info', 'logBin');
-      setProgress(40, 'Parsing', 'progBinFill', 'progBinPct', 'progBinLabel');
-      decrypted = raw;
-    }
-
-    // Parse our filename header
-    setProgress(80, 'Parsing header', 'progBinFill', 'progBinPct', 'progBinLabel');
-    const view    = new DataView(decrypted.buffer, decrypted.byteOffset, decrypted.byteLength);
-    const nameLen = view.getUint32(0, false);
-
-    let filename, fileData;
-
-    if (nameLen > 0 && nameLen < 512 && 4 + nameLen <= decrypted.length) {
-      // Has our embedded header
-      filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
-      fileData = decrypted.slice(4 + nameLen);
-      log(`Filename recovered: ${filename}`, 'ok', 'logBin');
-    } else {
-      // No recognisable header — could be a payload from a different encoder
-      // Just offer the raw decrypted bytes
-      filename = binFile.name.replace(/\.(bin|dat|out)$/i, '') || 'decrypted_file';
-      fileData = decrypted;
-      log('No embedded filename header found — saving raw decrypted bytes', 'info', 'logBin');
-    }
-
-    log(`File: ${filename} (${fmtBytes(fileData.length)})`, 'ok', 'logBin');
-    setProgress(100, 'Done', 'progBinFill', 'progBinPct', 'progBinLabel');
-
-    const blob = new Blob([fileData]);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    log('Saved to Downloads ✓', 'ok', 'logBin');
-
-  } catch (err) {
-    log('Error: ' + err.message, 'err', 'logBin');
-    console.error(err);
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = 'Decode Binary &amp; Download';
-}
 </script>
 </body>
 </html>

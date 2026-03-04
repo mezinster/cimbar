@@ -31,7 +31,6 @@ android/lib/
 │   └── utils/byte_utils.dart   — readUint32BE, writeUint32BE, concatBytes, bytesToHex
 ├── features/
 │   ├── import/                 — GIF import: ImportScreen + ImportController
-│   ├── import_binary/          — Binary import: ImportBinaryScreen + ImportBinaryController
 │   ├── camera/                 — Camera: CameraScreen, CameraController, LiveScanScreen, LiveScanController
 │   ├── files/                  — File explorer: FilesScreen + FilesController
 │   └── settings/               — SettingsScreen (decode tuning, language, about)
@@ -60,7 +59,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `image_preprocessing.dart` — adaptive threshold + sharpening for camera decode (port of C++ CimbReader pipeline): `rgbToGrayscale` (BT.601), `sharpen3x3` (Laplacian high-pass `[0,-1,0;-1,4.5,-1;0,-1,0]`), `adaptiveThresholdMean` (integral image for O(1) local mean), `preprocessSymbolGrid` (full pipeline). Only used for symbol detection; color detection uses original RGB
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
-- `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates. Encryption auto-detected via `CB 42` magic bytes; passphrase optional
+- `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates. Encryption auto-detected via `CB 42` magic bytes; passphrase optional. GIF-only (binary import removed)
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
 - `frame_locator.dart` — finds the CimBar barcode region via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` with cropped image, `BarcodeRect`, and optional finder centers for perspective transform
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
@@ -97,7 +96,6 @@ GoRouter(
       builder: (_, __, child) => AppShell(child: child),  // bottom nav bar
       routes: [
         GoRoute(path: '/import',   ...ImportScreen),
-        GoRoute(path: '/binary',   ...ImportBinaryScreen),
         GoRoute(path: '/camera',   ...CameraScreen),
         GoRoute(path: '/files',    ...FilesScreen),
         GoRoute(path: '/settings', ...SettingsScreen),
@@ -172,13 +170,12 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 - Permissions: `CAMERA`, `READ_EXTERNAL_STORAGE` (maxSdkVersion 32)
 - `android.hardware.camera` feature declared as `required="false"`
-- Intent filters accept shared `image/gif` and `application/octet-stream` files
+- Intent filter accepts shared `image/gif` files
 - Activity uses `singleTop` launch mode, handles `configChanges` for orientation/keyboard
 
 ## Features
 
 - **Import GIF** — pick a CimBar GIF, optionally enter passphrase, decode and save/share. Encryption auto-detected via `CB 42` magic bytes
-- **Import Binary** — decode raw binary from C++ scanner (encryption auto-detected), save/share result
 - **Camera** — single-photo capture + live multi-frame scanning with AR overlay
 - **Files** — browse decoded files, swipe-to-delete, share via system share sheet
 - **Settings** — decode tuning sliders/toggles, language selection (5 languages), about

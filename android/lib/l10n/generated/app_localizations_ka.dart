@@ -13,9 +13,6 @@ class AppLocalizationsKa extends AppLocalizations {
   String get tabImport => 'GIF იმპორტი';
 
   @override
-  String get tabBinary => 'ბინარული იმპორტი';
-
-  @override
   String get tabCamera => 'კამერა';
 
   @override
@@ -23,9 +20,6 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get importTitle => 'CimBar GIF იმპორტი';
-
-  @override
-  String get importBinaryTitle => 'ბინარული ფაილის იმპორტი';
 
   @override
   String get cameraTitle => 'კამერის სკანერი';
@@ -41,9 +35,6 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get selectGifFile => 'აირჩიეთ CimBar GIF ფაილი დეკოდირებისთვის';
-
-  @override
-  String get selectBinaryFile => 'აირჩიეთ ბინარული ფაილი C++ სკანერიდან';
 
   @override
   String get passphrase => 'პაროლი';

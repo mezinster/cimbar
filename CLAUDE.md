@@ -19,7 +19,7 @@ No npm, no compilation, no install step.
 This repo has two components:
 
 - **`web-app/`** — A single-page browser app that encodes any file into an animated GIF where each frame is a grid of colored geometric symbols (Color Icon Matrix Barcode), and decodes it back. Everything runs client-side; there is no server.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning. Ports the full decode pipeline to Dart. See `android/CLAUDE.md` for Android-specific details.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import or live camera scanning. Ports the full decode pipeline to Dart. See `android/CLAUDE.md` for Android-specific details.
 
 ### Web App
 
@@ -89,7 +89,7 @@ Both encoder (`web-app/cimbar.js encodeRSFrame`) and decoder (`cimbar_decoder.da
 
 ## Interoperability
 
-The binary wire format is compatible across all three implementations: the web app, the Flutter Android app, and the open-source C++ `cimbar` scanner. A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning) or scanned with a physical camera and processed via the "Import Binary" tab in either app. Encryption is optional — unencrypted GIFs can be decoded without a passphrase. Encrypted payloads are auto-detected by their `CB 42 01 00` magic header.
+A GIF encoded with the web app can be decoded by the Android app (via file import or live camera scanning). Encryption is optional — unencrypted GIFs can be decoded without a passphrase. Encrypted payloads are auto-detected by their `CB 42 01 00` magic header.
 
 The web app is available at https://nfcarchiver.com/cimbar/
 

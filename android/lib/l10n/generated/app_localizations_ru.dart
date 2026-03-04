@@ -13,9 +13,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get tabImport => 'Импорт GIF';
 
   @override
-  String get tabBinary => 'Импорт бинарного';
-
-  @override
   String get tabCamera => 'Камера';
 
   @override
@@ -23,9 +20,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get importTitle => 'Импорт CimBar GIF';
-
-  @override
-  String get importBinaryTitle => 'Импорт бинарного файла';
 
   @override
   String get cameraTitle => 'Сканер камеры';
@@ -41,9 +35,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get selectGifFile => 'Выберите CimBar GIF файл для декодирования';
-
-  @override
-  String get selectBinaryFile => 'Выберите бинарный файл из C++ сканера';
 
   @override
   String get passphrase => 'Пароль';

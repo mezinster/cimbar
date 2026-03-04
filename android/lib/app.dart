@@ -7,7 +7,6 @@ import 'core/providers/locale_provider.dart';
 import 'features/camera/camera_screen.dart';
 import 'features/files/files_screen.dart';
 import 'features/import/import_screen.dart';
-import 'features/import_binary/import_binary_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'shared/theme/app_theme.dart';
@@ -29,12 +28,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/import',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ImportScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/binary',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: ImportBinaryScreen(),
             ),
           ),
           GoRoute(

@@ -5,8 +5,6 @@
 
   "tabImport": "Import GIF",
   "@tabImport": { "description": "Bottom navigation tab for GIF import" },
-  "tabBinary": "Import Binary",
-  "@tabBinary": { "description": "Bottom navigation tab for binary import" },
   "tabCamera": "Camera",
   "@tabCamera": { "description": "Bottom navigation tab for camera scanning" },
   "tabSettings": "About",
@@ -14,8 +12,6 @@
 
   "importTitle": "Import CimBar GIF",
   "@importTitle": { "description": "Title for GIF import screen" },
-  "importBinaryTitle": "Import Binary File",
-  "@importBinaryTitle": { "description": "Title for binary import screen" },
   "cameraTitle": "Camera Scanner",
   "@cameraTitle": { "description": "Title for camera screen" },
   "settingsTitle": "About",
@@ -27,9 +23,6 @@
   "@dropFileHere": { "description": "Hint text in file picker zone" },
   "selectGifFile": "Select a CimBar GIF file to decode",
   "@selectGifFile": { "description": "Instruction for GIF import" },
-  "selectBinaryFile": "Select a binary file from C++ scanner",
-  "@selectBinaryFile": { "description": "Instruction for binary import" },
-
   "passphrase": "Passphrase",
   "@passphrase": { "description": "Label for passphrase field" },
   "passphraseHint": "Enter decryption passphrase",

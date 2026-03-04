@@ -113,12 +113,6 @@ abstract class AppLocalizations {
   /// **'Import GIF'**
   String get tabImport;
 
-  /// Bottom navigation tab for binary import
-  ///
-  /// In en, this message translates to:
-  /// **'Import Binary'**
-  String get tabBinary;
-
   /// Bottom navigation tab for camera scanning
   ///
   /// In en, this message translates to:
@@ -136,12 +130,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Import CimBar GIF'**
   String get importTitle;
-
-  /// Title for binary import screen
-  ///
-  /// In en, this message translates to:
-  /// **'Import Binary File'**
-  String get importBinaryTitle;
 
   /// Title for camera screen
   ///
@@ -172,12 +160,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a CimBar GIF file to decode'**
   String get selectGifFile;
-
-  /// Instruction for binary import
-  ///
-  /// In en, this message translates to:
-  /// **'Select a binary file from C++ scanner'**
-  String get selectBinaryFile;
 
   /// Label for passphrase field
   ///
