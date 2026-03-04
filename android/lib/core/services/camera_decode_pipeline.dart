@@ -11,7 +11,9 @@ import '../models/decode_tuning_config.dart';
 import '../utils/byte_utils.dart';
 import 'cimbar_decoder.dart';
 import 'crypto_service.dart';
+import 'frame_decode_isolate.dart' show readMetadataBlock;
 import 'frame_locator.dart';
+import 'image_preprocessing.dart';
 import 'perspective_transform.dart';
 
 /// Single-frame decode pipeline for camera-captured photos.
@@ -166,22 +168,45 @@ class CameraDecodePipeline {
             locateResult.trFinderCenter != null &&
             locateResult.blFinderCenter != null &&
             locateResult.brFinderCenter != null) {
+          // Determine if source region is smaller than frameSize (→ upscaling)
+          final tl = locateResult.tlFinderCenter!;
+          final tr = locateResult.trFinderCenter!;
+          final bl = locateResult.blFinderCenter!;
+          final edgeTop = sqrt((tr.x - tl.x) * (tr.x - tl.x) +
+              (tr.y - tl.y) * (tr.y - tl.y));
+          final edgeLeft = sqrt((bl.x - tl.x) * (bl.x - tl.x) +
+              (bl.y - tl.y) * (bl.y - tl.y));
+          final needsSharpen4pt = edgeTop < frameSize && edgeLeft < frameSize;
+
           final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
-              usePerspective: true, use4Point: true, locateResult: locateResult);
+              usePerspective: true, use4Point: true,
+              locateResult: locateResult, needsSharpen: needsSharpen4pt);
           if (result != null) return (frameSize, result);
         }
 
         // Strategy B: 2-point perspective warp (TL+BR only)
         if (locateResult.tlFinderCenter != null &&
             locateResult.brFinderCenter != null) {
+          // Estimate source size from TL-BR diagonal
+          final tl = locateResult.tlFinderCenter!;
+          final br = locateResult.brFinderCenter!;
+          final diag = sqrt((br.x - tl.x) * (br.x - tl.x) +
+              (br.y - tl.y) * (br.y - tl.y));
+          final estSide = diag / 1.414;
+          final needsSharpen2pt = estSide < frameSize;
+
           final result = _tryDecodeAtSize(sourcePhoto, frameSize, config,
-              usePerspective: true, locateResult: locateResult);
+              usePerspective: true, locateResult: locateResult,
+              needsSharpen: needsSharpen2pt);
           if (result != null) return (frameSize, result);
         }
       }
 
       // Strategy C: existing crop+resize
-      final result = _tryDecodeAtSize(cropped, frameSize, config);
+      final needsSharpenCrop =
+          cropped.width < frameSize || cropped.height < frameSize;
+      final result = _tryDecodeAtSize(cropped, frameSize, config,
+          needsSharpen: needsSharpenCrop);
       if (result != null) return (frameSize, result);
     }
     return null;
@@ -192,6 +217,10 @@ class CameraDecodePipeline {
   /// If [usePerspective] is true, applies a perspective warp using finder
   /// centers from [locateResult]. When [use4Point] is true, uses all 4 finder
   /// centers for the warp; otherwise uses only TL+BR (2-point method).
+  ///
+  /// Matches the decode logic in `_tryDecodeResized()` from
+  /// `frame_decode_isolate.dart`: metadata block shortcut, adaptive threshold
+  /// preprocessing, quality gate, and LAB failover.
   Uint8List? _tryDecodeAtSize(
     img.Image source,
     int frameSize,
@@ -199,6 +228,7 @@ class CameraDecodePipeline {
     bool usePerspective = false,
     bool use4Point = false,
     LocateResult? locateResult,
+    bool needsSharpen = false,
   }) {
     try {
       final img.Image resized;
@@ -226,14 +256,69 @@ class CameraDecodePipeline {
             interpolation: img.Interpolation.nearest);
       }
 
+      // Metadata block shortcut: verify frame size before expensive decode
+      final cols = frameSize ~/ CimbarConstants.cellSize;
+      final meta = readMetadataBlock(resized, cols, frameSize);
+      if (meta.valid && meta.frameSize != frameSize) {
+        return null;
+      }
+
+      // Preprocess for symbol detection if adaptive threshold is enabled
+      Uint8List? preprocessedGray;
+      if (config.useAdaptiveThreshold && config.useHashDetection) {
+        preprocessedGray = ImagePreprocessing.preprocessSymbolGrid(
+            resized, needsSharpen: needsSharpen);
+      }
+
       // Decode pixels -> raw bytes -> RS decode
       final rawBytes = _decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: config.enableWhiteBalance,
           useRelativeColor: config.useRelativeColor,
           symbolThreshold: config.symbolThreshold,
           quadrantOffset: config.quadrantOffset,
-          useHashDetection: config.useHashDetection);
+          useHashDetection: config.useHashDetection,
+          preprocessedGray: preprocessedGray);
       final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
+
+      if (dataBytes.isEmpty) return null;
+
+      // Quality gate: reject frames where first 64 bytes are all zero
+      var nonZero = 0;
+      final checkLen = min(64, dataBytes.length);
+      for (var i = 0; i < checkLen; i++) {
+        if (dataBytes[i] != 0) nonZero++;
+      }
+
+      if (nonZero == 0) {
+        // Retry with LAB color space (reuse preprocessedGray — symbols unchanged)
+        final rawBytesLab = _decoder.decodeFramePixels(resized, frameSize,
+            enableWhiteBalance: config.enableWhiteBalance,
+            useRelativeColor: false,
+            symbolThreshold: config.symbolThreshold,
+            quadrantOffset: config.quadrantOffset,
+            useHashDetection: config.useHashDetection,
+            useLabColor: true,
+            preprocessedGray: preprocessedGray);
+        final dataBytesLab = _decoder.decodeRSFrame(rawBytesLab, frameSize);
+
+        if (dataBytesLab.isEmpty) return null;
+
+        var nonZeroLab = 0;
+        final checkLenLab = min(64, dataBytesLab.length);
+        for (var i = 0; i < checkLenLab; i++) {
+          if (dataBytesLab[i] != 0) nonZeroLab++;
+        }
+        if (nonZeroLab == 0) return null;
+
+        // Validate length prefix plausibility
+        if (dataBytesLab.length < 4) return null;
+        final payloadLengthLab = readUint32BE(dataBytesLab);
+        if (payloadLengthLab >= 5 &&
+            payloadLengthLab <= dataBytesLab.length - 4) {
+          return dataBytesLab;
+        }
+        return null;
+      }
 
       // Validate: need at least 4 bytes for length prefix
       if (dataBytes.length < 4) return null;
@@ -244,23 +329,6 @@ class CameraDecodePipeline {
       // unencrypted: 4 nameLen + 1 name char) and fit in data
       if (payloadLength >= 5 && payloadLength <= dataBytes.length - 4) {
         return dataBytes;
-      }
-
-      // Failover: retry with LAB color space
-      final rawBytesLab = _decoder.decodeFramePixels(resized, frameSize,
-          enableWhiteBalance: config.enableWhiteBalance,
-          useRelativeColor: false, // LAB replaces relative color
-          symbolThreshold: config.symbolThreshold,
-          quadrantOffset: config.quadrantOffset,
-          useHashDetection: config.useHashDetection,
-          useLabColor: true);
-      final dataBytesLab = _decoder.decodeRSFrame(rawBytesLab, frameSize);
-      if (dataBytesLab.length < 4) return null;
-
-      final payloadLengthLab = readUint32BE(dataBytesLab);
-      if (payloadLengthLab >= 5 &&
-          payloadLengthLab <= dataBytesLab.length - 4) {
-        return dataBytesLab;
       }
     } catch (_) {
       // RS decode or other failure
