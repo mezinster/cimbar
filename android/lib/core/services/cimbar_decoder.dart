@@ -449,8 +449,6 @@ class CimbarDecoder {
       for (var i = 0; i < cellCount; i++) {
         final ox = cellOx[i];
         final oy = cellOy[i];
-        final dx = cellDriftX[i];
-        final dy = cellDriftY[i];
         final symIdx = symIndices[i];
 
         // Sample color: average center cross at grid position.

@@ -566,8 +566,8 @@ void main() {
       // averaging the 5-pixel center cross absorbs the noise.
       const frameSize = 128;
       const cs = CimbarConstants.cellSize;
-      final cols = frameSize ~/ cs;
-      final rows = frameSize ~/ cs;
+      const cols = frameSize ~/ cs;
+      const rows = frameSize ~/ cs;
 
       final cleanFrame = _buildTestFrame(frameSize);
       final noisyFrame = img.Image(width: frameSize, height: frameSize);
@@ -582,7 +582,6 @@ void main() {
       // Inject noise at center pixel of ~10% of data cells
       final rng = Random(123);
       var noisedCells = 0;
-      var cellIdx = 0;
       for (var row = 0; row < rows; row++) {
         for (var col = 0; col < cols; col++) {
           final inTL = row < 3 && col < 3;
@@ -600,7 +599,6 @@ void main() {
                 rng.nextInt(256), rng.nextInt(256), rng.nextInt(256), 255);
             noisedCells++;
           }
-          cellIdx++;
         }
       }
 

@@ -434,8 +434,8 @@ void main() {
 
       // Draw a CimBar frame centered in the photo
       final frame = _synthesizeFrame(frameSize);
-      final offsetX = (photoW - frameSize) ~/ 2; // 384
-      final offsetY = (photoH - frameSize) ~/ 2; // 256
+      const offsetX = (photoW - frameSize) ~/ 2; // 384
+      const offsetY = (photoH - frameSize) ~/ 2; // 256
       img.compositeImage(photo, frame, dstX: offsetX, dstY: offsetY);
 
       // Inject 2 spurious finder-like patches (bright→dark→bright)
@@ -445,7 +445,7 @@ void main() {
       // both horizontally and vertically, to survive both scan phases.
       void injectSpurious(int px, int py) {
         // 3×3 cell finder-like patch: white surround + dark center
-        final s = cs; // cell size = 8
+        const s = cs; // cell size = 8
         // White 3×3 background
         img.fillRect(photo,
             x1: px, y1: py, x2: px + s * 3, y2: py + s * 3,
@@ -468,14 +468,14 @@ void main() {
       expect(result.brFinderCenter, isNotNull);
 
       // Expected finder centers in photo coordinates
-      final expectedTlX = offsetX + 1.5 * cs;
-      final expectedTlY = offsetY + 1.5 * cs;
-      final expectedTrX = offsetX + (cols - 2 + 0.5) * cs;
-      final expectedTrY = offsetY + 1.5 * cs;
-      final expectedBlX = offsetX + 1.5 * cs;
-      final expectedBlY = offsetY + (rows - 2 + 0.5) * cs;
-      final expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
-      final expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
+      const expectedTlX = offsetX + 1.5 * cs;
+      const expectedTlY = offsetY + 1.5 * cs;
+      const expectedTrX = offsetX + (cols - 2 + 0.5) * cs;
+      const expectedTrY = offsetY + 1.5 * cs;
+      const expectedBlX = offsetX + 1.5 * cs;
+      const expectedBlY = offsetY + (rows - 2 + 0.5) * cs;
+      const expectedBrX = offsetX + (cols - 2 + 0.5) * cs;
+      const expectedBrY = offsetY + (rows - 2 + 0.5) * cs;
 
       const tolerance = 25.0;
 
