@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
 import 'package:cimbar_scanner/core/services/cimbar_decoder.dart';
+import 'package:cimbar_scanner/core/services/frame_locator.dart';
+import 'package:cimbar_scanner/core/services/perspective_transform.dart';
 import 'package:cimbar_scanner/core/services/reed_solomon.dart';
 
 import '../../test_utils/cimbar_encoder.dart';
@@ -245,4 +248,189 @@ void main() {
       // padding. Color distribution is checked on the real crop images instead.
     });
   });
+
+  group('Camera full-frame decode', () {
+    test('frame A - full pipeline', () {
+      final image = loadFixture('camera_raw_1280x720_a.png');
+      final result = _runPipeline(image);
+      _assertSanity(result);
+      _printDiagnostics(result, 1);
+    });
+
+    test('frame B - full pipeline', () {
+      final image = loadFixture('camera_raw_1280x720_b.png');
+      final result = _runPipeline(image);
+      _assertSanity(result);
+      _printDiagnostics(result, 2);
+    });
+  });
+}
+
+/// Intermediate results from each pipeline stage.
+class _PipelineResult {
+  LocateResult? locateResult;
+  img.Image? warped;
+  int? frameSize;
+  List<double>? wpRGB;
+  String wbSrc = 'none';
+  Uint8List? pixelBytes;
+  Uint8List? rsBytes;
+  DecodeStats? stats;
+  String strategy = 'none';
+}
+
+/// Run the full camera decode pipeline on an RGB image.
+_PipelineResult _runPipeline(img.Image image) {
+  final result = _PipelineResult();
+  final decoder = CimbarDecoder();
+
+  // Stage 1: Locate
+  result.locateResult = FrameLocator.locate(image);
+
+  // Stage 2: Warp — try 4pt, then 2pt, then crop
+  final loc = result.locateResult!;
+  img.Image? warped;
+
+  // Use 256 since we know the source barcode size
+  const frameSize = 256;
+  result.frameSize = frameSize;
+
+  if (loc.tlFinderCenter != null &&
+      loc.trFinderCenter != null &&
+      loc.blFinderCenter != null &&
+      loc.brFinderCenter != null) {
+    final corners = PerspectiveTransform.computeBarcodeCornersFrom4(
+        loc.tlFinderCenter!, loc.trFinderCenter!,
+        loc.blFinderCenter!, loc.brFinderCenter!, frameSize);
+    if (corners != null) {
+      warped = PerspectiveTransform.warpPerspective(image, corners, frameSize);
+      result.strategy = '4pt';
+    }
+  }
+
+  if (warped == null && loc.tlFinderCenter != null && loc.brFinderCenter != null) {
+    final corners = PerspectiveTransform.computeBarcodeCorners(
+        loc.tlFinderCenter!, loc.brFinderCenter!, frameSize);
+    if (corners != null) {
+      warped = PerspectiveTransform.warpPerspective(image, corners, frameSize);
+      result.strategy = '2pt';
+    }
+  }
+
+  if (warped == null) {
+    warped = img.copyResize(loc.cropped,
+        width: frameSize, height: frameSize,
+        interpolation: img.Interpolation.nearest);
+    result.strategy = 'crop';
+  }
+  result.warped = warped;
+
+  // Stage 3: White balance
+  result.wpRGB = CimbarDecoder.sampleFinderWhite(warped, frameSize);
+  if (result.wpRGB != null) {
+    result.wbSrc = result.strategy == 'crop' ? 'crop' : 'warp';
+  }
+
+  // Stage 4: Decode pixels
+  result.stats = DecodeStats();
+  result.pixelBytes = decoder.decodeFramePixels(warped, frameSize,
+      enableWhiteBalance: true,
+      useRelativeColor: true,
+      useHashDetection: true,
+      whitePoint: result.wpRGB,
+      stats: result.stats);
+
+  // Stage 5: RS decode
+  result.rsBytes = decoder.decodeRSFrame(result.pixelBytes!, frameSize,
+      stats: result.stats);
+
+  return result;
+}
+
+void _assertSanity(_PipelineResult r) {
+  // Finder detection
+  expect(r.locateResult, isNotNull, reason: 'locate() should find barcode');
+  final loc = r.locateResult!;
+  final corners = [loc.tlFinderCenter, loc.trFinderCenter,
+                    loc.blFinderCenter, loc.brFinderCenter];
+  expect(corners.where((c) => c != null).length, equals(4),
+      reason: 'Should detect all 4 finder corners');
+
+  // Parallelogram
+  if (loc.devNorm != null) {
+    expect(loc.devNorm, lessThan(0.09),
+        reason: 'Parallelogram deviation should be small');
+  }
+
+  // Warp output
+  expect(r.warped, isNotNull);
+  expect(r.warped!.width, equals(r.frameSize));
+  expect(r.warped!.height, equals(r.frameSize));
+
+  // WB reasonable
+  if (r.wpRGB != null) {
+    for (var i = 0; i < 3; i++) {
+      expect(r.wpRGB![i], greaterThanOrEqualTo(128),
+          reason: 'White point channel $i should be >= 128');
+      expect(r.wpRGB![i], lessThanOrEqualTo(255),
+          reason: 'White point channel $i should be <= 255');
+    }
+  }
+
+  // RS attempted (may not succeed on noisy camera frames)
+  expect(r.stats!.rsBlocks, greaterThan(0),
+      reason: 'RS decode should be attempted');
+}
+
+void _printDiagnostics(_PipelineResult r, int frameNum) {
+  final loc = r.locateResult;
+  final stats = r.stats;
+
+  // Locate line
+  final locBuf = StringBuffer('frame=$frameNum stage=locate');
+  locBuf.write(' candidates=${loc?.candidateCount ?? 0}');
+  if (loc?.tlFinderCenter != null) locBuf.write(' tl=${loc!.tlFinderCenter!.x.toInt()},${loc.tlFinderCenter!.y.toInt()}');
+  if (loc?.trFinderCenter != null) locBuf.write(' tr=${loc!.trFinderCenter!.x.toInt()},${loc.trFinderCenter!.y.toInt()}');
+  if (loc?.blFinderCenter != null) locBuf.write(' bl=${loc!.blFinderCenter!.x.toInt()},${loc.blFinderCenter!.y.toInt()}');
+  if (loc?.brFinderCenter != null) locBuf.write(' br=${loc!.brFinderCenter!.x.toInt()},${loc.brFinderCenter!.y.toInt()}');
+  if (loc?.tlLuma != null) locBuf.write(' tlLuma=${loc!.tlLuma!.toStringAsFixed(0)}');
+  if (loc?.gapOk != null) locBuf.write(' gapOk=${loc!.gapOk}');
+  if (loc?.devNorm != null) locBuf.write(' devNorm=${loc!.devNorm!.toStringAsFixed(3)}');
+  // ignore: avoid_print
+  print(locBuf);
+
+  // Warp line
+  // ignore: avoid_print
+  print('frame=$frameNum stage=warp strategy=${r.strategy} dstSize=${r.frameSize}');
+
+  // WB line
+  final wbBuf = StringBuffer('frame=$frameNum stage=wb');
+  if (r.wpRGB != null) {
+    wbBuf.write(' wpR=${r.wpRGB![0].toStringAsFixed(0)} wpG=${r.wpRGB![1].toStringAsFixed(0)} wpB=${r.wpRGB![2].toStringAsFixed(0)}');
+  }
+  wbBuf.write(' src=${r.wbSrc}');
+  // ignore: avoid_print
+  print(wbBuf);
+
+  // Decode line
+  final decBuf = StringBuffer('frame=$frameNum stage=decode');
+  if (stats != null) {
+    decBuf.write(' cells=${stats.cellCount}');
+    decBuf.write(' rsBlocks=${stats.rsBlocks} rsOk=${stats.rsOk} rsFail=${stats.rsFail}');
+    if (stats.rsBlocks > 0) {
+      decBuf.write(' errRate=${(stats.rsFail / stats.rsBlocks).toStringAsFixed(3)}');
+    }
+    if (stats.hammingSum > 0) {
+      decBuf.write(' hashMean=${stats.hammingAvg.toStringAsFixed(1)} hashMax=${stats.hammingMax}');
+      decBuf.write(' driftXFinal=${stats.driftXFinal} driftYFinal=${stats.driftYFinal}');
+    }
+  }
+  // ignore: avoid_print
+  print(decBuf);
+
+  // Gate line
+  final pass = stats != null && stats.rsOk > 0;
+  final bytes = r.rsBytes?.length ?? 0;
+  // ignore: avoid_print
+  print('frame=$frameNum stage=gate pass=$pass bytes=$bytes method=${r.strategy}');
 }
