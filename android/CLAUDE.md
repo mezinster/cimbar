@@ -54,14 +54,14 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,191) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching with 5-pixel center-cross averaging (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `sampleFinderWhite` (public static) searches 8-cell corner quadrants for brightest cell by luma — handles crop padding where finders are offset from grid corners. `decodeFramePixels` accepts optional `whitePoint` to bypass internal sampling (enables WB sharing between strategies). `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference) and `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching with 5-pixel center-cross averaging (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `sampleFinderWhite` (public static) searches 8-cell corner quadrants for brightest cell by luma — handles crop padding where finders are offset from grid corners. `decodeFramePixels` accepts optional `whitePoint` to bypass internal sampling (enables WB sharing between strategies). `decodeRSFrame` accepts optional `DecodeStats` to record `rsBlocks`/`rsOk`/`rsFail` per-block outcomes. `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference), `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight), and RS block tracking fields
 - `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px). Supports `useBinaryHashes` mode for adaptive-threshold-preprocessed input, with `detectSymbolFuzzyFromGray()` that reads from a flat `Uint8List` buffer
 - `image_preprocessing.dart` — adaptive threshold + sharpening for camera decode (port of C++ CimbReader pipeline): `rgbToGrayscale` (BT.601), `sharpen3x3` (Laplacian high-pass `[0,-1,0;-1,4.5,-1;0,-1,0]`), `adaptiveThresholdMean` (integral image for O(1) local mean), `preprocessSymbolGrid` (full pipeline). Only used for symbol detection; color detection uses original RGB
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
 - `gif_parser.dart` — wrapper around `image` package GifDecoder
 - `decode_pipeline.dart` — full GIF decode orchestration with `Stream<DecodeProgress>` for UI updates. Encryption auto-detected via `CB 42` magic bytes; passphrase optional. GIF-only (binary import removed)
 - `camera_decode_pipeline.dart` — single-frame decode from camera photo: locate barcode region, try all frame sizes, RS decode, decrypt
-- `frame_locator.dart` — finds the CimBar barcode region via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` with cropped image, `BarcodeRect`, and optional finder centers for perspective transform
+- `frame_locator.dart` — finds the CimBar barcode region via anchor-based finder pattern detection (bright→dark→bright run-length scanning for the 3×3 finder blocks), with luma-threshold bounding-box fallback. Returns `LocateResult` with cropped image, `BarcodeRect`, optional finder centers for perspective transform, and optional diagnostic fields (`candidateCount`, `tlLuma`, `gapOk`, `devNorm`) populated by anchor-based detection for structured logging
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters
 - `perspective_transform.dart` — pure-Dart perspective warp: DLT homography, inverse mapping + nearest-neighbor sampling with `.floor()` (not `.round()` — Dart's banker's rounding corrupts cell alignment). Used by `frame_decode_isolate.dart` as "try warp first, fallback to crop+resize"
@@ -141,7 +141,7 @@ Heavy per-frame computation runs in a background isolate via `Isolate.run()` to 
 
 Debug diagnostics are generated inside the isolate (where all data is available) and returned as strings:
 
-- **ADB logcat (`debugInfo`)** — verbose multi-line: timing breakdown, finder coordinates, per-strategy attempt results (RS outcome, quality gate, DecodeStats with hamming/drift/color histograms/WB white point/sample cell RGB)
+- **ADB logcat (`debugInfo`)** — structured `key=value` lines, one per pipeline stage. Each line starts with `frame=N stage=<name>`. Stages: `locate` (candidates, corner coords, tlLuma, gapOk, devNorm), `warp` (strategy, srcPts, dstSize), `wb` (wpR/wpG/wpB white point, src), `decode` (cells, rsBlocks/rsOk/rsFail, errRate, hashMean/hashMax, driftXFinal/driftYFinal), `gate` (pass/fail, bytes, method). Grep-friendly and diffable against integration test output.
 - **AR overlay (`overlayLine`)** — short one-liner: `OK 256px 4pt 180ms f=4` or `FAIL 200ms f=3`
 - **Triple-tap** toggles the AR debug overlay; also auto-enables `_debugMode` and ADB logging if not already on
 - **Capture button** (visible when debug overlay is open) saves raw + warped PNGs to app documents; warped image captured even on decode failure for diagnostic analysis
@@ -253,7 +253,7 @@ In `frame_locator.dart` as primary path, luma-threshold fallback kept.
 
 **Asymmetric finder patterns:** TL finder has no inner white dot (solid dark center); TR/BL/BR have white inner dot. This enables rotation-aware identification purely from brightness.
 
-`LocateResult` includes optional `tlFinderCenter`/`trFinderCenter`/`blFinderCenter`/`brFinderCenter` for perspective transform.
+`LocateResult` includes optional `tlFinderCenter`/`trFinderCenter`/`blFinderCenter`/`brFinderCenter` for perspective transform, plus diagnostic fields `candidateCount`, `tlLuma`, `gapOk`, `devNorm` for structured logging.
 
 ### Priority 4 — Average hash symbol detection with drift tracking ✓
 
@@ -295,11 +295,11 @@ Run: `flutter test` from `android/` directory.
 | `image_preprocessing_test.dart` | Grayscale conversion, sharpening kernel, adaptive threshold (uniform, checkerboard, gradient, blockSize=7), full `preprocessSymbolGrid` pipeline with/without sharpening. |
 | `crypto_service_test.dart` | AES-256-GCM round-trip, wrong passphrase rejection, bad magic, strength scoring. |
 | `decode_pipeline_test.dart` | RS frame encode→draw→read→decode round-trip with length prefix. Three payload cases. |
-| `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior, rotation-invariant classification (0°/90°/180°/270°). |
+| `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior, rotation-invariant classification (0°/90°/180°/270°), diagnostic fields populated, false positive parallelogram rejection. |
 | `yuv_converter_test.dart` | YUV420→RGB: white/black, UV subsampling, stride configs, semi-planar UV. |
 | `perspective_transform_test.dart` | 2-point and 4-point corner derivation (axis-aligned + rotated), identity warp, rotated barcode warp, RS decode round-trips, fallback path. 9 tests. |
 | `live_scanner_test.dart` | Single/multi-frame scanning, duplicate handling, out-of-order adjacency chains, frame 0 detection, dark image, reset. |
-| `camera_decode_integration_test.dart` | WB sampling on padded crop images (3 real camera fixtures), whitePoint override, color distribution balance, hamming distance diagnostics, RS quality gate status, synthetic padded barcode WB ground-truth. Uses PNG fixtures in `test/fixtures/`. |
+| `camera_decode_integration_test.dart` | WB sampling on padded crop images (3 real camera fixtures), whitePoint override, color distribution balance, hamming distance diagnostics, RS quality gate status, synthetic padded barcode WB ground-truth, full-frame camera decode pipeline (2 raw 1280x720 fixtures through locate→warp→WB→decode→RS with structured diagnostic output). Uses PNG fixtures in `test/fixtures/`. |
 
 ### Known Subtleties (Android)
 
