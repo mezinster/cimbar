@@ -16,6 +16,12 @@ class LocateResult {
   final Point<double>? blFinderCenter;
   final Point<double>? brFinderCenter;
 
+  /// Diagnostic fields (populated by anchor-based detection only).
+  final int? candidateCount;
+  final double? tlLuma;
+  final bool? gapOk;
+  final double? devNorm;
+
   const LocateResult({
     required this.cropped,
     required this.boundingBox,
@@ -23,6 +29,10 @@ class LocateResult {
     this.trFinderCenter,
     this.blFinderCenter,
     this.brFinderCenter,
+    this.candidateCount,
+    this.tlLuma,
+    this.gapOk,
+    this.devNorm,
   });
 }
 
@@ -105,7 +115,11 @@ class FrameLocator {
     if (finders != null) {
       return _computeCropFromAnchors(
           photo, finders.tl, finders.br, origW, origH,
-          tr: finders.tr, bl: finders.bl);
+          tr: finders.tr, bl: finders.bl,
+          candidateCount: finders.candidateCount,
+          tlLuma: finders.tlLuma,
+          gapOk: finders.gapOk,
+          devNorm: finders.devNorm);
     }
 
     // Fallback to luma-threshold approach
@@ -308,15 +322,18 @@ class FrameLocator {
   }
 
   /// Phase 4: Classify finders as TL/TR/BL/BR using brightness-based TL
-  /// identification + cross-product geometry.
+  /// identification + parallelogram-validated geometry.
   ///
   /// The TL finder has no inner white dot (solid dark center), making it
   /// darker than the other three finders. This allows rotation-invariant
   /// classification:
   /// 1. Sample center brightness of each candidate in full-res luma
   /// 2. Darkest center = TL
-  /// 3. BR = farthest from TL (Euclidean distance)
-  /// 4. TR vs BL: cross product sign of (BR-TL) × (C-TL)
+  /// 3. Parallelogram pair search: find the pair (A, B) from remaining
+  ///    candidates where A + B - TL is closest to another candidate C.
+  ///    The correct pair (TR, BL) produces C ≈ BR with near-zero deviation.
+  ///    False positives (bezels, UI elements) break the parallelogram.
+  /// 4. Cross product of (BR-TL) classifies A/B as TR vs BL
   /// 5. Fallback: if no distinctly dark candidate, use coordinate extremes
   ///
   /// Returns null if fewer than 2 candidates found.
@@ -325,11 +342,16 @@ class FrameLocator {
     _FinderCandidate br,
     _FinderCandidate? tr,
     _FinderCandidate? bl,
+    int candidateCount,
+    double tlLuma,
+    bool gapOk,
+    double devNorm,
   })? _selectAndClassify(
     List<_FinderCandidate> candidates,
     img.Image photo,
   ) {
     if (candidates.length < 2) return null;
+    final candidateCount = candidates.length;
 
     final lumaW = photo.width;
     final lumaH = photo.height;
@@ -379,91 +401,150 @@ class FrameLocator {
     // Camera LCD backlighting variation easily creates 20-40 luma spread
     // between identical finders, so threshold must exceed that range.
     if (secondDarkest - darkestLuma < 45) {
-      return _selectAndClassifyByCoordinates(candidates);
+      final coordResult = _selectAndClassifyByCoordinates(candidates);
+      if (coordResult == null) return null;
+      return (
+        tl: coordResult.tl, br: coordResult.br,
+        tr: coordResult.tr, bl: coordResult.bl,
+        candidateCount: candidateCount,
+        tlLuma: darkestLuma,
+        gapOk: false,
+        devNorm: -1.0,
+      );
     }
 
     // Brightness-based classification: darkest = TL
+    final tlLuma = darkestLuma;
     final tl = candidates[darkestIdx];
     final remaining = <_FinderCandidate>[
       for (var i = 0; i < candidates.length; i++)
         if (i != darkestIdx) candidates[i],
     ];
 
-    // BR = farthest from TL
-    _FinderCandidate br = remaining[0];
-    var maxDist = 0.0;
-    for (final c in remaining) {
-      final dx = c.centerX - tl.centerX;
-      final dy = c.centerY - tl.centerY;
-      final dist = dx * dx + dy * dy;
-      if (dist > maxDist) {
-        maxDist = dist;
-        br = c;
+    if (remaining.length == 1) {
+      return (tl: tl, br: remaining[0], tr: null, bl: null,
+          candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: -1.0);
+    }
+
+    if (remaining.length == 2) {
+      // Only 2 candidates — pick farthest as BR, classify the other.
+      remaining.sort((a, b) => _distSq(tl, b).compareTo(_distSq(tl, a)));
+      final br = remaining[0];
+      final other = remaining[1];
+      final bx = br.centerX - tl.centerX;
+      final by = br.centerY - tl.centerY;
+      final cx = other.centerX - tl.centerX;
+      final cy = other.centerY - tl.centerY;
+      final cross = bx * cy - by * cx;
+      if (cross < 0) {
+        return (tl: tl, br: br, tr: other, bl: null,
+            candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: 0.0);
+      } else {
+        return (tl: tl, br: br, tr: null, bl: other,
+            candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: 0.0);
       }
     }
 
-    if (remaining.length == 1) {
-      return (tl: tl, br: br, tr: null, bl: null);
+    // With 3+ remaining candidates, find the pair (A, B) that best forms
+    // a parallelogram with TL. For each pair, compute the expected 4th
+    // corner C = A + B - TL and find the nearest candidate to C.
+    //
+    // The correct pair (real TR, real BL) produces C ≈ real BR with
+    // near-zero deviation. False positives from monitor bezels, UI
+    // elements, etc. break the parallelogram property regardless of
+    // which role they play — all pairs involving a false positive produce
+    // large deviations.
+    //
+    // Maximum parallelogram deviation: 30% of average side length.
+    // Perspective distortion at extreme angles causes ~15% deviation;
+    // false positives cause 50%+.
+    const maxParallelogramDevSq = 0.09; // 0.3² = 0.09
+
+    double bestDevNorm = double.infinity;
+    _FinderCandidate? bestA, bestB, bestC;
+
+    for (var i = 0; i < remaining.length; i++) {
+      for (var j = i + 1; j < remaining.length; j++) {
+        final a = remaining[i], b = remaining[j];
+        final expectedX = a.centerX + b.centerX - tl.centerX;
+        final expectedY = a.centerY + b.centerY - tl.centerY;
+
+        // Find nearest candidate to expected 4th corner
+        double nearestDistSq = double.infinity;
+        _FinderCandidate? nearest;
+        for (var k = 0; k < remaining.length; k++) {
+          if (k == i || k == j) continue;
+          final dx = remaining[k].centerX - expectedX;
+          final dy = remaining[k].centerY - expectedY;
+          final d = dx * dx + dy * dy;
+          if (d < nearestDistSq) {
+            nearestDistSq = d;
+            nearest = remaining[k];
+          }
+        }
+
+        if (nearest == null) continue;
+
+        // Normalize deviation by average side length squared
+        final sideSq = (_distSq(tl, a) + _distSq(tl, b)) / 2;
+        final devNorm = sideSq > 0 ? nearestDistSq / sideSq : double.infinity;
+
+        if (devNorm < bestDevNorm) {
+          bestDevNorm = devNorm;
+          bestA = a;
+          bestB = b;
+          bestC = nearest;
+        }
+      }
     }
 
-    // TR vs BL: cross product sign of (BR-TL) × (C-TL)
-    // In screen coords (y-down): negative = TR side, positive = BL side
+    if (bestA == null || bestDevNorm > maxParallelogramDevSq) {
+      // No valid parallelogram found. Fall back to 2-point using BR
+      // from the best (imperfect) parallelogram, or farthest candidate.
+      remaining.sort((a, b) => _distSq(tl, b).compareTo(_distSq(tl, a)));
+      return (tl: tl, br: bestC ?? remaining[0], tr: null, bl: null,
+          candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: bestDevNorm);
+    }
+
+    // bestA and bestB are TL's adjacent corners (TR and BL in some order).
+    // bestC is the diagonal opposite (BR).
+    final br = bestC!;
+
+    // Classify bestA/bestB as TR vs BL using cross product of (BR-TL).
+    // In screen coords (y-down): negative = TR side, positive = BL side.
     final bx = br.centerX - tl.centerX;
     final by = br.centerY - tl.centerY;
+    final ax = bestA!.centerX - tl.centerX;
+    final ay = bestA.centerY - tl.centerY;
+    final cross = bx * ay - by * ax;
 
-    _FinderCandidate? tr;
-    _FinderCandidate? bl;
-    var trBestDist = 0.0;
-    var blBestDist = 0.0;
-    for (final c in remaining) {
-      if (identical(c, br)) continue;
-      final cx = c.centerX - tl.centerX;
-      final cy = c.centerY - tl.centerY;
-      final cross = bx * cy - by * cx;
-      final dist = cx * cx + cy * cy;
-      if (cross < 0) {
-        if (dist > trBestDist) {
-          trBestDist = dist;
-          tr = c;
-        }
-      } else {
-        if (dist > blBestDist) {
-          blBestDist = dist;
-          bl = c;
-        }
+    final tr = cross < 0 ? bestA : bestB!;
+    final bl = cross < 0 ? bestB! : bestA;
+
+    // Edge ratio validation: opposite sides roughly equal length.
+    // Ratio of squared distances [0.25, 4.0] ≡ length ratio [0.5, 2.0].
+    final tlTrSq = _distSq(tl, tr);
+    final blBrSq = _distSq(bl, br);
+    final tlBlSq = _distSq(tl, bl);
+    final trBrSq = _distSq(tr, br);
+
+    if (tlTrSq > 0 && blBrSq > 0) {
+      final tbRatio = tlTrSq / blBrSq;
+      if (tbRatio < 0.25 || tbRatio > 4.0) {
+        return (tl: tl, br: br, tr: null, bl: null,
+            candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: bestDevNorm);
+      }
+    }
+    if (tlBlSq > 0 && trBrSq > 0) {
+      final lrRatio = tlBlSq / trBrSq;
+      if (lrRatio < 0.25 || lrRatio > 4.0) {
+        return (tl: tl, br: br, tr: null, bl: null,
+            candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: bestDevNorm);
       }
     }
 
-    // Geometric validation: opposite sides of the barcode should be
-    // roughly equal length. If the ratio is too skewed, the suspect
-    // finder is likely a spurious candidate — null it out so warp
-    // falls back to 2-point.
-    if (tr != null && bl != null) {
-      final tlTrSq = _distSq(tl, tr);
-      final blBrSq = _distSq(bl, br);
-      final tlBlSq = _distSq(tl, bl);
-      final trBrSq = _distSq(tr, br);
-
-      // Check top/bottom ratio and left/right ratio
-      // Ratio of squared distances [0.25, 4.0] ≡ length ratio [0.5, 2.0]
-      if (tlTrSq > 0 && blBrSq > 0) {
-        final tbRatio = tlTrSq / blBrSq;
-        if (tbRatio < 0.25 || tbRatio > 4.0) {
-          // One of the horizontal edges is wrong — null out the suspect
-          tr = null;
-          bl = null;
-        }
-      }
-      if (tr != null && bl != null && tlBlSq > 0 && trBrSq > 0) {
-        final lrRatio = tlBlSq / trBrSq;
-        if (lrRatio < 0.25 || lrRatio > 4.0) {
-          tr = null;
-          bl = null;
-        }
-      }
-    }
-
-    return (tl: tl, br: br, tr: tr, bl: bl);
+    return (tl: tl, br: br, tr: tr, bl: bl,
+        candidateCount: candidateCount, tlLuma: tlLuma, gapOk: true, devNorm: bestDevNorm);
   }
 
   /// Fallback coordinate-extreme classification for old barcodes without
@@ -557,6 +638,10 @@ class FrameLocator {
     int origH, {
     _FinderCandidate? tr,
     _FinderCandidate? bl,
+    int? candidateCount,
+    double? tlLuma,
+    bool? gapOk,
+    double? devNorm,
   }) {
     // Scale finder centers back to original coordinates
     final tlX = tl.centerX * _downscale;
@@ -648,6 +733,10 @@ class FrameLocator {
       trFinderCenter: trX != null && trY != null ? Point(trX, trY) : null,
       blFinderCenter: blX != null && blY != null ? Point(blX, blY) : null,
       brFinderCenter: Point(brX, brY),
+      candidateCount: candidateCount,
+      tlLuma: tlLuma,
+      gapOk: gapOk,
+      devNorm: devNorm,
     );
   }
 

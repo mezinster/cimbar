@@ -537,6 +537,94 @@ void main() {
       }
     });
 
+    test('rejects distant false positive via parallelogram check', () {
+      // Reproduces real-world failure: a spurious bright→dark→bright
+      // pattern far from the real BR finder (e.g. monitor bezel, taskbar
+      // icon). Without the parallelogram check, the false positive is
+      // farther from TL than the real BR, stealing the BR assignment and
+      // producing a severely skewed 4-point warp.
+      //
+      // Uses isolated finder patterns on a dark background (no colored
+      // data cells) to avoid spurious candidates from bright cells.
+      const photoW = 1280;
+      const photoH = 720;
+      const cs = CimbarConstants.cellSize; // 8
+
+      final photo = img.Image(width: photoW, height: photoH);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+
+      // Place 4 real finder patterns at positions simulating a barcode
+      // displayed on a monitor, as seen by a phone camera.
+      // Barcode appears at roughly (380,130)-(860,610) in the 1280x720 frame.
+      const tlX = 380, tlY = 130;
+      const trX = 840, trY = 130;
+      const blX = 380, blY = 590;
+      const brX = 840, brY = 590;
+      const finderSize = 20; // ~3 cells at camera resolution
+
+      // TL finder (no inner dot — asymmetric for brightness detection)
+      _drawFinder(photo, tlX, tlY, finderSize ~/ 3, drawDot: false);
+      // TR, BL, BR finders (with inner dot)
+      _drawFinder(photo, trX, trY, finderSize ~/ 3);
+      _drawFinder(photo, blX, blY, finderSize ~/ 3);
+      _drawFinder(photo, brX, brY, finderSize ~/ 3);
+
+      // Inject a spurious finder-like pattern far to the right of the
+      // barcode, simulating a monitor bezel or UI element.
+      const falseX = 1060;
+      const falseY = 500;
+      const falseSize = 20;
+
+      // White surround
+      img.fillRect(photo,
+          x1: falseX - falseSize,
+          y1: falseY - falseSize,
+          x2: falseX + falseSize * 2,
+          y2: falseY + falseSize * 2,
+          color: img.ColorRgba8(220, 220, 220, 255));
+      // Gray center (brighter than TL's ~51 luma, won't steal TL)
+      img.fillRect(photo,
+          x1: falseX,
+          y1: falseY,
+          x2: falseX + falseSize,
+          y2: falseY + falseSize,
+          color: img.ColorRgba8(140, 140, 140, 255));
+
+      final result = FrameLocator.locate(photo);
+
+      expect(result.tlFinderCenter, isNotNull,
+          reason: 'Should detect finders');
+      expect(result.brFinderCenter, isNotNull);
+
+      // Finder center is at the middle of the 3-cell finder block
+      final expectedTlX = tlX + finderSize * 1.5;
+      final expectedTlY = tlY + finderSize * 1.5;
+      final expectedBrX = brX + finderSize * 1.5;
+      final expectedBrY = brY + finderSize * 1.5;
+
+      const tolerance = 30.0;
+
+      final resultBrX = result.brFinderCenter!.x;
+      final resultBrY = result.brFinderCenter!.y;
+
+      // The critical check: BR must NOT be at the false positive location
+      expect(resultBrX, lessThan(falseX.toDouble()),
+          reason: 'BR X=$resultBrX should not be at false positive X=$falseX');
+
+      expect((resultBrX - expectedBrX).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'BR X: expected ~${expectedBrX.toStringAsFixed(0)}, '
+              'got ${resultBrX.toStringAsFixed(0)}');
+      expect((resultBrY - expectedBrY).abs(), lessThanOrEqualTo(tolerance),
+          reason: 'BR Y: expected ~${expectedBrY.toStringAsFixed(0)}, '
+              'got ${resultBrY.toStringAsFixed(0)}');
+
+      // Verify TL is also correct
+      expect((result.tlFinderCenter!.x - expectedTlX).abs(),
+          lessThanOrEqualTo(tolerance),
+          reason: 'TL X: expected ~${expectedTlX.toStringAsFixed(0)}, '
+              'got ${result.tlFinderCenter!.x.toStringAsFixed(0)}');
+    });
+
     test('falls back to luma-threshold when no finder structure present', () {
       const photoSize = 512;
 
@@ -558,6 +646,30 @@ void main() {
       // Fallback doesn't produce finder centers
       expect(result.tlFinderCenter, isNull);
       expect(result.brFinderCenter, isNull);
+      // Fallback doesn't produce diagnostics
+      expect(result.candidateCount, isNull);
+    });
+
+    test('LocateResult includes diagnostic fields', () {
+      const photoSize = 1024;
+      const frameSize = 256;
+
+      final photo = img.Image(width: photoSize, height: photoSize);
+      img.fill(photo, color: img.ColorRgba8(5, 5, 5, 255));
+      final frame = _synthesizeFrame(frameSize);
+      img.compositeImage(photo, frame, dstX: 384, dstY: 384);
+
+      final result = FrameLocator.locate(photo);
+
+      // Diagnostics populated by anchor-based detection
+      expect(result.candidateCount, isNotNull);
+      expect(result.candidateCount, greaterThanOrEqualTo(4));
+      expect(result.tlLuma, isNotNull);
+      expect(result.tlLuma!, lessThan(100)); // TL has no dot → dark center
+      expect(result.gapOk, isNotNull);
+      expect(result.gapOk, isTrue);
+      expect(result.devNorm, isNotNull);
+      expect(result.devNorm!, lessThan(0.09)); // good parallelogram
     });
   });
 }
