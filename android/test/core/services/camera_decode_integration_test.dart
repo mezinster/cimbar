@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -145,12 +144,6 @@ void main() {
             useHashDetection: true,
             stats: stats);
 
-        // Document current quality — print for visibility
-        print('$fixture: h_avg=${stats.hammingAvg.toStringAsFixed(1)} '
-            'h[<10/${stats.hammingLt10} <15/${stats.hammingLt15} '
-            '<20/${stats.hammingLt20} 20+/${stats.hammingGe20}] '
-            'cells=${stats.cellCount}');
-
         // Hamming average should be below 25 (random is ~32)
         expect(stats.hammingAvg, lessThan(25),
             reason: '$fixture: avg hamming ${stats.hammingAvg.toStringAsFixed(1)} '
@@ -177,9 +170,6 @@ void main() {
             useHashDetection: true,
             stats: stats);
 
-        print('$fixture: colors=${stats.colorHist} '
-            'wb=${stats.wbWhitePoint?.map((v) => v.toStringAsFixed(0)).toList()}');
-
         // All 8 colors should be present (>0 cells each)
         for (var i = 0; i < 8; i++) {
           expect(stats.colorHist[i], greaterThan(0),
@@ -205,18 +195,6 @@ void main() {
 
         final dataBytes = decoder.decodeRSFrame(rawBytes, 384);
 
-        // Check quality gate (first 64 bytes non-zero)
-        var nonZero = 0;
-        final checkLen = min(64, dataBytes.length);
-        for (var i = 0; i < checkLen; i++) {
-          if (dataBytes[i] != 0) nonZero++;
-        }
-
-        print('$fixture: RS=${dataBytes.isNotEmpty ? "ok" : "empty"} '
-            'qgate=${nonZero > 0 ? "PASS($nonZero/64)" : "ZERO"} '
-            'h_avg=${stats.hammingAvg.toStringAsFixed(1)} '
-            'colors=${stats.colorHist}');
-
         // RS should not crash and should return data
         expect(dataBytes.isNotEmpty, isTrue,
             reason: '$fixture: RS decode returned empty');
@@ -240,8 +218,8 @@ void main() {
       // Add padding: embed barcode in a larger dark image (simulating crop)
       final padded = img.Image(width: 500, height: 500);
       img.fill(padded, color: img.ColorRgba8(60, 55, 50, 255));
-      final offsetX = (500 - frameSize) ~/ 2;
-      final offsetY = (500 - frameSize) ~/ 2;
+      const offsetX = (500 - frameSize) ~/ 2;
+      const offsetY = (500 - frameSize) ~/ 2;
       img.compositeImage(padded, barcode, dstX: offsetX, dstY: offsetY);
 
       // Resize to frameSize (like crop path does)
@@ -251,7 +229,7 @@ void main() {
 
       // Decode with WB
       final stats = DecodeStats();
-      final rawBytes = decoder.decodeFramePixels(resized, frameSize,
+      decoder.decodeFramePixels(resized, frameSize,
           enableWhiteBalance: true,
           useRelativeColor: true,
           stats: stats);
