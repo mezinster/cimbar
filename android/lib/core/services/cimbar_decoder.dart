@@ -171,7 +171,7 @@ class CimbarDecoder {
   /// regardless of padding.
   /// Takes per-channel maximum across all 4 corners (like libcimbar — handles
   /// partially occluded finders).
-  static List<double>? _sampleFinderWhite(img.Image frame, int frameSize) {
+  static List<double>? sampleFinderWhite(img.Image frame, int frameSize) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
     final rows = frameSize ~/ cs;
@@ -374,7 +374,7 @@ class CimbarDecoder {
     // When whitePoint is provided externally, use it instead of sampling.
     List<double>? adaptation;
     if (enableWhiteBalance) {
-      final wp = whitePoint ?? _sampleFinderWhite(frame, frameSize);
+      final wp = whitePoint ?? sampleFinderWhite(frame, frameSize);
       if (wp != null) {
         adaptation = computeAdaptationMatrix(wp[0], wp[1], wp[2]);
         stats?.wbWhitePoint = wp;

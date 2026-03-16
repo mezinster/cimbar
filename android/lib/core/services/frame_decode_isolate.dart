@@ -418,6 +418,11 @@ _DecodeOutcome? _tryDecode(
   List<String>? log,
   String logPrefix = 'loc',
 }) {
+  // Track WB white point from warp strategies to share with crop fallback.
+  // Warped images have finders at correct grid positions, so WB sampling works.
+  // Crop images may have padding that shifts finders away from grid corners.
+  List<double>? capturedWb;
+
   if (sourcePhoto != null && locateResult != null) {
     // Strategy A: 4-point warp
     if (locateResult.tlFinderCenter != null &&
@@ -444,6 +449,8 @@ _DecodeOutcome? _tryDecode(
         final sw = Stopwatch()..start();
         final warped = PerspectiveTransform.warpPerspective(
             sourcePhoto, corners, frameSize);
+        // Capture WB from warped image (finders at correct grid positions)
+        capturedWb ??= CimbarDecoder.sampleFinderWhite(warped, frameSize);
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
             label: '$logPrefix/4pt/${frameSize}px',
@@ -483,6 +490,8 @@ _DecodeOutcome? _tryDecode(
         final sw = Stopwatch()..start();
         final warped = PerspectiveTransform.warpPerspective(
             sourcePhoto, corners, frameSize);
+        // Capture WB from warped image if not already captured from 4pt
+        capturedWb ??= CimbarDecoder.sampleFinderWhite(warped, frameSize);
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
             label: '$logPrefix/2pt/${frameSize}px',
@@ -505,7 +514,7 @@ _DecodeOutcome? _tryDecode(
     }
   }
 
-  // Strategy C: crop+resize
+  // Strategy C: crop+resize — pass WB from warp strategies if available
   final needsSharpen = cropped.width < frameSize || cropped.height < frameSize;
   final sw = Stopwatch()..start();
   final result = _tryDecodeResized(
@@ -515,9 +524,11 @@ _DecodeOutcome? _tryDecode(
           interpolation: img.Interpolation.nearest),
       frameSize, tuning, collectStats: collectStats, log: log,
       label: '$logPrefix/crop/${frameSize}px',
-      needsSharpen: needsSharpen);
+      needsSharpen: needsSharpen,
+      whitePoint: capturedWb);
   log?.add('$logPrefix/crop/${frameSize}px: '
-      '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
+      '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms'
+      '${capturedWb != null ? " wb=shared" : ""}');
   if (result != null) {
     return _DecodeOutcome(
       data: result.data,
@@ -549,6 +560,7 @@ _ResizedResult? _tryDecodeResized(
   List<String>? log,
   String label = '',
   bool needsSharpen = false,
+  List<double>? whitePoint,
 }) {
   try {
     // Metadata block shortcut: verify frame size before expensive decode
@@ -574,6 +586,7 @@ _ResizedResult? _tryDecodeResized(
         quadrantOffset: tuning.quadrantOffset,
         useHashDetection: tuning.useHashDetection,
         preprocessedGray: preprocessedGray,
+        whitePoint: whitePoint,
         stats: stats);
     final dataBytes = decoder.decodeRSFrame(rawBytes, frameSize);
 
@@ -604,6 +617,7 @@ _ResizedResult? _tryDecodeResized(
           useHashDetection: tuning.useHashDetection,
           useLabColor: true,
           preprocessedGray: preprocessedGray,
+          whitePoint: whitePoint,
           stats: statsLab);
       final dataBytesLab = decoder.decodeRSFrame(rawBytesLab, frameSize);
 
