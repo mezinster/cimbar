@@ -361,6 +361,7 @@ class CimbarDecoder {
     bool useLabColor = false,
     DecodeStats? stats,
     Uint8List? preprocessedGray,
+    List<double>? whitePoint,
   }) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
@@ -369,14 +370,14 @@ class CimbarDecoder {
     final totalBytes = (totalBits + 7) ~/ 8; // ceil
     final outBytes = Uint8List(totalBytes);
 
-    // Compute white balance adaptation matrix if enabled
+    // Compute white balance adaptation matrix if enabled.
+    // When whitePoint is provided externally, use it instead of sampling.
     List<double>? adaptation;
     if (enableWhiteBalance) {
-      final whitePoint = _sampleFinderWhite(frame, frameSize);
-      if (whitePoint != null) {
-        adaptation = computeAdaptationMatrix(
-            whitePoint[0], whitePoint[1], whitePoint[2]);
-        stats?.wbWhitePoint = whitePoint;
+      final wp = whitePoint ?? _sampleFinderWhite(frame, frameSize);
+      if (wp != null) {
+        adaptation = computeAdaptationMatrix(wp[0], wp[1], wp[2]);
+        stats?.wbWhitePoint = wp;
       }
     }
     stats?.whiteBalanceApplied = adaptation != null;

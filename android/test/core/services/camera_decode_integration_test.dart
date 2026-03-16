@@ -79,6 +79,30 @@ void main() {
     });
   });
 
+  group('White point override', () {
+    test('externally provided whitePoint overrides internal sampling', () {
+      final cropImg = loadFixture('crop_frame_1.png');
+      final resized = img.copyResize(cropImg,
+          width: 384, height: 384,
+          interpolation: img.Interpolation.nearest);
+
+      final stats = DecodeStats();
+      decoder.decodeFramePixels(resized, 384,
+          enableWhiteBalance: true,
+          useRelativeColor: true,
+          useHashDetection: true,
+          whitePoint: [240.0, 245.0, 243.0],
+          stats: stats);
+
+      // Stats should reflect the provided white point, not internal sampling
+      expect(stats.wbWhitePoint, isNotNull);
+      expect(stats.wbWhitePoint![0], closeTo(240.0, 0.1));
+      expect(stats.wbWhitePoint![1], closeTo(245.0, 0.1));
+      expect(stats.wbWhitePoint![2], closeTo(243.0, 0.1));
+      expect(stats.whiteBalanceApplied, isTrue);
+    });
+  });
+
   group('Crop decode with camera images', () {
     test('crop path color distribution should not be dominated by single color', () {
       // Without WB fix, crop path produces ~66% c3 (white).
