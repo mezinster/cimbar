@@ -34,6 +34,11 @@ class DecodeStats {
   int driftNonZeroCount = 0;
   int driftAbsSum = 0;
 
+  // RS block decode stats (populated by decodeRSFrame when stats provided)
+  int rsBlocks = 0;
+  int rsOk = 0;
+  int rsFail = 0;
+
   // White balance
   bool whiteBalanceApplied = false;
   List<double>? wbWhitePoint; // observed (R,G,B) white reference
@@ -578,7 +583,7 @@ class CimbarDecoder {
   /// RS-decode one frame's raw bytes back to data bytes.
   /// Matches web-app/cimbar.js decodeRSFrame exactly.
   /// Uses byte-stride de-interleaving: position j * N + i → byte j of block i.
-  Uint8List decodeRSFrame(Uint8List rawBytes, int frameSize) {
+  Uint8List decodeRSFrame(Uint8List rawBytes, int frameSize, {DecodeStats? stats}) {
     final raw = CimbarConstants.rawBytesPerFrame(frameSize);
 
     // Phase 1: Determine block structure
@@ -613,14 +618,17 @@ class CimbarDecoder {
     final result = <int>[];
     for (var i = 0; i < n; i++) {
       final blockData = blockSizes[i] - CimbarConstants.eccBytes;
+      stats?.rsBlocks++;
       try {
         final decoded = _rs.decode(blocks[i]);
         result.addAll(decoded);
+        stats?.rsOk++;
       } catch (_) {
         // If RS decode fails, push zeros
         for (var k = 0; k < blockData; k++) {
           result.add(0);
         }
+        stats?.rsFail++;
       }
     }
 

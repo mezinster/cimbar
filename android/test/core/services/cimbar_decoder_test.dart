@@ -853,6 +853,31 @@ void main() {
             reason: 'Byte $i mismatch after error correction');
       }
     });
+
+    test('decodeRSFrame populates RS block stats in DecodeStats', () {
+      final decoder = CimbarDecoder();
+      const frameSize = 256;
+
+      final payload = Uint8List.fromList(
+          List.generate(100, (i) => i & 0xFF));
+      final rsEncoded = Uint8List.fromList(
+          CimbarEncoder.encodeRSFrame(payload, frameSize));
+
+      // Corrupt heavily — with interleaving (N=4 blocks for 256px),
+      // need >32*N=128 contiguous corrupted bytes to guarantee at least
+      // one de-interleaved block exceeds 32-error RS capacity.
+      for (var i = 0; i < 200 && i < rsEncoded.length; i++) {
+        rsEncoded[i] ^= 0xFF;
+      }
+
+      final stats = DecodeStats();
+      decoder.decodeRSFrame(rsEncoded, frameSize, stats: stats);
+
+      expect(stats.rsBlocks, greaterThan(0));
+      expect(stats.rsOk + stats.rsFail, equals(stats.rsBlocks));
+      // At least one block should fail with 120 corrupted bytes across 3 blocks
+      expect(stats.rsFail, greaterThanOrEqualTo(1));
+    });
   });
 }
 
