@@ -54,7 +54,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 
 - `galois_field.dart` — GF(256) arithmetic with lookup tables (port of rs.js:13-73)
 - `reed_solomon.dart` — RS(255,191) encode/decode with Berlekamp-Massey + Chien + Forney (port of rs.js:76-235)
-- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching with 5-pixel center-cross averaging (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference) and `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight)
+- `cimbar_decoder.dart` — frame pixel decoding: color detection via weighted distance (GIF path) or Von Kries white-balanced relative color matching with 5-pixel center-cross averaging (camera path), symbol detection via quadrant luma thresholding (GIF path) or average hash matching with drift tracking (camera path, via `SymbolHashDetector`), RS frame splitting. `sampleFinderWhite` (public static) searches 8-cell corner quadrants for brightest cell by luma — handles crop padding where finders are offset from grid corners. `decodeFramePixels` accepts optional `whitePoint` to bypass internal sampling (enables WB sharing between strategies). `DecodeStats` includes `wbWhitePoint` (observed Von Kries reference) and `sampleCells` (raw→WB RGB at 5 evenly-spaced cells for color diagnostic insight)
 - `symbol_hash_detector.dart` — average-hash symbol detection for camera decode: pre-computes 64-bit reference hashes for all 16 symbols, matches camera cells via Hamming distance (tolerates ~20 bits of noise), supports fuzzy 9-position drift-aware matching (center + 8 neighbors at ±1px), drift accumulates across cells (capped ±15px). Supports `useBinaryHashes` mode for adaptive-threshold-preprocessed input, with `detectSymbolFuzzyFromGray()` that reads from a flat `Uint8List` buffer
 - `image_preprocessing.dart` — adaptive threshold + sharpening for camera decode (port of C++ CimbReader pipeline): `rgbToGrayscale` (BT.601), `sharpen3x3` (Laplacian high-pass `[0,-1,0;-1,4.5,-1;0,-1,0]`), `adaptiveThresholdMean` (integral image for O(1) local mean), `preprocessSymbolGrid` (full pipeline). Only used for symbol detection; color detection uses original RGB
 - `crypto_service.dart` — AES-256-GCM + PBKDF2 via PointyCastle, matching exact wire format (port of crypto.js)
@@ -65,7 +65,7 @@ Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white ba
 - `yuv_converter.dart` — converts Android YUV_420_888 camera frames to RGB images using ITU-R BT.601 coefficients; accepts raw plane bytes + strides (not CameraImage) for testability
 - `live_scanner.dart` — multi-frame live scanning engine: content-based deduplication (FNV-1a hash), adjacency-chain frame ordering, frame 0 detection via length prefix, auto-completion. Accepts `DecodeTuningConfig` for runtime-adjustable decode parameters
 - `perspective_transform.dart` — pure-Dart perspective warp: DLT homography, inverse mapping + nearest-neighbor sampling with `.floor()` (not `.round()` — Dart's banker's rounding corrupts cell alignment). Used by `frame_decode_isolate.dart` as "try warp first, fallback to crop+resize"
-- `frame_decode_isolate.dart` — isolate entry point for live scan: runs all heavy computation (YUV→RGB, locate, warp, decode) in `Isolate.run()` to keep UI at 30fps. Returns `IsolateFrameResult` with decoded bytes, bounding box, optional debug captures, two-channel diagnostics, and `isEncrypted` flag from the center metadata block. Uses metadata block shortcut: reads center 3×3 block before expensive RS decode to verify frame size match (skips mismatched candidates). Stateful tracking (adjacency chains, dedup) stays on main isolate via `LiveScanner.processDecodedData()`
+- `frame_decode_isolate.dart` — isolate entry point for live scan: runs all heavy computation (YUV→RGB, locate, warp, decode) in `Isolate.run()` to keep UI at 30fps. Returns `IsolateFrameResult` with decoded bytes, bounding box, optional debug captures, two-channel diagnostics, and `isEncrypted` flag from the center metadata block. Uses metadata block shortcut: reads center 3×3 block before expensive RS decode to verify frame size match (skips mismatched candidates). WB sharing: captures white point from warped images (4pt/2pt strategies) via `CimbarDecoder.sampleFinderWhite` and passes to crop fallback via `whitePoint` parameter — warped images have finders at correct grid positions even when RS decode fails. Stateful tracking (adjacency chains, dedup) stays on main isolate via `LiveScanner.processDecodedData()`
 - `file_service.dart` — centralized file operations: sharing decoded files via `share_plus`
 
 ## State Management (Riverpod)
@@ -194,11 +194,11 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 **`LanguageSwitcherButton` as `ConsumerWidget`:** Needs Riverpod access for `localeProvider`. Uses `showModalBottomSheet` with `RadioListTile` options. Not included in `LiveScanScreen` (no AppBar).
 
-**Camera-specific decode flags:** `decodeFramePixels()` accepts: `enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`, `useLabColor`, `preprocessedGray`. Camera paths set via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`, `useAdaptiveThreshold=false`). `useLabColor` is failover-only (not directly configurable). `preprocessedGray` is computed by `frame_decode_isolate.dart` when `useAdaptiveThreshold=true`. GIF decode uses default/null params (exact pixel colors need no correction).
+**Camera-specific decode flags:** `decodeFramePixels()` accepts: `enableWhiteBalance`, `useRelativeColor`, `symbolThreshold`, `quadrantOffset`, `useHashDetection`, `useLabColor`, `preprocessedGray`, `whitePoint`. Camera paths set via `DecodeTuningConfig` (defaults: `enableWhiteBalance=true`, `useRelativeColor=true`, `symbolThreshold=0.85`, `quadrantOffset=0.28`, `useHashDetection=true`, `useAdaptiveThreshold=false`). `useLabColor` is failover-only (not directly configurable). `preprocessedGray` is computed by `frame_decode_isolate.dart` when `useAdaptiveThreshold=true`. `whitePoint` is set by `frame_decode_isolate.dart` when WB from a warp strategy is shared with the crop fallback. GIF decode uses default/null params (exact pixel colors need no correction).
 
 **Two-pass decode (camera path):** When `useHashDetection=true`, Pass 1 runs hash-based symbol detection with fuzzy drift matching (stores drift/symbol in typed arrays). Pass 2 samples color using a 5-pixel center cross (`_avgCellColor`: center + 4 cardinal neighbors) at grid positions (not drift-corrected — corner dots are at grid-relative positions, so drift-correcting the cross shifts neighbors into dot regions). GIF path uses single center pixel (exact palette colors need no averaging). This absorbs camera noise/artifacts (JPEG compression, subpixel fringing, interpolation halos) while remaining inherently dot-free.
 
-**White balance finder sampling:** Von Kries white reference from outer corner cells of all four 3×3 finder patterns (grid positions 0,0 / cols-1,0 / 0,rows-1 / cols-1,rows-1), per-channel max across 4 samples. NOT the center cell (1,1) which is dark gray.
+**White balance finder sampling:** `sampleFinderWhite` (public static on `CimbarDecoder`) searches 8-cell corner quadrants for the brightest cell by luma, then takes per-channel max across all 4 corners. This handles crop padding where finders are offset from grid corners (the old approach sampled only absolute grid corners like (0,0), which mapped to dark background after crop+resize). On warped images, finders are at expected positions so the quadrant search is a no-op (the brightest cell is still at the corner). NOT the center cell (1,1) which is dark gray.
 
 **Symbol threshold camera vs GIF:** Original `c * 0.5 + 20` works for GIF but fails under camera auto-exposure. Camera defaults to hash-based detection. Fallback uses `symbolThreshold` (default 0.85): multiplicative-only `c * symbolThreshold`.
 
@@ -206,7 +206,7 @@ Debug diagnostics are generated inside the isolate (where all data is available)
 
 **Decode tuning config wiring:** `DecodeTuningConfig` is immutable, persisted in SharedPreferences via `DecodeTuningProvider`. Decoder is stateless — accepts tuning params as optional function arguments (testable without Riverpod).
 
-**Isolate decode strategy chain:** `frame_decode_isolate.dart` tries strategies in order: (1) FrameLocator → for each candidate frame size: 4-point warp → 2-point warp → crop+resize, (2) center-square crop → for each candidate frame size: resize. Each attempt runs RS decode + quality gate + optional LAB failover. The `_DecodeOutcome` class tracks which strategy succeeded and its `DecodeStats`. Per-attempt diagnostics are collected via a `List<String>? log` threaded through all decode functions.
+**Isolate decode strategy chain:** `frame_decode_isolate.dart` tries strategies in order: (1) FrameLocator → for each candidate frame size: 4-point warp → 2-point warp → crop+resize, (2) center-square crop → for each candidate frame size: resize. Each attempt runs RS decode + quality gate + optional LAB failover. WB white point is captured from warped images (4pt/2pt) via `CimbarDecoder.sampleFinderWhite` and passed to crop+resize fallback via `whitePoint` — this prevents the crop path from sampling dark padding as the white reference. The `_DecodeOutcome` class tracks which strategy succeeded and its `DecodeStats`. Per-attempt diagnostics are collected via a `List<String>? log` threaded through all decode functions (crop log lines include `wb=shared` when using inherited WB).
 
 ## Camera Decode Improvements (from libcimbar C++ analysis)
 
@@ -214,7 +214,11 @@ Reference: [sz3/libcimbar](https://github.com/sz3/libcimbar/tree/master/src/lib)
 
 ### Priority 1 — White-balance from finder patterns ✓
 
-Von Kries 3×3 chromatic adaptation matrix from observed white (4×4 pixel regions at outer corner cells of TL and BR finders) to true (255,255,255). Applied per-pixel before color matching. Falls back if observed white luma < 30.
+Von Kries 3×3 chromatic adaptation matrix from observed white to true (255,255,255). Applied per-pixel before color matching. Falls back if observed white luma < 30.
+
+**Finder white sampling:** `sampleFinderWhite` searches 8-cell corner quadrants for the brightest cell (by luma), then takes per-channel max across all 4 corners. This handles crop padding where finders are offset from grid corners (the old approach sampled only absolute corner cells, which mapped to dark background ~(70,60,58) after crop+resize, destroying all color classification).
+
+**WB sharing between strategies:** `frame_decode_isolate.dart` captures WB from warped images (4pt/2pt strategies) and passes it to the crop+resize fallback via `decodeFramePixels(whitePoint: ...)`. Warped images have finders at correct grid positions even when RS decode fails, so the WB sample is always valid.
 
 ### Priority 2 — Perspective transform ✓
 
@@ -295,6 +299,7 @@ Run: `flutter test` from `android/` directory.
 | `yuv_converter_test.dart` | YUV420→RGB: white/black, UV subsampling, stride configs, semi-planar UV. |
 | `perspective_transform_test.dart` | 2-point and 4-point corner derivation (axis-aligned + rotated), identity warp, rotated barcode warp, RS decode round-trips, fallback path. 9 tests. |
 | `live_scanner_test.dart` | Single/multi-frame scanning, duplicate handling, out-of-order adjacency chains, frame 0 detection, dark image, reset. |
+| `camera_decode_integration_test.dart` | WB sampling on padded crop images (3 real camera fixtures), whitePoint override, color distribution balance, hamming distance diagnostics, RS quality gate status, synthetic padded barcode WB ground-truth. Uses PNG fixtures in `test/fixtures/`. |
 
 ### Known Subtleties (Android)
 
