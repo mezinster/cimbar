@@ -165,16 +165,18 @@ class CimbarDecoder {
   /// Sample the observed white point from finder pattern outer cells.
   ///
   /// The finder pattern is 3×3 cells: a white outer ring with a dark center cell.
-  /// We sample the top-left corner cell of each finder (grid 0,0 for TL finder,
-  /// grid cols-3,rows-3 for BR finder) which is guaranteed to be solid white.
-  /// Takes per-channel maximum across both samples (like libcimbar — handles
+  /// Instead of sampling only the absolute grid corners (which may be background
+  /// when the image has padding from the crop path), searches a 6×6 cell region
+  /// from each corner for the brightest cell. This finds the actual finder whites
+  /// regardless of padding.
+  /// Takes per-channel maximum across all 4 corners (like libcimbar — handles
   /// partially occluded finders).
   static List<double>? _sampleFinderWhite(img.Image frame, int frameSize) {
     const cs = CimbarConstants.cellSize;
     final cols = frameSize ~/ cs;
     final rows = frameSize ~/ cs;
 
-    List<double> sampleRegion(int gridCol, int gridRow) {
+    List<double> sampleCell(int gridCol, int gridRow) {
       final centerX = gridCol * cs + cs ~/ 2;
       final centerY = gridRow * cs + cs ~/ 2;
       double rSum = 0, gSum = 0, bSum = 0;
@@ -193,13 +195,31 @@ class CimbarDecoder {
       return [rSum / count, gSum / count, bSum / count];
     }
 
-    // Sample outer corner cells of each finder (known to be solid white)
-    final tlSample = sampleRegion(0, 0);
-    final trSample = sampleRegion(cols - 1, 0);
-    final blSample = sampleRegion(0, rows - 1);
-    final brSample = sampleRegion(cols - 1, rows - 1);
+    // Search a corner quadrant for the brightest cell (by luma).
+    // range=6 covers 1.5-cell padding + 2% margin + 3-cell finder block.
+    List<double> searchCorner(int colStart, int colEnd, int rowStart, int rowEnd) {
+      var bestLuma = 0.0;
+      var bestSample = [0.0, 0.0, 0.0];
+      for (var r = rowStart; r < rowEnd && r < rows; r++) {
+        for (var c = colStart; c < colEnd && c < cols; c++) {
+          final s = sampleCell(c, r);
+          final luma = 0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2];
+          if (luma > bestLuma) {
+            bestLuma = luma;
+            bestSample = s;
+          }
+        }
+      }
+      return bestSample;
+    }
 
-    // Per-channel max across all 4 finders (handles partially occluded finders)
+    const range = 8; // covers up to ~5.5-cell padding from 503px crop of 384px barcode
+    final tlSample = searchCorner(0, range, 0, range);
+    final trSample = searchCorner(cols - range, cols, 0, range);
+    final blSample = searchCorner(0, range, rows - range, rows);
+    final brSample = searchCorner(cols - range, cols, rows - range, rows);
+
+    // Per-channel max across all 4 corners (handles partially occluded finders)
     return [
       max(max(tlSample[0], trSample[0]), max(blSample[0], brSample[0])),
       max(max(tlSample[1], trSample[1]), max(blSample[1], brSample[1])),
