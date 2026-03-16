@@ -179,7 +179,6 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
 
   // Finder/locate diagnostics
   int findersFound = 0;
-  String? finderCoords;
   int locateMs = 0;
   String? locateError;
 
@@ -199,22 +198,6 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
       locateResult.brFinderCenter,
     ];
     findersFound = finders.where((f) => f != null).length;
-    if (collect && findersFound > 0) {
-      final coords = <String>[];
-      if (locateResult.tlFinderCenter != null) {
-        coords.add('TL(${locateResult.tlFinderCenter!.x.toInt()},${locateResult.tlFinderCenter!.y.toInt()})');
-      }
-      if (locateResult.trFinderCenter != null) {
-        coords.add('TR(${locateResult.trFinderCenter!.x.toInt()},${locateResult.trFinderCenter!.y.toInt()})');
-      }
-      if (locateResult.blFinderCenter != null) {
-        coords.add('BL(${locateResult.blFinderCenter!.x.toInt()},${locateResult.blFinderCenter!.y.toInt()})');
-      }
-      if (locateResult.brFinderCenter != null) {
-        coords.add('BR(${locateResult.brFinderCenter!.x.toInt()},${locateResult.brFinderCenter!.y.toInt()})');
-      }
-      finderCoords = coords.join(' ');
-    }
 
     final decodeSw = Stopwatch()..start();
     outcome = _tryDecodeImage(
@@ -295,53 +278,24 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
   String? overlayLine;
   if (collect) {
     final ok = outcome != null;
-    final sb = StringBuffer();
+    final lines = <String>[];
 
-    // Line 1: summary
-    sb.writeln('${ok ? "OK" : "FAIL"} ${image.width}x${image.height} '
-        'total=${totalMs}ms yuv=${yuvMs}ms locate=${locateMs}ms');
+    // Locate line
+    lines.add(_fmtLocate(0, locateResult));
 
-    // Line 2: finders
-    sb.write('  finders=$findersFound');
-    if (finderCoords != null) sb.write(' $finderCoords');
-    if (locateError != null) sb.write(' locate_err=$locateError');
-    sb.writeln();
+    // Per-attempt lines (warp, wb, decode) from log
+    if (log != null) lines.addAll(log);
 
-    // Line 3: rect + crop size
-    if (barcodeRect != null) {
-      sb.writeln('  rect=(${barcodeRect.x},${barcodeRect.y} '
-          '${barcodeRect.width}x${barcodeRect.height})');
-    }
-    if (locateResult != null) {
-      sb.writeln('  crop=${locateResult.cropped.width}x${locateResult.cropped.height}');
-    }
-
+    // Gate line
     if (ok) {
-      // Decode result
-      sb.writeln('  decoded=${outcome.frameSize}px '
-          'warp=${outcome.warpStrategy}'
-          '${outcome.labFallback ? ' LAB-fallback' : ''}');
-
-      // Decode stats
-      if (outcome.stats != null) {
-        _writeStats(sb, outcome.stats!);
-      }
+      lines.add(_fmtGate(0, true, outcome.data.length, outcome.warpStrategy));
+    } else {
+      lines.add(_fmtGate(0, false, 0, 'none'));
     }
 
-    // Per-attempt log (both success and failure)
-    if (log != null && log.isNotEmpty) {
-      for (final line in log) {
-        sb.writeln('  $line');
-      }
-    }
+    debugInfo = lines.join('\n');
 
-    if (!ok && centerCropMs > 0) {
-      sb.write('  center-crop=${centerCropMs}ms');
-    }
-
-    debugInfo = sb.toString();
-
-    // Short overlay line
+    // Short overlay line (unchanged format — for AR display)
     if (ok) {
       overlayLine = 'OK ${outcome.frameSize}px '
           '${outcome.warpStrategy} ${totalMs}ms '
@@ -366,18 +320,60 @@ IsolateFrameResult decodeFrameInIsolate(IsolateFrameInput input) {
   );
 }
 
-void _writeStats(StringBuffer sb, DecodeStats s) {
-  sb.writeln('  cells=${s.cellCount} wb=${s.whiteBalanceApplied} '
-      'sym15=${s.sym15Count}(${s.sym15Pct.toStringAsFixed(0)}%)');
-  if (s.hammingSum > 0) {
-    sb.writeln('  hamming=avg${s.hammingAvg.toStringAsFixed(1)}'
-        '/min${s.hammingMin}/max${s.hammingMax} '
-        'drift=(${s.driftXFinal},${s.driftYFinal}) '
-        'driftCells=${s.driftNonZeroCount} '
-        'driftAvg=${s.driftAbsAvg.toStringAsFixed(1)}');
+/// Format structured locate diagnostic line.
+String _fmtLocate(int frameNum, LocateResult? loc) {
+  final sb = StringBuffer('frame=$frameNum stage=locate');
+  sb.write(' candidates=${loc?.candidateCount ?? 0}');
+  if (loc?.tlFinderCenter != null) {
+    sb.write(' tl=${loc!.tlFinderCenter!.x.toInt()},${loc.tlFinderCenter!.y.toInt()}');
   }
-  sb.writeln('  color=${s.colorHist}');
-  sb.writeln('  sym=${s.symHist}');
+  if (loc?.trFinderCenter != null) {
+    sb.write(' tr=${loc!.trFinderCenter!.x.toInt()},${loc.trFinderCenter!.y.toInt()}');
+  }
+  if (loc?.blFinderCenter != null) {
+    sb.write(' bl=${loc!.blFinderCenter!.x.toInt()},${loc.blFinderCenter!.y.toInt()}');
+  }
+  if (loc?.brFinderCenter != null) {
+    sb.write(' br=${loc!.brFinderCenter!.x.toInt()},${loc.brFinderCenter!.y.toInt()}');
+  }
+  if (loc?.tlLuma != null) sb.write(' tlLuma=${loc!.tlLuma!.toStringAsFixed(0)}');
+  if (loc?.gapOk != null) sb.write(' gapOk=${loc!.gapOk}');
+  if (loc?.devNorm != null) sb.write(' devNorm=${loc!.devNorm!.toStringAsFixed(3)}');
+  return sb.toString();
+}
+
+String _fmtWarp(int frameNum, String strategy, String srcPts, int dstSize) {
+  return 'frame=$frameNum stage=warp strategy=$strategy srcPts="$srcPts" dstSize=$dstSize';
+}
+
+String _fmtWb(int frameNum, DecodeStats? stats, String src) {
+  final sb = StringBuffer('frame=$frameNum stage=wb');
+  if (stats?.wbWhitePoint != null) {
+    final wp = stats!.wbWhitePoint!;
+    sb.write(' wpR=${wp[0].toStringAsFixed(0)} wpG=${wp[1].toStringAsFixed(0)} wpB=${wp[2].toStringAsFixed(0)}');
+  }
+  sb.write(' src=$src');
+  return sb.toString();
+}
+
+String _fmtDecode(int frameNum, DecodeStats? stats, bool useHashDetection) {
+  final sb = StringBuffer('frame=$frameNum stage=decode');
+  if (stats != null) {
+    sb.write(' cells=${stats.cellCount}');
+    sb.write(' rsBlocks=${stats.rsBlocks} rsOk=${stats.rsOk} rsFail=${stats.rsFail}');
+    if (stats.rsBlocks > 0) {
+      sb.write(' errRate=${(stats.rsFail / stats.rsBlocks).toStringAsFixed(3)}');
+    }
+    if (useHashDetection && stats.hammingSum > 0) {
+      sb.write(' hashMean=${stats.hammingAvg.toStringAsFixed(1)} hashMax=${stats.hammingMax}');
+      sb.write(' driftXFinal=${stats.driftXFinal} driftYFinal=${stats.driftYFinal}');
+    }
+  }
+  return sb.toString();
+}
+
+String _fmtGate(int frameNum, bool pass, int bytes, String method) {
+  return 'frame=$frameNum stage=gate pass=$pass bytes=$bytes method=$method';
 }
 
 /// Try all candidate frame sizes on a cropped image.
@@ -451,12 +447,15 @@ _DecodeOutcome? _tryDecode(
             sourcePhoto, corners, frameSize);
         // Capture WB from warped image (finders at correct grid positions)
         capturedWb ??= CimbarDecoder.sampleFinderWhite(warped, frameSize);
+        log?.add(_fmtWarp(0, '4pt',
+            '${tl.x.toInt()},${tl.y.toInt()} '
+            '${tr.x.toInt()},${tr.y.toInt()} '
+            '${bl.x.toInt()},${bl.y.toInt()} '
+            '${locateResult.brFinderCenter!.x.toInt()},${locateResult.brFinderCenter!.y.toInt()}',
+            frameSize));
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
-            label: '$logPrefix/4pt/${frameSize}px',
             needsSharpen: needsSharpen);
-        log?.add('$logPrefix/4pt/${frameSize}px: '
-            '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
         if (result != null) {
           return _DecodeOutcome(
             data: result.data,
@@ -468,7 +467,7 @@ _DecodeOutcome? _tryDecode(
           );
         }
       } else {
-        log?.add('$logPrefix/4pt/${frameSize}px: corners=null');
+        log?.add(_fmtWarp(0, '4pt', 'corners=null', frameSize));
       }
     }
 
@@ -492,12 +491,13 @@ _DecodeOutcome? _tryDecode(
             sourcePhoto, corners, frameSize);
         // Capture WB from warped image if not already captured from 4pt
         capturedWb ??= CimbarDecoder.sampleFinderWhite(warped, frameSize);
+        log?.add(_fmtWarp(0, '2pt',
+            '${tl.x.toInt()},${tl.y.toInt()} '
+            '${br.x.toInt()},${br.y.toInt()}',
+            frameSize));
         final result = _tryDecodeResized(decoder, warped, frameSize, tuning,
             collectStats: collectStats, log: log,
-            label: '$logPrefix/2pt/${frameSize}px',
             needsSharpen: needsSharpen);
-        log?.add('$logPrefix/2pt/${frameSize}px: '
-            '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms');
         if (result != null) {
           return _DecodeOutcome(
             data: result.data,
@@ -509,7 +509,7 @@ _DecodeOutcome? _tryDecode(
           );
         }
       } else {
-        log?.add('$logPrefix/2pt/${frameSize}px: corners=null');
+        log?.add(_fmtWarp(0, '2pt', 'corners=null', frameSize));
       }
     }
   }
@@ -517,18 +517,15 @@ _DecodeOutcome? _tryDecode(
   // Strategy C: crop+resize — pass WB from warp strategies if available
   final needsSharpen = cropped.width < frameSize || cropped.height < frameSize;
   final sw = Stopwatch()..start();
+  log?.add(_fmtWarp(0, 'crop', 'resize', frameSize));
   final result = _tryDecodeResized(
       decoder,
       img.copyResize(cropped,
           width: frameSize, height: frameSize,
           interpolation: img.Interpolation.nearest),
       frameSize, tuning, collectStats: collectStats, log: log,
-      label: '$logPrefix/crop/${frameSize}px',
       needsSharpen: needsSharpen,
       whitePoint: capturedWb);
-  log?.add('$logPrefix/crop/${frameSize}px: '
-      '${result != null ? "OK" : "FAIL"} ${sw.elapsedMilliseconds}ms'
-      '${capturedWb != null ? " wb=shared" : ""}');
   if (result != null) {
     return _DecodeOutcome(
       data: result.data,
@@ -558,7 +555,6 @@ _ResizedResult? _tryDecodeResized(
   DecodeTuningConfig tuning, {
   bool collectStats = false,
   List<String>? log,
-  String label = '',
   bool needsSharpen = false,
   List<double>? whitePoint,
 }) {
@@ -567,7 +563,6 @@ _ResizedResult? _tryDecodeResized(
     final cols = frameSize ~/ CimbarConstants.cellSize;
     final meta = readMetadataBlock(resized, cols, frameSize);
     if (meta.valid && meta.frameSize != frameSize) {
-      log?.add('  $label metadata: size=${meta.frameSize} != $frameSize, skip');
       return null;
     }
 
@@ -588,12 +583,14 @@ _ResizedResult? _tryDecodeResized(
         preprocessedGray: preprocessedGray,
         whitePoint: whitePoint,
         stats: stats);
-    final dataBytes = decoder.decodeRSFrame(rawBytes, frameSize);
+    final dataBytes = decoder.decodeRSFrame(rawBytes, frameSize, stats: stats);
+
+    // Determine WB source for structured logging
+    final wbSrc = whitePoint != null ? 'warp' : (stats?.whiteBalanceApplied == true ? 'crop' : 'none');
+    log?.add(_fmtWb(0, stats, wbSrc));
+    log?.add(_fmtDecode(0, stats, tuning.useHashDetection));
 
     if (dataBytes.isEmpty) {
-      if (stats != null) {
-        log?.add('  $label RS=empty ${_statsShort(stats)}');
-      }
       return null;
     }
 
@@ -604,9 +601,6 @@ _ResizedResult? _tryDecodeResized(
       if (dataBytes[i] != 0) nonZero++;
     }
     if (nonZero == 0) {
-      if (stats != null) {
-        log?.add('  $label RS=ok qgate=ZERO ${_statsShort(stats)}');
-      }
       // Retry with LAB color space (reuse same preprocessed gray — symbols unchanged)
       final statsLab = collectStats ? DecodeStats() : null;
       final rawBytesLab = decoder.decodeFramePixels(resized, frameSize,
@@ -619,10 +613,12 @@ _ResizedResult? _tryDecodeResized(
           preprocessedGray: preprocessedGray,
           whitePoint: whitePoint,
           stats: statsLab);
-      final dataBytesLab = decoder.decodeRSFrame(rawBytesLab, frameSize);
+      final dataBytesLab = decoder.decodeRSFrame(rawBytesLab, frameSize, stats: statsLab);
+
+      log?.add(_fmtWb(0, statsLab, '${wbSrc}+LAB'));
+      log?.add(_fmtDecode(0, statsLab, tuning.useHashDetection));
 
       if (dataBytesLab.isEmpty) {
-        log?.add('  $label LAB RS=empty');
         return null;
       }
 
@@ -632,53 +628,19 @@ _ResizedResult? _tryDecodeResized(
         if (dataBytesLab[i] != 0) nonZeroLab++;
       }
       if (nonZeroLab == 0) {
-        log?.add('  $label LAB qgate=ZERO');
         return null;
       }
 
-      log?.add('  $label LAB OK nz=$nonZeroLab/64');
       return _ResizedResult(dataBytesLab,
           stats: statsLab, labFallback: true,
           isEncrypted: meta.valid ? meta.isEncrypted : null);
     }
 
-    if (stats != null) {
-      log?.add('  $label RS=ok nz=$nonZero/64 ${_statsShort(stats)}');
-    }
     return _ResizedResult(dataBytes, stats: stats,
         isEncrypted: meta.valid ? meta.isEncrypted : null);
   } catch (e) {
-    log?.add('  $label exception: $e');
     return null;
   }
-}
-
-/// Short stats summary for per-attempt log lines.
-String _statsShort(DecodeStats s) {
-  final buf = StringBuffer('c=${s.cellCount}');
-  buf.write(' s15=${s.sym15Pct.toStringAsFixed(0)}%');
-  if (s.hammingSum > 0) {
-    buf.write(' h=${s.hammingAvg.toStringAsFixed(1)} ');
-    buf.write('h[<10/${s.hammingLt10} <15/${s.hammingLt15}'
-        ' <20/${s.hammingLt20} 20+/${s.hammingGe20}]');
-    buf.write(' d=(${s.driftXFinal},${s.driftYFinal})');
-  }
-  buf.write(' wb=${s.whiteBalanceApplied}');
-  // Color histogram: how many cells per color index (0=Cyan..7=Indigo)
-  buf.write('\ncolor=${s.colorHist}');
-  // White balance observed white point
-  if (s.wbWhitePoint != null) {
-    final wp = s.wbWhitePoint!;
-    buf.write(' wbRef=(${wp[0].toStringAsFixed(0)},${wp[1].toStringAsFixed(0)},${wp[2].toStringAsFixed(0)})');
-  }
-  // Sample cells: raw→wb RGB + detected color
-  if (s.sampleCells.isNotEmpty) {
-    buf.write('\nsamples=');
-    for (final sc in s.sampleCells) {
-      buf.write('(${sc[0]},${sc[1]},${sc[2]})->(${sc[3]},${sc[4]},${sc[5]})=c${sc[6]} ');
-    }
-  }
-  return buf.toString();
 }
 
 /// Get the final decoded image (warped or resized) for capture purposes.
