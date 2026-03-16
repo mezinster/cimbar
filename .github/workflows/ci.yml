@@ -5,6 +5,13 @@ on:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      build_apk:
+        description: 'Build debug APK'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   analyze-and-test:
@@ -38,6 +45,7 @@ jobs:
   build-android:
     name: Build Debug APK
     needs: analyze-and-test
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
