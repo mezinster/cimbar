@@ -48,13 +48,13 @@ test('checkPair rejects close, shifted-close and rotated tiles', () => {
   assert(!R.checkPair(a, b), 'hamming 1 rejected');
   const c = R.rot90(a);                                // rotation of a
   assert(!R.checkPair(a, c), 'rotation rejected');
-  const d = R.hexToTile('00000000ffffffff');          // bottom half: hamming 64 but shift-by-1 differs by 48 -> ok
+  const d = R.hexToTile('ffff00000000ffff');          // rows 0,1,6,7 lit: hamming 32, shifts >= 24 apart, not a rotation/mirror
   assert(R.checkPair(a, d), 'far pair accepted');
 });
 
 test('checkSet returns [] for a valid pair and names violations', () => {
   const a = R.hexToTile('ffffffff00000000');
-  const d = R.hexToTile('00000000ffffffff');
+  const d = R.hexToTile('ffff00000000ffff');
   assertEq(R.checkSet([a, d]).length, 0);
   const errs = R.checkSet([a, R.hexToTile('ffffffff00000001')]);
   assert(errs.length === 1 && /tiles 0,1/.test(errs[0]), 'violation named');

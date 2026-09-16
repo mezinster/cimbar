@@ -55,7 +55,7 @@ function mirror(t) {
 
 function variants(t) {
   const r1 = rot90(t), r2 = rot90(r1), r3 = rot90(r2);
-  return [r1, r3, mirror(t), mirror(r1), mirror(r3)];
+  return [r1, r2, r3, mirror(t), mirror(r1), mirror(r2), mirror(r3)];
 }
 
 function checkTile(t) {
