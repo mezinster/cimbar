@@ -19,7 +19,7 @@ No npm, no compilation, no install step.
 This repo has two components:
 
 - **`web-app/`** — A single-page browser app that encodes any file into an animated GIF where each frame is a grid of colored geometric symbols (Color Icon Matrix Barcode), and decodes it back. Everything runs client-side; there is no server.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import or live camera scanning. Ports the full decode pipeline to Dart. See `android/CLAUDE.md` for Android-specific details.
+- **`android/`** — Android is still on v1 until Plan 2 lands; GIFs produced by the current web app will not decode on Android yet. A Flutter Android app that decodes CimBar GIFs via file import or live camera scanning. Ports the full decode pipeline to Dart. See `android/CLAUDE.md` for Android-specific details.
 
 ### Web App
 
@@ -39,53 +39,31 @@ Encryption is optional. On encode, if a passphrase is provided, the payload is e
 
 **Module responsibilities (all in `web-app/`):**
 
-- `index.html` — all UI (tabs, drag-drop, progress, stats) and the orchestrating inline `<script>` that drives the full encode/decode flow
-- `cimbar.js` — core barcode logic: maps bytes→cells (3-bit color + 4-bit symbol = 7 bits/cell), draws finder patterns, reads pixel data back to bytes. Exposes `window.Cimbar`
+- `index.html` — all UI (tabs, drag-drop, progress, stats, present mode) and the orchestrating inline `<script>` that drives the full encode/decode flow
+- `format.js` — CimBar v2 format constants and pure helpers shared by encoder, decoder and tests: loads `spec/cimbar-v2.json` in Node or `format-data.js` in the browser. Exposes cell geometry (`usableCellPositions`, `cellOrigin`), header codec (`encodeHeader`/`decodeHeader`), bit packing (`packCells`/`unpackCells`, `cellValue`/`cellSymbol`/`cellColor`), and frame byte-budget helpers (`rawBytesPerFrame`, `rsBlockSizes`, `dataBytesPerFrame`, `fileBytesPerFrame`). Exposes `window.CimbarFormat`
+- `format-data.js` — **generated**; a browser-loadable mirror of `spec/cimbar-v2.json` (the browser cannot `require()` JSON). Sets `window.CIMBAR_SPEC`. Regenerate with `node tools/gen_format_data.js` whenever the spec changes
+- `cimbar.js` — core v2 barcode logic built on `format.js`: `renderFrame`/`decodeFrameExact` (draw/read frame pixels), `encodeRSFrame`/`decodeRSFrame` (RS encode/decode with byte-stride interleaving), `splitIntoFrames`/`FrameAssembler` (chunk a payload into headered frames and reassemble them out of order), `buildPayload`/`parsePayload`/`withLengthPrefix`/`stripLengthPrefix` (file container). Exposes `window.Cimbar`
 - `crypto.js` — AES-256-GCM via Web Crypto API; wire format is `[CB 42 01 00 magic | 16-byte salt | 12-byte IV | ciphertext+tag]`. PBKDF2 with 150,000 SHA-256 iterations for key derivation. Exposes `window.CimbarCrypto`
 - `rs.js` — Reed-Solomon RS(255, 191) over GF(256): 64 ECC bytes per 255-byte block, tolerates up to 32 byte errors. Berlekamp-Massey + Chien search + Forney. Exposes `class ReedSolomon`
-- `gif-encoder.js` — pure-JS GIF89a encoder; builds a 256-color CimBar palette, quantizes frames, LZW-compresses. Exposes `class GifEncoder`
+- `gif-encoder.js` — pure-JS GIF89a encoder; builds a 256-color palette seeded with the v2 spec palette, quantizes frames, LZW-compresses. Exposes `class GifEncoder`
 - `gif-decoder.js` — pure-JS GIF89a parser; handles LZW decode, interlacing, disposal modes. Returns `Array<{imageData, width, height, delay}>`. Exposes `class GifDecoder`
+- `tools/tile_rules.js` — tile representation and the §3.4 constraints (fill ratio, pairwise Hamming distance, shifted-tile Hamming distance, rotation/mirror uniqueness) shared by the generator and `test_tiles.js`
+- `tools/gen_tiles.js` — seeded random search that produces the 16-tile set committed to `spec/cimbar-v2.json`. Usage: `node tools/gen_tiles.js [startSeed]`
+- `tools/gen_format_data.js` — writes `format-data.js` from `spec/cimbar-v2.json`. Usage: `node tools/gen_format_data.js`
+- `tools/gen_goldens.js` — renders reference GIFs with the production encoder into `test-data/goldens/<name>.gif` plus a `<name>.json` ground-truth sidecar (payload, per-frame header, raw bytes, per-cell symbol/color). Usage: `node tools/gen_goldens.js`
+- `tools/node_crypto.js` — Node implementation of the `crypto.js` wire format (Node has no Web Crypto) used only so `gen_goldens.js` can produce encrypted goldens without a browser
 
-## Cell Encoding
+## Format v2
 
-Each cell is `CELL_SIZE=8` pixels. A `floor(frameSize/8) × floor(frameSize/8)` grid minus 36 finder-pattern cells (four 3×3 corner blocks) minus 9 metadata-block cells (one 3×3 center block) gives usable cells. Each cell encodes 7 bits (3 = color index into 8 colors; 4 = symbol index into 16 shapes). Supported frame sizes: 128, 192, 256, 384 px.
+The wire format is fully specified in `spec/cimbar-v2.json` (the single source of truth, loaded by `web-app/format.js`); the design rationale is in `docs/superpowers/specs/2026-09-17-cimbar-v2-format-design.md`.
 
-**Symbol design (4-quadrant corner dots):** The 16 symbols are all possible combinations of 4 binary corner markers. For an 8×8 cell, `q = floor(8 × 0.28) = 2 px` and `h = floor(q × 0.75) = 1 px`. The cell is filled with the foreground color; then for each 0-bit in `symIdx`, a `2h × 2h` (2×2) black square is painted at the corresponding corner sample point:
+- **Grid:** 64×64 cells. Each cell is 8×8 px with a 1 px black gap after it (9 px pitch), giving a 576 px grid plus a 16 px quiet border = 608 px frame.
+- **Finders:** four QR-style 7×7-cell finder patterns at the grid corners (1:1:3:1:1 ratio), each reserving an 8×8-cell corner block. `usableCells = 4096 − 256 = 3840`.
+- **Bits per cell:** 4 colors (green/cyan/yellow/magenta) × 16 tile shapes (8×8 binary tiles from `spec/cimbar-v2.json`, generated by `tools/gen_tiles.js`) = 6 bits/cell (4 symbol bits + 2 color bits).
+- **Per-frame byte budget:** `3840 × 6 bits = 2880` raw bytes → RS(255,191) framing gives `2112` data bytes → minus the 8-byte frame header = `2104` file bytes per frame.
+- **Frame header** (first 8 bytes of a frame's protected data): `[ver 0x02][flags][fileId u16][seq u16][total u16]`, big-endian, `flags` bit 0 = encrypted.
 
-```
-bit 3 → TL corner at (q-h, q-h)
-bit 2 → TR corner at (size-q-h, q-h)
-bit 1 → BL corner at (q-h, size-q-h)
-bit 0 → BR corner at (size-q-h, size-q-h)
-```
-
-`detectSymbol` samples luma at those same four points plus the center. For the GIF path (no `symbolThreshold`), a point brighter than `center × 0.5 + 20` reads as 1. For the camera path, a configurable multiplicative threshold `center × symbolThreshold` is used instead (default 0.85). The `quadrantOffset` parameter (default 0.28) controls the corner sample position as a fraction of cell size. The center pixel is never covered by a dot, so it always reflects the foreground color and is used for color detection by `nearestColorIdx`.
-
-The visible result is colored squares with 0–4 small black dots at the corners. `symIdx=15` (all bits 1) has no dots. `symIdx=0` (all bits 0) has all four corners dotted.
-
-## Center Metadata Block
-
-A 3×3 B/W metadata block at the center of each frame encodes frame size and encryption state. Cell iteration skips these 9 cells (same as finder skip pattern). The block uses checkerboard corners (TL=Black, TR=White, BL=White, BR=Black) for detection, plus 5 data bit cells:
-
-| Bit | Cell position | Meaning |
-|-----|---------------|---------|
-| d0 | top-center | Frame size bit 1 (MSB) |
-| d1 | mid-left | Frame size bit 0 (LSB) |
-| d2 | center | Encryption flag (1=encrypted) |
-| d3 | mid-right | Reserved (0) |
-| d4 | bottom-center | Reserved (0) |
-
-Frame size encoding: `00`=128, `01`=192, `10`=256, `11`=384. Center block top-left is at grid position `(cols/2 - 1, cols/2 - 1)`.
-
-Reading: sample center pixel luma of each cell. Verify checkerboard (TL<128, TR>128, BL>128, BR<128). Data bits: luma > 128 → 1.
-
-**Breaking change:** Old GIFs without the metadata block will not decode with the new encoder/decoder (different usableCells count).
-
-## RS Block Interleaving
-
-Both encoder (`web-app/cimbar.js encodeRSFrame`) and decoder (`cimbar_decoder.dart decodeRSFrame`, `web-app/cimbar.js decodeRSFrame`) use byte-stride interleaving. After RS-encoding N blocks, byte `j` of block `i` is written to output position `j * N + i`. On decode, the inverse permutation reconstructs each block before RS decoding. Both JS and Dart must use identical block-size computation (same `while` loop). Interleaving is a no-op when N=1.
-
-**Breaking change:** Old GIFs encoded without interleaving will not decode with the new decoder.
+**Breaking change:** v1 GIFs (7 bits/cell, 8 colors, corner-dot symbols, center metadata block, no per-frame header) do not decode with v2 software, and v2 GIFs do not decode with v1 software.
 
 ## Interoperability
 
@@ -93,39 +71,39 @@ A GIF encoded with the web app can be decoded by the Android app (via file impor
 
 The web app is available at https://nfcarchiver.com/cimbar/
 
-## Key Constants (web-app/cimbar.js and android/lib/core/constants/cimbar_constants.dart)
-
-- `CELL_SIZE = 8` (pixels per cell)
-- `ECC_BYTES = 64` (RS parity bytes per 255-byte block; RS(255,191) corrects up to 32 errors/block = 12.5%)
-- 8-color palette embedded in `web-app/cimbar.js`, `web-app/gif-encoder.js`, and `android/lib/core/constants/cimbar_constants.dart` — must stay in sync across all three
-
 ## Web App Tests
 
 All tests live in `web-app/tests/`. Run from the `web-app/` directory (no install needed beyond Node.js):
 
 ```bash
 cd web-app
-sh tests/run_all.sh          # run all tests (symbols + RS + pipeline)
-node tests/test_symbols.js   # single test
+sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline)
+node tests/test_tiles.js     # single test
+node tests/test_format.js
+node tests/test_frame.js
 node tests/test_rs.js
+node tests/test_goldens.js
 node tests/test_pipeline_node.js
-python tests/test_pipeline.py                        # Python orchestrator
-python tests/test_pipeline.py output.gif 256         # also runs GIF structure check
-python tests/test_gif.py path/to/output.gif [size]   # standalone GIF check (needs Pillow)
+python3 tests/test_pipeline.py                              # Python orchestrator (runs all Node tests)
+python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # also runs GIF structure check
+python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF check (needs Pillow)
 ```
 
 | File | What it tests |
 |------|--------------|
-| `tests/test_symbols.js` | `drawSymbol` / `detectSymbol` round-trip for all 128 `(colorIdx 0–7, symIdx 0–15)` combinations via `MockCanvas`. |
+| `tests/test_tiles.js` | `tools/tile_rules.js` and `tools/gen_tiles.js`: hex↔tile round trip, Hamming/shift/rotation/mirror helpers, `checkTile`/`checkPair`/`checkSet`, deterministic seeded generation, uniform 2×2-block tile structure. |
+| `tests/test_format.js` | `format.js` and `spec/cimbar-v2.json`: grid/finder constant self-consistency, palette, tile set validity, capacity derivation (2880/2112/2104), `format-data.js` freshness, reserved-cell geometry, header encode/decode, `packCells`/`unpackCells` round trip, `cellValue`/`cellSymbol`/`cellColor`. |
+| `tests/test_frame.js` | `cimbar.js` v2 API: `renderFrame` finder/cell painting, `decodeFrameExact` round trip, `encodeRSFrame`/`decodeRSFrame` (including failed-block zero-fill), `splitIntoFrames` header/padding, `FrameAssembler` accept/dedup/reject/complete, payload helpers, and a full GIF round trip via `MockCanvas`. |
 | `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, ≤32 error correction, >32 error detection, Forney/Omega correctness. |
-| `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: non-dpf-aligned, dpf-aligned, single-frame. |
-| `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, dimensions, color table, frame count, palette slots 0–7. Requires Pillow. |
-| `tests/test_pipeline.py` | Python subprocess orchestrator: runs `test_symbols.js`, `test_rs.js`, and optionally `test_gif.py`. |
+| `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). Android's Plan 2/3 test suites are planned to consume the same goldens. |
+| `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
+| `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
+| `tests/test_pipeline.py` | Python subprocess orchestrator: runs the six Node scripts above and, if a GIF path is given, `test_gif.py`. |
 | `tests/mock_canvas.js` | Node.js mock of Canvas 2D API. `getImageData` returns a copy of the pixel buffer (matching browser behavior). |
 
 ### Known Subtleties (Web)
 
-- `decodeFramePixels` returns `ceil(usableCells × 7 / 8)` bytes, but `rawBytesPerFrame` is `floor(...)`. `decodeRSFrame` uses `rawBytesPerFrame(frameSize)` as the byte limit so block boundaries match the encoder.
+- `decodeFrameExact` unpacks exactly `usableCells × 6 / 8 = 2880` bytes (an exact division, no rounding); `decodeRSFrame` uses `format.js`'s `rawBytesPerFrame()` as the byte limit so block boundaries match the encoder.
 - `MockCanvas.getImageData` must return a copy (`_pixels.slice()`), not a reference — the real DOM API always copies, and GifEncoder stores the returned object by reference.
 - The 4-byte big-endian length prefix in frame data is the only mechanism that strips RS zero-padding before AES-GCM decryption.
 

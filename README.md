@@ -9,22 +9,9 @@ This repo contains:
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
 - **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
 
-Each cell in the grid carries 7 bits of data: 3 bits select one of 8 colors, and 4 bits select one of 16 symbol patterns. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
+Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, magenta), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
-### What the symbols look like
-
-The 16 symbol patterns are all combinations of 4 binary corner markers. Each 8×8 cell is filled with its foreground color; then for each 0-bit in the symbol index, a small 2×2 black dot is placed at the corresponding corner:
-
-```
-bit 3 → top-left      bit 2 → top-right
-bit 1 → bottom-left   bit 0 → bottom-right
-```
-
-So `symIdx=15` (all bits 1) is a plain solid square — no dots. `symIdx=0` (all bits 0) has a dot at every corner. All other 14 patterns have 1–3 dots in various corner combinations.
-
-The center pixel is always the foreground color (never dotted), which is how color detection works — the decoder samples the center to identify which of the 8 colors the cell is, then samples the 4 corners to read the symbol bits.
-
-This approach was chosen over more decorative shapes (circles, triangles, etc.) because it guarantees a perfect round-trip: the decoder samples exactly the pixels the encoder painted, with no ambiguity.
+This is the CimBar v2 format — it replaces the original 7-bit/8-color/corner-dot format completely. **Files encoded before this change must be re-encoded**; old GIFs will not decode with the current app, and GIFs made with the current app will not decode with an older version.
 
 ---
 
