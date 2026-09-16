@@ -38,3 +38,4 @@ android/android/app/src/main/java/io/
 
 # Generated files
 *.gif
+!test-data/goldens/*.gif
