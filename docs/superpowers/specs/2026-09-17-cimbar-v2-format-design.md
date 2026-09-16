@@ -201,8 +201,10 @@ truncated by the u32 length prefix, is `framedPayload`. Progress shown to the us
   the shorter viewport side. If that integer scale leaves more than 40 % of the shorter
   side unused, fractional fit-to-viewport scaling is used instead, because a larger
   barcode with slightly uneven pixel widths beats a small one with exact pixels for the
-  camera. Examples: 1080p monitor → 1× would use 56 %, so fractional 1.77× (1076 px);
-  1440p monitor → 2× (1216 px); 1080-wide phone → 1.77× on the width.
+  camera. If the shorter side is below 608 px (a phone in portrait), the scale is the
+  fractional fit below 1× so the whole frame stays on screen. Examples: 1080p monitor →
+  1× would use 56 %, so fractional 1.77× (1076 px); 1440p monitor → 2× (1216 px);
+  1080-wide phone → 1.77× on the width; 390 px CSS-wide phone → 0.64×.
 - The preview thumbnail no longer caps height at 280 px; it shows the GIF at 1× or
   scaled down with `pixelated` only where the viewport is narrower than 608 px.
 - Frame-size selection is removed from the UI.
