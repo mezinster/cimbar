@@ -138,5 +138,38 @@ test('payload helpers round trip', () => {
   assert(threw, 'invalid length throws');
 });
 
+test('GIF round trip keeps v2 pixels exact', () => {
+  global.ImageData = global.ImageData || class ImageData {
+    constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); }
+  };
+  global.Blob = global.Blob || class Blob {
+    constructor(parts) {
+      const flat = parts.map(p => p instanceof Uint8Array ? p : new Uint8Array(p));
+      let total = 0; flat.forEach(a => total += a.length);
+      this._data = new Uint8Array(total);
+      let off = 0; flat.forEach(a => { this._data.set(a, off); off += a.length; });
+    }
+    get size() { return this._data.length; }
+  };
+  const { GifEncoder } = require('../gif-encoder.js');
+  const { GifDecoder } = require('../gif-decoder.js');
+  const raw = seqBytes(2880, 17, 3);
+  const cv = new MockCanvas(FRAME, FRAME);
+  C.renderFrame(cv.getContext('2d'), raw);
+  const enc = new GifEncoder(FRAME, FRAME, 20);
+  enc.addFrame(cv);
+  const gif = enc.finish()._data;
+  assertEq(gif[10] & 0x07, 7, 'global color table 256 entries');
+  const pal = gif.subarray(13, 13 + 768);
+  for (let c = 0; c < 4; c++) assertEq([pal[c * 3], pal[c * 3 + 1], pal[c * 3 + 2]].join(','), F.SPEC.palette[c].join(','), `palette slot ${c}`);
+  assertEq([pal[12], pal[13], pal[14]].join(','), '0,0,0', 'slot 4 black');
+  assertEq([pal[15], pal[16], pal[17]].join(','), '255,255,255', 'slot 5 white');
+  const frames = new GifDecoder(gif).decode();
+  assertEq(frames.length, 1);
+  const r = C.decodeFrameExact(frames[0].imageData);
+  assertBytes(r.raw, raw, 'after GIF');
+  assertEq(r.diag.hammingMax, 0);
+});
+
 console.log(`Results: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
