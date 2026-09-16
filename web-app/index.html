@@ -414,9 +414,16 @@ input:focus, select:focus {
 .preview-frame img {
   display: block;
   image-rendering: pixelated;
-  max-width: 100%;
-  max-height: 280px;
+  width: min(100%, 608px);
+  height: auto;
 }
+
+#present {
+  position: fixed; inset: 0; background: #000; z-index: 1000;
+  display: none; align-items: center; justify-content: center; cursor: pointer;
+}
+#present.open { display: flex; }
+#present img { image-rendering: pixelated; display: block; }
 
 /* Callout */
 .callout {
@@ -566,20 +573,11 @@ footer {
 
       <div class="two-col">
         <div class="field">
-          <label>Frame size</label>
-          <select id="frameSize">
-            <option value="128">128 × 128 px — fast</option>
-            <option value="192">192 × 192 px</option>
-            <option value="256" selected>256 × 256 px — balanced</option>
-            <option value="384">384 × 384 px — dense</option>
-          </select>
-        </div>
-        <div class="field">
           <label>Frame delay</label>
           <select id="frameDelay">
-            <option value="8">80 ms (fast)</option>
-            <option value="10" selected>100 ms</option>
-            <option value="20">200 ms (slow)</option>
+            <option value="10">100 ms (fast)</option>
+            <option value="20" selected>200 ms</option>
+            <option value="40">400 ms (slow)</option>
           </select>
         </div>
       </div>
@@ -605,12 +603,13 @@ footer {
         <div class="stats" id="statsEnc">
           <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl">Frames</div></div>
           <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl">Encoded bytes</div></div>
-          <div class="stat"><div class="stat-val" id="sCells">—</div><div class="stat-lbl">Cells/frame</div></div>
+          <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl">Bytes / frame</div></div>
         </div>
         <div class="preview-frame" style="margin-top:16px;">
           <img id="gifOut" alt="Encoded GIF">
         </div>
         <button class="btn btn-primary" onclick="downloadGif()">Download GIF</button>
+        <button class="btn" onclick="openPresent()">Present full screen</button>
       </div>
 
     </div>
@@ -737,7 +736,11 @@ footer {
 <!-- Hidden canvas for rendering frames -->
 <canvas id="workCanvas" class="hidden"></canvas>
 
+<div id="present" onclick="closePresent()" title="Click or press Esc to exit"><img id="presentImg" alt="CimBar"></div>
+
 <script src="rs.js"></script>
+<script src="format-data.js"></script>
+<script src="format.js"></script>
 <script src="cimbar.js"></script>
 <script src="crypto.js"></script>
 <script src="gif-encoder.js"></script>
@@ -822,7 +825,6 @@ async function startEncode() {
   const pass = document.getElementById('passEnc').value.trim();
   const isEncrypted = pass.length > 0;
 
-  const frameSize  = parseInt(document.getElementById('frameSize').value);
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
 
   const btn = document.getElementById('encBtn');
@@ -835,75 +837,48 @@ async function startEncode() {
   outputBlob = null;
 
   try {
-    // 1. Read file
+    // 1. Read file and build payload
     log('Reading file…', 'info', 'logEnc');
     setProgress(5, 'Reading file', 'progEncFill', 'progEncPct', 'progEncLabel');
     const raw = new Uint8Array(await encFile.arrayBuffer());
-
-    // Build header: [4-byte nameLen][nameBytes][fileBytes]
-    const nameBytes = new TextEncoder().encode(encFile.name);
-    const header = new Uint8Array(4 + nameBytes.length);
-    new DataView(header.buffer).setUint32(0, nameBytes.length, false);
-    header.set(nameBytes, 4);
-    const payload = concat(header, raw);
+    const payload = Cimbar.buildPayload(encFile.name, raw);
     log(`File: ${encFile.name} (${fmtBytes(raw.length)})`, 'ok', 'logEnc');
 
-    // 2. Encrypt (if passphrase provided) or use raw payload
+    // 2. Encrypt (optional)
     let framedPayload;
     if (isEncrypted) {
       log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
       setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
-      const encrypted = await CimbarCrypto.encryptBytes(payload, pass);
-      framedPayload = encrypted;
-      log(`Encrypted: ${fmtBytes(encrypted.length)}`, 'ok', 'logEnc');
+      framedPayload = await CimbarCrypto.encryptBytes(payload, pass);
+      log(`Encrypted: ${fmtBytes(framedPayload.length)}`, 'ok', 'logEnc');
     } else {
-      log('Encoding (no encryption)…', 'info', 'logEnc');
       setProgress(15, 'Encoding', 'progEncFill', 'progEncPct', 'progEncLabel');
       framedPayload = payload;
-      log(`Payload: ${fmtBytes(payload.length)}`, 'ok', 'logEnc');
+      log(`Payload: ${fmtBytes(payload.length)} (no encryption)`, 'ok', 'logEnc');
     }
+    const framedData = Cimbar.withLengthPrefix(framedPayload);
 
-    // Prepend 4-byte big-endian length so decoder can strip RS zero-padding
-    const lengthPrefix = new Uint8Array(4);
-    new DataView(lengthPrefix.buffer).setUint32(0, framedPayload.length, false);
-    const framedData = concat(lengthPrefix, framedPayload);
-
-    // 3. Calculate frame layout
-    const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
-    const dpf = Cimbar.dataBytesPerFrame(frameSize);
-    const rpf = Cimbar.rawBytesPerFrame(frameSize);
-    const numFrames = Math.ceil(framedData.length / dpf);
-    log(`Frame ${frameSize}×${frameSize}: ${dpf} data bytes/frame, ${numFrames} frame(s)`, 'info', 'logEnc');
-
-    // Update stats
-    document.getElementById('sFrames').textContent = numFrames;
-    document.getElementById('sBytes').textContent  = fmtBytes(framedPayload.length);
-    document.getElementById('sCells').textContent  = Cimbar.usableCells(frameSize);
+    // 3. Split into frames with headers
+    const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
+    const frames = Cimbar.splitIntoFrames(framedData, fileId, isEncrypted);
+    const perFrame = CimbarFormat.fileBytesPerFrame();
+    log(`${frames.length} frame(s), ${perFrame} file bytes per frame, file id ${fileId.toString(16)}`, 'info', 'logEnc');
+    document.getElementById('sFrames').textContent = frames.length;
+    document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
+    document.getElementById('sPerFrame').textContent = perFrame;
 
     // 4. Render frames
+    const size = CimbarFormat.SPEC.grid.framePx;
     const canvas = document.getElementById('workCanvas');
-    canvas.width  = frameSize;
-    canvas.height = frameSize;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext('2d');
-
-    const gif = new GifEncoder(frameSize, frameSize, frameDelay);
-
-    for (let f = 0; f < numFrames; f++) {
-      const pct = 25 + (f / numFrames) * 65;
-      setProgress(pct, `Encoding frame ${f+1} / ${numFrames}`, 'progEncFill', 'progEncPct', 'progEncLabel');
-
-      const start = f * dpf;
-      const chunk = framedData.slice(start, start + dpf);
-
-      // RS-encode this chunk to fill one frame's raw byte capacity
-      const rsFrame = Cimbar.encodeRSFrame(chunk, frameSize, rs);
-
-      // Draw frame (pass encryption state for metadata block)
-      Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf, isEncrypted);
-
+    const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
+    const gif = new GifEncoder(size, size, frameDelay);
+    for (let f = 0; f < frames.length; f++) {
+      setProgress(25 + (f / frames.length) * 65, `Encoding frame ${f + 1} / ${frames.length}`, 'progEncFill', 'progEncPct', 'progEncLabel');
+      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(frames[f], rs));
       gif.addFrame(canvas);
-
-      // Yield to keep UI responsive
       if (f % 4 === 0) await sleep(0);
     }
 
@@ -936,6 +911,42 @@ function downloadGif() {
   a.click();
 }
 
+// ── Present mode (spec §5): integer scale unless that wastes >40% of the screen ──
+function presentScale(viewportW, viewportH, framePx) {
+  const shorter = Math.min(viewportW, viewportH);
+  const integer = Math.max(1, Math.floor(shorter / framePx));
+  const used = integer * framePx / shorter;
+  if (used >= 0.6) return integer;
+  return shorter / framePx; // fractional fill
+}
+
+function layoutPresent() {
+  const img = document.getElementById('presentImg');
+  if (!img.src) return;
+  const framePx = CimbarFormat.SPEC.grid.framePx;
+  const s = presentScale(window.innerWidth, window.innerHeight, framePx);
+  img.style.width = (framePx * s) + 'px';
+  img.style.height = (framePx * s) + 'px';
+}
+
+function openPresent() {
+  if (!outputBlob) return;
+  const img = document.getElementById('presentImg');
+  img.src = document.getElementById('gifOut').src;
+  document.getElementById('present').classList.add('open');
+  layoutPresent();
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+}
+
+function closePresent() {
+  document.getElementById('present').classList.remove('open');
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+
+window.addEventListener('resize', layoutPresent);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePresent(); });
+
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
   if (!decFile) { alert('Please select a GIF file.'); return; }
@@ -962,32 +973,23 @@ async function startDecode() {
     if (!frames.length) throw new Error('No frames found in GIF');
     log(`Found ${frames.length} frame(s), size ${frames[0].width}×${frames[0].height}`, 'ok', 'logDec');
 
-    const frameSize = frames[0].width;
-    const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
-    const rpf = Cimbar.rawBytesPerFrame(frameSize);
-    const dpf = Cimbar.dataBytesPerFrame(frameSize);
-
-    // Collect raw bytes from each frame, RS-decode per frame
-    const allData = [];
-
+    const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
+    const asm = new Cimbar.FrameAssembler();
+    let rejected = 0;
     for (let f = 0; f < frames.length; f++) {
-      const pct = 20 + (f / frames.length) * 55;
-      setProgress(pct, `Decoding frame ${f+1} / ${frames.length}`, 'progDecFill', 'progDecPct', 'progDecLabel');
-
-      const rawBytes = Cimbar.decodeFramePixels(frames[f].imageData, frameSize);
-      const dataBytes = Cimbar.decodeRSFrame(rawBytes, frameSize, rs);
-
-      for (let i = 0; i < dataBytes.length; i++) allData.push(dataBytes[i]);
+      setProgress(20 + (f / frames.length) * 55, `Decoding frame ${f + 1} / ${frames.length}`, 'progDecFill', 'progDecPct', 'progDecLabel');
+      const cellsResult = Cimbar.decodeFrameExact(frames[f].imageData);
+      const rsResult = Cimbar.decodeRSFrame(cellsResult.raw, rs);
+      const added = asm.add(rsResult.data);
+      if (!added.accepted) {
+        rejected++;
+        log(`Frame ${f + 1}: rejected (${added.reason}, RS failed blocks ${rsResult.blocksFailed})`, 'err', 'logDec');
+      }
       if (f % 4 === 0) await sleep(0);
     }
-
-    const allBytes = new Uint8Array(allData);
-
-    // Strip RS zero-padding: read the 4-byte length prefix written by the encoder
-    const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
-    if (payloadLength < 5 || payloadLength > allBytes.length - 4)
-      throw new Error(`Header corrupt: payload length ${payloadLength} is invalid`);
-    const payloadBytes = allBytes.slice(4, 4 + payloadLength);
+    if (!asm.isComplete()) throw new Error(`Incomplete: ${asm.filled} of ${asm.total} frames decoded (${rejected} rejected)`);
+    log(`Assembled ${asm.total} frame(s)`, 'ok', 'logDec');
+    const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
 
     // Auto-detect encryption: CimBar encrypted format starts with magic CB 42
     const isEncrypted = payloadBytes[0] === 0xCB && payloadBytes[1] === 0x42;
@@ -1004,12 +1006,7 @@ async function startDecode() {
       decrypted = payloadBytes;
     }
 
-    // Parse header: [4-byte nameLen][name][fileData]
-    const view = new DataView(decrypted.buffer, decrypted.byteOffset, decrypted.byteLength);
-    const nameLen = view.getUint32(0, false);
-    if (nameLen > 512) throw new Error('Header corrupt: filename length invalid');
-    const filename = new TextDecoder().decode(decrypted.slice(4, 4 + nameLen));
-    const fileData = decrypted.slice(4 + nameLen);
+    const { fileName: filename, fileBytes: fileData } = Cimbar.parsePayload(decrypted);
 
     log(`Decrypted: ${filename} (${fmtBytes(fileData.length)})`, 'ok', 'logDec');
     setProgress(100, 'Done', 'progDecFill', 'progDecPct', 'progDecLabel');

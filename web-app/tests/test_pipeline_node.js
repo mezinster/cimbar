@@ -1,24 +1,11 @@
 'use strict';
 /**
- * test_pipeline_node.js — End-to-end encode→GIF→decode round-trip test.
- *
- * Simulates the index.html encode/decode pipeline entirely in Node.js:
- *   1. Build a fake "encrypted" payload
- *   2. Prepend 4-byte length prefix (the fix for the AES-GCM padding bug)
- *   3. RS-encode into frames, draw to mock canvas, GIF-encode
- *   4. GIF-decode, RS-decode frames, extract payload via length prefix
- *   5. Assert decoded payload matches original
- *
- * Run: node tests/test_pipeline_node.js
+ * test_pipeline_node.js — end-to-end file -> frames -> GIF -> frames -> file,
+ * mirroring index.html's startEncode/startDecode flow on v2.
  */
-
-const { TextEncoder } = require('util');
-global.TextEncoder = TextEncoder;
-
 global.ImageData = class ImageData {
   constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); }
 };
-
 global.Blob = class Blob {
   constructor(parts) {
     const flat = parts.map(p => p instanceof Uint8Array ? p : new Uint8Array(p));
@@ -28,196 +15,76 @@ global.Blob = class Blob {
   }
   get size() { return this._data.length; }
 };
-
-const nodeCrypto      = require('crypto');
-const { MockCanvas }  = require('./mock_canvas.js');
-const { GifEncoder }  = require('../gif-encoder.js');
-const { GifDecoder }  = require('../gif-decoder.js');
+const { MockCanvas } = require('./mock_canvas.js');
+const { GifEncoder } = require('../gif-encoder.js');
+const { GifDecoder } = require('../gif-decoder.js');
 const { ReedSolomon } = require('../rs.js');
-const Cimbar          = require('../cimbar.js');
+const F = require('../format.js');
+const C = require('../cimbar.js');
 
-function concat(...arrays) {
-  const len = arrays.reduce((s, a) => s + a.length, 0);
-  const out = new Uint8Array(len);
-  let off = 0;
-  for (const a of arrays) { out.set(a, off); off += a.length; }
-  return out;
-}
-
-let passed = 0;
-let failed = 0;
-
+let passed = 0, failed = 0;
 function test(name, fn) {
-  try {
-    fn();
-    console.log(`  PASS  ${name}`);
-    passed++;
-  } catch (e) {
-    console.log(`  FAIL  ${name}: ${e.message}`);
-    failed++;
+  try { fn(); console.log(`  PASS  ${name}`); passed++; }
+  catch (e) { console.log(`  FAIL  ${name}: ${e.message}`); failed++; }
+}
+function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+function assertEq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'assertEq'}: expected ${b}, got ${a}`); }
+
+function encodeToGif(fileName, fileBytes, fileId) {
+  const framedData = C.withLengthPrefix(C.buildPayload(fileName, fileBytes));
+  const frames = C.splitIntoFrames(framedData, fileId, false);
+  const rs = new ReedSolomon(F.SPEC.rs.eccBytes);
+  const size = F.SPEC.grid.framePx;
+  const gif = new GifEncoder(size, size, 20);
+  for (const data of frames) {
+    const cv = new MockCanvas(size, size);
+    C.renderFrame(cv.getContext('2d'), C.encodeRSFrame(data, rs));
+    gif.addFrame(cv);
   }
+  return { gif: gif.finish()._data, frameCount: frames.length };
 }
 
-function assert(cond, msg) {
-  if (!cond) throw new Error(msg || 'assertion failed');
+function decodeFromGif(gifBytes, order) {
+  const frames = new GifDecoder(gifBytes).decode();
+  const rs = new ReedSolomon(F.SPEC.rs.eccBytes);
+  const asm = new C.FrameAssembler();
+  const idx = order || frames.map((_, i) => i);
+  for (const i of idx) {
+    const r = C.decodeFrameExact(frames[i].imageData);
+    const d = C.decodeRSFrame(r.raw, rs);
+    assertEq(d.blocksFailed, 0, `frame ${i} RS`);
+    asm.add(d.data);
+  }
+  assert(asm.isComplete(), 'assembled');
+  return C.parsePayload(C.stripLengthPrefix(asm.framedData()));
 }
-
-// ── Tests ──────────────────────────────────────────────────────────────────
 
 console.log('\ntest_pipeline_node.js');
-console.log('─'.repeat(60));
 
-const FRAME_SIZE = 256;
-const rs  = new ReedSolomon(Cimbar.ECC_BYTES);
-const dpf = Cimbar.dataBytesPerFrame(FRAME_SIZE);
-const rpf = Cimbar.rawBytesPerFrame(FRAME_SIZE);
-
-// ── Test 1: length prefix survives round-trip ──────────────────────────────
-test('length prefix round-trip (small payload, non-dpf-aligned)', () => {
-  // Simulate an "encrypted" payload that is NOT a multiple of dpf
-  const fakeEncLen = 37345;
-  const fakeEnc = new Uint8Array(fakeEncLen);
-  for (let i = 0; i < fakeEncLen; i++) fakeEnc[i] = (i * 7 + 13) & 0xFF; // deterministic pattern
-
-  // Encoder side: prepend length prefix
-  const lengthPrefix = new Uint8Array(4);
-  new DataView(lengthPrefix.buffer).setUint32(0, fakeEnc.length, false);
-  const framedData = concat(lengthPrefix, fakeEnc);
-
-  const numFrames = Math.ceil(framedData.length / dpf);
-
-  // Encode into GIF
-  const canvas = new MockCanvas(FRAME_SIZE, FRAME_SIZE);
-  const ctx    = canvas.getContext('2d');
-  const gif    = new GifEncoder(FRAME_SIZE, FRAME_SIZE, 10);
-
-  for (let f = 0; f < numFrames; f++) {
-    const chunk   = framedData.slice(f * dpf, (f + 1) * dpf);
-    const rsFrame = Cimbar.encodeRSFrame(chunk, FRAME_SIZE, rs);
-    Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf);
-    gif.addFrame(canvas);
-  }
-
-  const blob     = gif.finish();
-  const gifBytes = blob._data;
-
-  // Decode GIF
-  const frames = new GifDecoder(gifBytes).decode();
-  assert(frames.length === numFrames, `frame count: got ${frames.length}, want ${numFrames}`);
-
-  const allData = [];
-  for (const frame of frames) {
-    const rawBytes  = Cimbar.decodeFramePixels(frame.imageData, FRAME_SIZE);
-    const dataBytes = Cimbar.decodeRSFrame(rawBytes, FRAME_SIZE, rs);
-    for (let i = 0; i < dataBytes.length; i++) allData.push(dataBytes[i]);
-  }
-
-  const allBytes = new Uint8Array(allData);
-
-  // Decoder side: read length prefix
-  const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
-  assert(payloadLength === fakeEncLen,
-    `payloadLength: got ${payloadLength}, want ${fakeEncLen}`);
-  assert(payloadLength >= 32 && payloadLength <= allBytes.length - 4,
-    `payloadLength ${payloadLength} out of bounds`);
-
-  const recovered = allBytes.slice(4, 4 + payloadLength);
-  assert(recovered.length === fakeEncLen,
-    `recovered.length: got ${recovered.length}, want ${fakeEncLen}`);
-
-  // Byte-by-byte check
-  let mismatches = 0;
-  for (let i = 0; i < fakeEncLen; i++) {
-    if (recovered[i] !== fakeEnc[i]) mismatches++;
-  }
-  assert(mismatches === 0, `${mismatches} byte mismatches in recovered payload`);
+test('multi-frame file round trip', () => {
+  const bytes = new Uint8Array(5000); for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7 + 13) & 0xFF;
+  const { gif, frameCount } = encodeToGif('data.bin', bytes, 0x2001);
+  assertEq(frameCount, 3);
+  const out = decodeFromGif(gif);
+  assertEq(out.fileName, 'data.bin');
+  assertEq(out.fileBytes.length, 5000);
+  for (let i = 0; i < 5000; i++) if (out.fileBytes[i] !== bytes[i]) throw new Error(`byte ${i}`);
 });
 
-// ── Test 2: exact dpf alignment still works ───────────────────────────────
-test('length prefix round-trip (exact dpf-aligned payload)', () => {
-  // Payload exactly fills 3 frames → no zero padding
-  const fakeEncLen = 3 * dpf - 4; // framedData = 3 * dpf exactly
-  const fakeEnc = new Uint8Array(fakeEncLen);
-  for (let i = 0; i < fakeEncLen; i++) fakeEnc[i] = (i * 3 + 77) & 0xFF;
-
-  const lengthPrefix = new Uint8Array(4);
-  new DataView(lengthPrefix.buffer).setUint32(0, fakeEnc.length, false);
-  const framedData = concat(lengthPrefix, fakeEnc);
-  assert(framedData.length === 3 * dpf, `framedData.length not aligned: ${framedData.length}`);
-
-  const numFrames = Math.ceil(framedData.length / dpf); // = 3
-  const canvas = new MockCanvas(FRAME_SIZE, FRAME_SIZE);
-  const ctx    = canvas.getContext('2d');
-  const gif    = new GifEncoder(FRAME_SIZE, FRAME_SIZE, 10);
-
-  for (let f = 0; f < numFrames; f++) {
-    const chunk   = framedData.slice(f * dpf, (f + 1) * dpf);
-    const rsFrame = Cimbar.encodeRSFrame(chunk, FRAME_SIZE, rs);
-    Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf);
-    gif.addFrame(canvas);
-  }
-
-  const frames = new GifDecoder(gif.finish()._data).decode();
-  const allData = [];
-  for (const frame of frames) {
-    const rawBytes  = Cimbar.decodeFramePixels(frame.imageData, FRAME_SIZE);
-    const dataBytes = Cimbar.decodeRSFrame(rawBytes, FRAME_SIZE, rs);
-    for (let i = 0; i < dataBytes.length; i++) allData.push(dataBytes[i]);
-  }
-
-  const allBytes = new Uint8Array(allData);
-  const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
-  assert(payloadLength === fakeEncLen, `payloadLength: got ${payloadLength}, want ${fakeEncLen}`);
-
-  const recovered = allBytes.slice(4, 4 + payloadLength);
-  let mismatches = 0;
-  for (let i = 0; i < fakeEncLen; i++) {
-    if (recovered[i] !== fakeEnc[i]) mismatches++;
-  }
-  assert(mismatches === 0, `${mismatches} byte mismatches`);
+test('frames decoded out of order still assemble', () => {
+  const bytes = new Uint8Array(5000); for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 3 + 1) & 0xFF;
+  const { gif } = encodeToGif('data.bin', bytes, 0x2002);
+  const out = decodeFromGif(gif, [2, 0, 1]);
+  assertEq(out.fileBytes.length, 5000);
 });
 
-// ── Test 3: single-frame tiny payload ─────────────────────────────────────
-test('length prefix round-trip (tiny payload, single frame)', () => {
-  const fakeEncLen = 100; // well under dpf
-  const fakeEnc = new Uint8Array(fakeEncLen);
-  nodeCrypto.randomFillSync(fakeEnc);
-
-  const lengthPrefix = new Uint8Array(4);
-  new DataView(lengthPrefix.buffer).setUint32(0, fakeEnc.length, false);
-  const framedData = concat(lengthPrefix, fakeEnc);
-
-  const numFrames = 1;
-  const canvas = new MockCanvas(FRAME_SIZE, FRAME_SIZE);
-  const ctx    = canvas.getContext('2d');
-  const gif    = new GifEncoder(FRAME_SIZE, FRAME_SIZE, 10);
-
-  const chunk   = framedData.slice(0, dpf);
-  const rsFrame = Cimbar.encodeRSFrame(chunk, FRAME_SIZE, rs);
-  Cimbar.encodeFrame(canvas, ctx, rsFrame, 0, rpf);
-  gif.addFrame(canvas);
-
-  const frames = new GifDecoder(gif.finish()._data).decode();
-  const allData = [];
-  for (const frame of frames) {
-    const rawBytes  = Cimbar.decodeFramePixels(frame.imageData, FRAME_SIZE);
-    const dataBytes = Cimbar.decodeRSFrame(rawBytes, FRAME_SIZE, rs);
-    for (let i = 0; i < dataBytes.length; i++) allData.push(dataBytes[i]);
-  }
-
-  const allBytes = new Uint8Array(allData);
-  const payloadLength = new DataView(allBytes.buffer, allBytes.byteOffset, 4).getUint32(0, false);
-  assert(payloadLength === fakeEncLen, `payloadLength: got ${payloadLength}, want ${fakeEncLen}`);
-
-  const recovered = allBytes.slice(4, 4 + payloadLength);
-  let mismatches = 0;
-  for (let i = 0; i < fakeEncLen; i++) {
-    if (recovered[i] !== fakeEnc[i]) mismatches++;
-  }
-  assert(mismatches === 0, `${mismatches} byte mismatches`);
+test('tiny file is a single frame', () => {
+  const { gif, frameCount } = encodeToGif('a.txt', new Uint8Array([65]), 0x2003);
+  assertEq(frameCount, 1);
+  const out = decodeFromGif(gif);
+  assertEq(out.fileName, 'a.txt');
+  assertEq(out.fileBytes[0], 65);
 });
 
-// ── Summary ────────────────────────────────────────────────────────────────
-console.log('─'.repeat(60));
 console.log(`Results: ${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+process.exit(failed ? 1 : 0);
