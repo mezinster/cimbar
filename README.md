@@ -9,7 +9,7 @@ This repo contains:
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
 - **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
 
-Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, magenta), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
+Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
 This is the CimBar v2 format — it replaces the original 7-bit/8-color/corner-dot format completely. **Files encoded before this change must be re-encoded**; old GIFs will not decode with the current app, and GIFs made with the current app will not decode with an older version.
 
@@ -39,14 +39,10 @@ Then open `http://localhost:8080` in your browser.
 1. Click the **Encode** tab.
 2. Drag and drop any file onto the drop zone, or click it to browse.
 3. Enter a passphrase. Keep it — you'll need it to decode.
-4. Choose a **frame size** (larger = more data per frame, slower to encode):
-   - `128 px` — ~70 KB per frame
-   - `192 px` — ~160 KB per frame
-   - `256 px` — ~285 KB per frame (default, good balance)
-   - `384 px` — ~660 KB per frame
+4. Optionally choose a **frame delay** — `100 ms` (fast), `200 ms` (default), or `400 ms` (slow). There is no frame-size choice in v2: every barcode is a single 608×608 px frame.
 5. Click **Encrypt & Encode to GIF**.
 6. Watch the preview animate as frames are rendered.
-7. Click **Download GIF** to save the result.
+7. Click **Download GIF** to save the result, or **Present full screen** to show the looping GIF full-screen (scaled to fit the viewport) for another device's camera to scan.
 
 The stats panel shows the number of frames, encoded size, and usable cells per frame.
 
@@ -118,7 +114,7 @@ The Android app ports the full decode pipeline from the web app to Dart, includi
 
 ## Error correction
 
-Each frame uses Reed-Solomon RS(255, 223) coding: up to 16 byte errors per 255-byte block can be corrected automatically. This makes the GIF resilient to minor pixel corruption (e.g., from re-encoding or screenshots), though lossless transfer is strongly preferred.
+Each frame uses Reed-Solomon RS(255, 191) coding: 64 ECC bytes per 255-byte block, so up to 32 byte errors per block can be corrected automatically. This makes the GIF resilient to minor pixel corruption (e.g., from re-encoding or screenshots), though lossless transfer is strongly preferred.
 
 ---
 
@@ -154,11 +150,14 @@ Individual tests:
 
 ```bash
 cd web-app
-node tests/test_symbols.js        # symbol encode/decode round-trip (128 combos)
+node tests/test_tiles.js          # tile rules and generator
+node tests/test_format.js         # format spec, header, bit packing
+node tests/test_frame.js          # frame render/decode, RS framing, assembler
 node tests/test_rs.js             # Reed-Solomon correction
+node tests/test_goldens.js        # golden GIFs vs. ground-truth sidecars
 node tests/test_pipeline_node.js  # full GIF pipeline with length prefix
-python tests/test_gif.py path/to/output.gif 256   # GIF structure (needs Pillow)
-python tests/test_pipeline.py                     # Python orchestrator
+python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # Python orchestrator + GIF structure check
+python3 tests/test_gif.py path/to/output.gif 608                    # GIF structure (needs Pillow)
 ```
 
 ### Android App
