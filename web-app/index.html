@@ -712,11 +712,11 @@ footer {
       <hr class="divider">
 
       <div style="font-size:13px;color:var(--text2);line-height:1.8;">
-        <strong style="color:var(--text)">Capacity example (256×256 frame):</strong><br>
-        32×32 cells = 1 024 cells. Minus 18 finder cells = 1 006 usable.
-        1 006 × 7 bits = 7 042 bits = 880 raw bytes.
-        After RS(255,223): ~770 data bytes per frame.
-        A 50 KB file needs ≈ 67 frames.
+        <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
+        One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
+        3 840 usable cells × 6 bits = 2 880 raw bytes.
+        After RS(255,191): 2 112 protected bytes; minus an 8-byte frame header = 2 104 file bytes per frame.
+        A 50 KB file needs ≈ 25 frames.
       </div>
 
       <div class="callout callout-warn" style="margin-top:16px;">
@@ -914,10 +914,11 @@ function downloadGif() {
 // ── Present mode (spec §5): integer scale unless that wastes >40% of the screen ──
 function presentScale(viewportW, viewportH, framePx) {
   const shorter = Math.min(viewportW, viewportH);
-  const integer = Math.max(1, Math.floor(shorter / framePx));
+  if (shorter < framePx) return shorter / framePx; // fractional fit below one frame
+  const integer = Math.floor(shorter / framePx);
   const used = integer * framePx / shorter;
   if (used >= 0.6) return integer;
-  return shorter / framePx; // fractional fill
+  return shorter / framePx; // integer scale would waste >40% of the screen
 }
 
 function layoutPresent() {
