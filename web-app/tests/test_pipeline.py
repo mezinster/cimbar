@@ -2,7 +2,7 @@
 """
 test_pipeline.py — Orchestrate all automated CimBar tests.
 
-Run from the project root:
+Run from web-app/:
     python tests/test_pipeline.py
 
 Optional GIF path (skips test_gif.py when omitted):

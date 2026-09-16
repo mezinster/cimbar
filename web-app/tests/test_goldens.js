@@ -45,7 +45,7 @@ for (const name of names) {
       const h = F.decodeHeader(d.data);
       assertEq(JSON.stringify({ version: h.version, encrypted: h.encrypted, fileId: h.fileId, seq: h.seq, total: h.total }),
         JSON.stringify(side.frames[i].header), `frame ${i} header`);
-      assert(asm.add(d.data).accepted, `frame ${i} accepted`);
+      assert(asm.add(d.data, d.blocksFailed).accepted, `frame ${i} accepted`);
     }
     assert(asm.isComplete(), 'complete');
     let payload = C.stripLengthPrefix(asm.framedData());

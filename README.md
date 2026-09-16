@@ -9,6 +9,8 @@ This repo contains:
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
 - **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
 
+**Note:** the Android app still implements the previous (v1) format; GIFs from the current web app will not decode on Android until the v2 port lands.
+
 Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
 This is the CimBar v2 format — it replaces the original 7-bit/8-color/corner-dot format completely. **Files encoded before this change must be re-encoded**; old GIFs will not decode with the current app, and GIFs made with the current app will not decode with an older version.
@@ -108,7 +110,7 @@ cd android
 flutter test
 ```
 
-The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,223), CimBar pixel decoding, AES-256-GCM decryption, and live camera scanning — all with matching unit tests.
+The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,191), CimBar pixel decoding, AES-256-GCM decryption, and live camera scanning — all with matching unit tests.
 
 ---
 

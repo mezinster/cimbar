@@ -145,5 +145,10 @@ test('cellValue/cellSymbol/cellColor', () => {
   assertEq(F.cellColor(F.cellValue(9, 2)), 2);
 });
 
+test('HEADER_LEN/FORMAT_VERSION match spec', () => {
+  assertEq(F.HEADER_LEN, F.SPEC.header.lengthBytes);
+  assertEq(F.FORMAT_VERSION, F.SPEC.header.version);
+});
+
 console.log(`Results: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

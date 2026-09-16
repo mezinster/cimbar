@@ -167,7 +167,9 @@ The first 8 bytes of every frame's protected data:
 A decoded frame is **accepted** when all hold: RS succeeded for every block, `version ==
 0x02`, `total ≥ 1`, `seq < total`, and, if frames are already collected, `fileId` and
 `total` equal the collected ones. A frame with a different `fileId` and successful RS
-resets the collection and becomes its first frame.
+resets the collection and becomes its first frame. Reserved flag bits 1–7 must be 0; a
+non-zero reserved bit rejects the frame (reason `flags`). A frame is rejected when any RS
+block fails (reason `rs`).
 
 ### 4.3 Reed-Solomon layout
 
@@ -180,7 +182,13 @@ bytes remain; a final short block takes the remainder. For 2 880 raw bytes:
 - `dataBytesPerFrame = 2 112`, of which 8 are the header, so **2 104 file bytes per
   frame**.
 
-Byte-stride interleaving is unchanged: byte `j` of block `i` goes to position `j × N + i`.
+Interleaving: with block sizes `s_0..s_{N-1}` (here eleven 255-byte blocks then one
+75-byte block), output is produced by iterating `j` from 0 to max(s_i)−1 and, inside it,
+`i` from 0 to N−1, appending byte `j` of block `i` whenever `j < s_i`. For `j < 75` this
+is position `j × N + i`; for `j ≥ 75` the short block contributes nothing and the
+position is `75 × N + (j − 75) × (N − 1) + i`. De-interleaving walks the same loop. Both
+encoder and decoder must use exactly this loop; a literal `j × N + i` for all `j` is
+wrong.
 
 `ECC_BYTES` stays a single spec constant so it can be retuned from measured block error
 rates after the corpus exists.

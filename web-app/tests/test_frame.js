@@ -113,10 +113,14 @@ test('FrameAssembler accepts, dedups, rejects and completes', () => {
   assertEq(a.add(frames[1]).accepted, true);
   assertEq(a.total, 2); assertEq(a.filled, 1); assert(!a.isComplete());
   assertEq(a.add(frames[1]).reason, 'duplicate');
-  const other = C.splitIntoFrames(framed, 8, false)[0];
-  assertEq(a.add(other).reason, 'fileId');
+  const other = C.splitIntoFrames(seqBytes(20, 9, 3), 8, false)[0];
+  assertEq(a.add(other).accepted, true, 'fileId change resets and accepts');
+  assertEq(a.total, 1); assertEq(a.fileId, 8); assertEq(a.filled, 1);
   const badVer = frames[0].slice(); badVer[0] = 1;
   assertEq(a.add(badVer).reason, 'version');
+  assertEq(a.add(frames[1]).accepted, true, 'fileId change back resets again');
+  assertEq(a.total, 2); assertEq(a.fileId, 7); assertEq(a.filled, 1);
+  assertEq(a.add(frames[0], 1).reason, 'rs');
   assertEq(a.add(frames[0]).accepted, true);
   assert(a.isComplete());
   const out = a.framedData();
@@ -169,6 +173,14 @@ test('GIF round trip keeps v2 pixels exact', () => {
   const r = C.decodeFrameExact(frames[0].imageData);
   assertBytes(r.raw, raw, 'after GIF');
   assertEq(r.diag.hammingMax, 0);
+});
+
+test('decodeFrameExact rejects non-exact dimensions', () => {
+  const cv = new MockCanvas(FRAME + 8, FRAME + 8);
+  let threw = false;
+  try { C.decodeFrameExact(cv.getImageData(0, 0, FRAME + 8, FRAME + 8)); }
+  catch (e) { threw = true; assert(/v1 GIFs must be re-encoded/.test(e.message), 'error names v1 re-encode'); }
+  assert(threw, 'oversized frame throws');
 });
 
 console.log(`Results: ${passed} passed, ${failed} failed`);

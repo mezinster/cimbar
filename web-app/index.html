@@ -667,13 +667,13 @@ footer {
       <p style="font-size:14px;line-height:1.8;color:var(--text2)">
         <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
         of colored geometric symbols. This tool uses a simplified variant:
-        each cell encodes <strong style="color:var(--accent)">7 bits</strong> —
-        3 bits for color (8 colors) and 4 bits for symbol shape (16 icons).
-        Before encoding, your file is encrypted with
+        each cell encodes <strong style="color:var(--accent)">6 bits</strong> —
+        2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
+        Before encoding, your file can optionally be encrypted with
         <strong style="color:var(--accent)">AES-256-GCM</strong>,
         and each frame's data is protected by
         <strong style="color:var(--accent)">Reed-Solomon</strong> error correction
-        (32 ECC bytes per 255-byte block, correcting up to 16 byte errors per block).
+        (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
       </p>
 
       <div class="about-grid">
@@ -685,12 +685,12 @@ footer {
         <div class="about-card">
           <div class="about-num">02</div>
           <div class="about-title">ECC</div>
-          <div class="about-text">Reed-Solomon RS(255, 223) applied to each 255-byte block. Corrects up to 16 byte errors per block.</div>
+          <div class="about-text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
         </div>
         <div class="about-card">
           <div class="about-num">03</div>
           <div class="about-title">Map</div>
-          <div class="about-text">ECC'd bytes mapped to cells: 3 bits → color (8), 4 bits → symbol (16) = 7 bits per cell.</div>
+          <div class="about-text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
         </div>
         <div class="about-card">
           <div class="about-num">04</div>
@@ -720,10 +720,8 @@ footer {
       </div>
 
       <div class="callout callout-warn" style="margin-top:16px;">
-        <strong>GIF palette limitation:</strong> GIF supports only 256 colors per frame.
-        The palette is tuned for CimBar's 8 base colors and their variants,
-        so color fidelity is good but not pixel-perfect.
-        Reed-Solomon corrects the resulting quantization errors during decode.
+        <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
+        so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
       </div>
     </div>
   </div>
@@ -981,7 +979,7 @@ async function startDecode() {
       setProgress(20 + (f / frames.length) * 55, `Decoding frame ${f + 1} / ${frames.length}`, 'progDecFill', 'progDecPct', 'progDecLabel');
       const cellsResult = Cimbar.decodeFrameExact(frames[f].imageData);
       const rsResult = Cimbar.decodeRSFrame(cellsResult.raw, rs);
-      const added = asm.add(rsResult.data);
+      const added = asm.add(rsResult.data, rsResult.blocksFailed);
       if (!added.accepted) {
         rejected++;
         log(`Frame ${f + 1}: rejected (${added.reason}, RS failed blocks ${rsResult.blocksFailed})`, 'err', 'logDec');

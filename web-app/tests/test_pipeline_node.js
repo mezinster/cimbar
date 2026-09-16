@@ -53,7 +53,7 @@ function decodeFromGif(gifBytes, order) {
     const r = C.decodeFrameExact(frames[i].imageData);
     const d = C.decodeRSFrame(r.raw, rs);
     assertEq(d.blocksFailed, 0, `frame ${i} RS`);
-    asm.add(d.data);
+    asm.add(d.data, d.blocksFailed);
   }
   assert(asm.isComplete(), 'assembled');
   return C.parsePayload(C.stripLengthPrefix(asm.framedData()));

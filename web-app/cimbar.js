@@ -82,8 +82,8 @@ function lumaAt(d, i) { return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2
  */
 function decodeFrameExact(imageData) {
   const size = SPEC.grid.framePx;
-  if (imageData.width < size || imageData.height < size) {
-    throw new Error(`Frame must be at least ${size}x${size} px, got ${imageData.width}x${imageData.height}`);
+  if (imageData.width !== size || imageData.height !== size) {
+    throw new Error(`Not a CimBar v2 GIF: frames must be ${size}×${size} px, got ${imageData.width}×${imageData.height}. v1 GIFs must be re-encoded.`);
   }
   const W = imageData.width, d = imageData.data;
   const pos = Fmt.usableCellPositions();
@@ -233,11 +233,15 @@ class FrameAssembler {
     this.filled = 0;
   }
 
-  /** data: Uint8Array(dataBytesPerFrame) after RS decode. */
-  add(data) {
+  /**
+   * data: Uint8Array(dataBytesPerFrame) after RS decode; blocksFailed: count
+   * from decodeRSFrame — any failed block rejects the frame (spec §4.2).
+   */
+  add(data, blocksFailed = 0) {
+    if (blocksFailed > 0) return { accepted: false, reason: 'rs', header: null };
     const h = Fmt.decodeHeader(data);
     if (!h.valid) return { accepted: false, reason: h.reason, header: h };
-    if (this.fileId !== null && h.fileId !== this.fileId) return { accepted: false, reason: 'fileId', header: h };
+    if (this.fileId !== null && h.fileId !== this.fileId) this.reset();
     if (this.fileId !== null && h.total !== this.total) return { accepted: false, reason: 'total', header: h };
     if (this.fileId === null) {
       this.fileId = h.fileId;
