@@ -73,5 +73,77 @@ test('format-data.js is up to date with the spec', () => {
   assertEq(actual, expected, 'run: node tools/gen_format_data.js');
 });
 
+const F = require('../format.js');
+
+test('format.js exposes the spec and derived capacities', () => {
+  assertEq(F.SPEC.version, 2);
+  assertEq(F.usableCells(), 3840);
+  assertEq(F.rawBytesPerFrame(), 2880);
+  assertEq(F.rsBlockSizes().join(','), '255,255,255,255,255,255,255,255,255,255,255,75');
+  assertEq(F.dataBytesPerFrame(), 2112);
+  assertEq(F.fileBytesPerFrame(), 2104);
+});
+
+test('reserved cells are exactly the four 8x8 corners', () => {
+  assert(F.isReservedCell(0, 0) && F.isReservedCell(7, 7) && F.isReservedCell(56, 0) && F.isReservedCell(63, 63) && F.isReservedCell(0, 63));
+  assert(!F.isReservedCell(8, 0) && !F.isReservedCell(7, 8) && !F.isReservedCell(55, 63) && !F.isReservedCell(32, 32));
+  const pos = F.usableCellPositions();
+  assertEq(pos.length, 3840);
+  assertEq(pos[0].join(','), '8,0', 'first usable');
+  assertEq(pos[pos.length - 1].join(','), '55,63', 'last usable');
+});
+
+test('cellOrigin uses quiet zone and pitch', () => {
+  assertEq(F.cellOrigin(0, 0).join(','), '16,16');
+  assertEq(F.cellOrigin(8, 0).join(','), '88,16');
+  assertEq(F.cellOrigin(63, 63).join(','), '583,583');
+});
+
+test('tileBits matches spec hex', () => {
+  const t = F.tileBits(3);
+  assertEq(F.SPEC.tiles[3], R.tileToHex(t));
+  let n = 0; for (let i = 0; i < 64; i++) n += t[i];
+  assert(n >= 26 && n <= 38, 'fill in range');
+});
+
+test('header encode/decode round trip and validation', () => {
+  const h = F.encodeHeader({ encrypted: true, fileId: 0xBEEF, seq: 3, total: 12 });
+  assertEq(h.length, 8);
+  assertEq(h[0], 2); assertEq(h[1], 1);
+  assertEq(h[2], 0xBE); assertEq(h[3], 0xEF);
+  assertEq(h[4], 0); assertEq(h[5], 3);
+  assertEq(h[6], 0); assertEq(h[7], 12);
+  const d = F.decodeHeader(h);
+  assert(d.valid, 'valid');
+  assertEq(d.fileId, 0xBEEF); assertEq(d.seq, 3); assertEq(d.total, 12); assertEq(d.encrypted, true);
+  assertEq(F.decodeHeader(new Uint8Array([1, 0, 0, 0, 0, 0, 0, 1])).reason, 'version');
+  assertEq(F.decodeHeader(new Uint8Array([2, 2, 0, 0, 0, 0, 0, 1])).reason, 'flags');
+  assertEq(F.decodeHeader(new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0])).reason, 'total');
+  assertEq(F.decodeHeader(new Uint8Array([2, 0, 0, 0, 0, 5, 0, 5])).reason, 'seq');
+  assertEq(F.decodeHeader(new Uint8Array([2, 0, 0])).reason, 'short');
+});
+
+test('packCells/unpackCells round trip 2880 bytes MSB-first', () => {
+  const raw = new Uint8Array(2880);
+  for (let i = 0; i < raw.length; i++) raw[i] = (i * 37 + 11) & 0xFF;
+  const cells = F.packCells(raw);
+  assertEq(cells.length, 3840);
+  // first cell = top 6 bits of raw[0]
+  assertEq(cells[0], raw[0] >> 2);
+  // second cell = low 2 bits of raw[0] and top 4 bits of raw[1]
+  assertEq(cells[1], ((raw[0] & 3) << 4) | (raw[1] >> 4));
+  for (const v of cells) assert(v >= 0 && v < 64, '6-bit');
+  const back = F.unpackCells(cells);
+  assertEq(back.length, 2880);
+  for (let i = 0; i < raw.length; i++) if (back[i] !== raw[i]) throw new Error(`byte ${i} differs`);
+});
+
+test('cellValue/cellSymbol/cellColor', () => {
+  assertEq(F.cellValue(15, 3), 63);
+  assertEq(F.cellValue(9, 2), (9 << 2) | 2);
+  assertEq(F.cellSymbol(F.cellValue(9, 2)), 9);
+  assertEq(F.cellColor(F.cellValue(9, 2)), 2);
+});
+
 console.log(`Results: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
