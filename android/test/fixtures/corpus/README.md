@@ -29,3 +29,5 @@ debug capture button: laptop monitor at 30 cm and 60 cm, straight-on and ~20° a
 phone-to-phone at 15 cm and 30 cm; one in dim light. Record device and display names.
 
 The two `v1_720p_negative_*` cases point at the existing v1 captures and must never decode.
+
+Since Plan 3 the camera path is real: a case's status comes from the locator → homography → white point → drift → RS chain, and the table's `hammingMean` and `symbolAcc` are meaningful. Real captures are still to be added (spec §9.3 checklist).

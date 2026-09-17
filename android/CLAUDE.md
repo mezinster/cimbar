@@ -50,7 +50,7 @@ Camera photo:  Photo → locate barcode (frame_locator) → white balance + try 
 Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white balance + decode per-frame (live_scanner) → adjacency-chain assembly → [auto-detect: decrypt] → File
 ```
 
-Camera photo and live scan are still on the v1 decoder until Plans 3–4.
+Camera photo and live scan UI still call the v1 decoder until Plan 4 rewires them to `FrameDecoder.decode`.
 
 ## v2 Format and Decode Layer (`lib/core/format/`, `lib/core/decode/`)
 
@@ -63,11 +63,16 @@ Pure-Dart, no Flutter/UI dependencies — matches the web-app JS `format.js`/`ci
 - `format/rs_framing.dart` — `RsFraming.encodeFrame`/`decodeFrame`: RS(255,191) block partition + byte-stride interleave for one frame, returning `RsFrameResult{data, blocksOk, blocksFailed}`
 - `format/file_container.dart` — `FileContainer`: the v1-compatible file container (`parsePayload`, `stripLengthPrefix`, `isEncrypted`)
 - `decode/rgb_buffer.dart` — `RgbBuffer`: flat 8-bit RGB buffer with bilinear sampling (`RgbBuffer.fromImage`)
-- `decode/grid_model.dart` — `GridModel.toSource(cx, cy) -> (double, double)`; `ExactGridModel` for GIF-exact pixel positions (camera's located grid model lands in Plan 3)
+- `decode/grid_model.dart` — `GridModel.toSource(cx, cy) -> (double, double)`; `ExactGridModel` for GIF-exact pixel positions
+- `decode/luma_plane.dart` — `LumaPlane`: `fromRgb` (BT.601 integer weights 77/150/29), `at`, `downscale2` (area-average 2x2, odd trailing row/column dropped), `bilinear`, `mean3x3` — the locator's and drift solver's luma source
+- `decode/homography.dart` — `Homography`: 3x3 projective `map(x, y)`, `solve` (DLT from four point correspondences, null if singular); `HomographyGridModel.fromFinders(tl:, tr:, bl:, br:)` fits a `GridModel` to four located finder centers
+- `decode/finder_locator.dart` — `FinderLocator.locate(LumaPlane) -> LocateResult{tl,tr,bl,br,candidates,clusters,devNorm,tlLuma,secondLuma,failReason,ok,module}` (spec §6.2): downscale 2x, binarize with a local mean, strict 1:1:3:1:1 row scan plus a dotted 7-run pattern (25% tolerance) anchored at the hit row for the tr/bl/br core dot, cluster and refine centers by alternating row/column extent (3 iterations), select four candidates by parallelogram closure (`maxDevNorm` 0.35) with a side/module ratio gate (40–75), classify TL by core brightness (`tlMargin` 40) and orient TR/BL by cross product, correct the module estimate by cos(rotation). Module floor 3 downscaled px (below which photo texture aliases into false candidates)
+- `decode/white_point.dart` — `WhitePoint.fromFinders(image, grid) -> List<double>?` (spec §6.3): per-channel 90th percentile over the eight core cells around each of the four finder cores (five samples per cell through the grid model, center dot cell excluded), null when any channel is below 30 (too dark)
+- `decode/drift_solver.dart` — `DriftSolver(sampler, classifier).solve() -> DriftField{dx,dy,widened,meanAbs,maxAbs}` (spec §6.5): BFS flood-fill of per-cell drift starting from the cells adjacent to the four finder corners, each cell searching the ±1 px 3x3 offsets (luma-only sampling, symbol-only Hamming) widened to the ±2 px ring when the best Hamming exceeds `wideThreshold` (20), seed cells (no decided neighbours) always search the ±2 ring, clamped to ±6 px
 - `decode/cell_sampler.dart` — `CellSampler.sample`: reads a cell's 8×8 tile into a `CellPatch{luma, rgb}` through a `GridModel`
 - `decode/cell_classifier.dart` — `CellClassifier.classify -> CellClassification{symbol, hamming, color, colorMargin}`: symbol via average-hash Hamming distance to the 16 tiles, color via nearest palette entry
 - `decode/diagnostics.dart` — `DecodeStatus` enum (`ok, notLocated, unsupportedGrid, rsFailed, badHeader`) and `Diagnostics`/`FrameResult{status, cells, raw, data, header, diag}`
-- `decode/frame_decoder.dart` — `FrameDecoder`: `decode(image, {grid})` (camera path; `notLocated` until Plan 3's locator lands), `decodeExact(image)` (GIF path: exact 608×608 only, else `unsupportedGrid`), `decodeWithGrid(image, grid, {whitePoint})` (shared implementation)
+- `decode/frame_decoder.dart` — `FrameDecoder`: `decode(image, {grid, useDrift = true})` runs the camera path (LumaPlane → FinderLocator → HomographyGridModel → grid-size check (64 ± 6) → WhitePoint → DriftSolver → cells → RS → header); `decodeExact(image)` is the GIF path; `decodeWithGrid(image, grid, {whitePoint, useDrift, luma, diag})` is the shared core
 - `decode/frame_assembler.dart` — `FrameAssembler.add(data, {blocksFailed}) -> AddResult{accepted, reason, header}`: sequence-slot assembly across frames, dedup/total/fileId-reset rules matching web-app's `FrameAssembler`
 - `decode/golden_sidecar.dart` — `GoldenSidecar.load`/`GoldenSidecar.gifPathFor`: loader for `test-data/goldens/<name>.json` ground truth, shared by Dart and JS test suites
 - `decode/decode_report.dart` — `DecodeReport.compare` (`Uint8List` cells vs. truth -> `TruthComparison{symbolAccuracy, colorAccuracy, cellAccuracy, wrongCellIndices}`), `DecodeReport.lines` (structured `frame=N stage=… key=value` diagnostic lines), `DecodeReport.heatmap` (PNG marking wrong cells)
@@ -80,10 +85,10 @@ Offline decoder, no Flutter/emulator needed:
 
 ```bash
 cd android
-dart run tool/decode_image.dart <image.png|jpg|gif> [--frame N] [--golden name.json] [--heatmap out.png] [--mode exact|camera]
+dart run tool/decode_image.dart <image.png|jpg|gif> [--frame N] [--golden name.json] [--heatmap out.png] [--mode exact|camera] [--no-drift]
 ```
 
-Example:
+Example (GIF, exact path):
 
 ```bash
 dart run tool/decode_image.dart ../test-data/goldens/hello.gif --golden ../test-data/goldens/hello.json --heatmap /tmp/hm.png
@@ -99,7 +104,27 @@ frame=0 stage=truth symbolAcc=1.000 colorAcc=1.000 cellAcc=1.000 wrongCells=0
 frame=0 stage=heatmap path=/tmp/hm.png
 ```
 
-Exit 0 iff the frame decodes (`status=ok`); non-GIF images default to `--mode camera`, which currently always reports `notLocated` (Plan 3's locator not yet implemented).
+Example (rendered camera-like PNG via `renderScene`, camera path, `--mode` defaults to `camera` for non-GIF input):
+
+```
+frame=2 stage=locate ok=true candidates=129 clusters=8 module=16.64 corners=616.0,258.0;1409.0,547.0;227.0,1097.0;1166.0,1440.0 tlLuma=252 secondLuma=1 devNorm=0.169 locateMs=243
+frame=2 stage=grid estimate=60
+frame=2 stage=wb rgb=255,255,255
+frame=2 stage=drift meanAbs=0.72 maxAbs=2.07 widened=0 driftMs=381
+frame=2 stage=cells hammingMax=14 hammingMean=4.08 hammingHist=3386/454/0/0 colorMarginMin=1.117 sampleMs=459
+frame=2 stage=rs blocks=12 ok=12 failed=0 rsMs=13
+frame=2 stage=header valid=true version=2 fileId=0x1002 seq=2 total=6 encrypted=false
+frame=2 stage=result status=ok
+frame=2 stage=truth symbolAcc=0.995 colorAcc=1.000 cellAcc=0.995 wrongCells=19
+```
+
+`--no-drift` skips the `stage=drift` line and the `DriftSolver` pass (`decode(image, useDrift: false)`); on the same scene it still decodes (`status=ok`) but with a higher `hammingMean` (10.32 vs. 4.08 above) since drift is what corrects the residual per-cell misalignment homography alone can't model. A photo with no barcode in it reports `stage=locate ok=false … fail=<reason>` and `stage=result status=notLocated` with exit code 1.
+
+Exit 0 iff the frame decodes (`status=ok`); non-GIF images default to `--mode camera`, which now runs the full locate → homography → white point → drift → RS chain (Plan 3).
+
+## Synthetic scenes
+
+`test/test_utils/synthetic_scene.dart` composites a golden GIF frame into a camera-like scene with known ground-truth geometry, so the locator, homography, white point and drift solver can be tested against exact expected finder positions instead of only real captures. `loadGoldenFrame(name, frameIndex)` loads a frame from `test-data/goldens/`; `loadPhoto(path)` loads a background photo. `SceneSpec` fields: `scale`, `rotationDeg`, `keystone` (top edge shrunk / bottom edge widened by this fraction before rotation, simulating tilt), `centerX`/`centerY` (frame placement in the output canvas), `blurSigma` (destination-pixel Gaussian blur), `brightness`, `noiseSigma`, `barrelK` (scene-space barrel distortion the homography can't model), `seed`. `renderScene(frame, outW, outH, spec, {background})` returns a `Scene{image, finderCenters, frameToScene}` — `finderCenters` and the `Homography` are exact, derived from `sceneQuad(spec)`, not estimated. Degradation suites built on it: `camera_path_test.dart` (full `FrameDecoder.decode` through the degradation matrix — scale, rotation, keystone, blur, brightness, noise, photo composites, negative cases), `finder_locator_test.dart` (the locator alone across the same matrix plus photo backgrounds and v1-barcode/blank negatives), `drift_solver_test.dart` (drift correctness including barrel distortion, which only decodes with drift on, and a timing report).
 
 ## Corpus benchmark
 
@@ -361,10 +386,18 @@ Run: `flutter test` from `android/` directory.
 | `format/rs_framing_test.dart` | `encodeFrame` reproduces the golden raw bytes (interleave cross-check with JS); `decodeFrame` recovers golden data with 12 ok blocks; corrects 30 spread errors; reports failed blocks and zero-fills them; tail block positions follow stride-skip-short. |
 | `format/file_container_test.dart` | `parsePayload` (valid + bad name length); `stripLengthPrefix` (strips zero padding, validates); `isEncrypted` via the `CB 42` magic. |
 | `decode/cell_sampler_test.dart` | `RgbBuffer.fromImage` copies pixels and clamps at edges; bilinear exact-at-center and halfway blend; `ExactGridModel` cell-unit mapping; `CellSampler` reads an exact tile. |
+| `decode/luma_plane_test.dart` | `fromRgb` BT.601 integer weights; `downscale2` averages 2x2 blocks and floors odd sizes; `bilinear` exact at centers and clamped at edges; `mean3x3` clamps at the corner; `sampleLuma` through a `LumaPlane` matches the RGB path and `bestSymbol` is exact. |
+| `decode/homography_test.dart` | Identity map; scale-and-translate map; a rotated/keystoned quad maps its four corners exactly and the inverse round-trips; `fromFinders` with exact frame finder centers reproduces `ExactGridModel`. |
 | `decode/cell_classifier_test.dart` | All 64 symbol/color combinations classify exactly; dimmed cells still classify (brightness-normalized chroma); white point rescales channels before chroma; a flipped-bit patch still finds the nearest tile with hamming > 0. |
 | `decode/frame_assembler_test.dart` | Accepts frames in any order, dedups, completes, assembles; rejects RS-failed frames before the header; rejects invalid headers with the header reason; a different `total` for the same `fileId` is rejected; a new `fileId` resets the collection. |
 | `decode/decode_report_test.dart` | `compare` counts symbol/color/cell correctness; `lines` contain the stage keys and truth accuracy; `heatmap` is 608×608 and marks wrong cells. |
-| `decode/frame_decoder_golden_test.dart` | At least five goldens present; `decodeExact` matches each golden sidecar byte-for-byte; non-608 images report `unsupportedGrid` (v1 GIF); `decode` without a grid is `notLocated` until Plan 3; corrupted cells report `rsFailed` with block counts. |
+| `decode/frame_decoder_golden_test.dart` | At least five goldens present; `decodeExact` matches each golden sidecar byte-for-byte; non-608 images report `unsupportedGrid` (v1 GIF); `decode` without a grid on a tiny blank buffer is `notLocated`; corrupted cells report `rsFailed` with block counts. |
+| `decode/frame_decoder_scaled_test.dart` | 2x and 3x nearest-neighbour upscaled frames decode `ok` through a resolution-independent `GridModel`; a 0.5x downscaled frame is below the spec §11 px/cell floor and does not decode. |
+| `decode/white_point_test.dart` | Exact frame's white point is pure white; a color cast shows in the white point; too-dark image returns null. |
+| `decode/finder_locator_test.dart` | Exact placement at scale 1; rotations 37/90/180/271 at scale 1.8 keep TL/TR/BL/BR assignment; keystone 0.12 at scale 1.6; composited on a real photo background (scale 1.0, 0.9 rotated 15); blurred (sigma 2.5 px) and noisy (sigma 8) at scale 1.5; a photo with no v2 barcode and a v1 barcode photo both fail to locate; blank image. |
+| `decode/drift_solver_test.dart` | Exact frame keeps zero drift; a grid model off by (2, -1) px is corrected by the solver; barrel distortion the homography can't model still recovers via drift; the full camera-path geometry matrix still decodes with drift on; a timing report (not asserted). |
+| `decode/synthetic_scene_test.dart` | `renderScene`/`SceneSpec` ground truth: finder centers land at the expected offset for scale 1; a grid built from known finder centers decodes at scale 1, at scale 2.3/rotation 33°/keystone 0.15, and under blur+noise+brightness; a photo composite keeps the source photo outside the barcode quad. |
+| `decode/camera_path_test.dart` | Full `FrameDecoder.decode` through the degradation matrix: scale 1.5–2.5 unrotated; rotations 37/90/180/271 at scale 1.8; keystone 0.12 (~20° tilt); blur sigma 1.0 source px (2 px at scale 2); brightness 0.7 and 1.3; noise sigma 8; combined mild degradation; composited on a real photo at scale 1.0; a photo without a barcode is `notLocated` with locate diagnostics. |
 | `decode/corpus_benchmark_test.dart` | Decodes every case in `test/fixtures/corpus/` (see its `README.md`), asserts each case's `expect` block, writes `build/corpus_report.txt`. |
 
 ### Known Subtleties (Android)

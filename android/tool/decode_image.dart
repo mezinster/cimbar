@@ -2,7 +2,7 @@
 //
 // Usage:
 //   dart run tool/decode_image.dart <image.png|jpg|gif> [--frame N] [--golden name.json]
-//                                   [--heatmap out.png] [--mode exact|camera]
+//                                   [--heatmap out.png] [--mode exact|camera] [--no-drift]
 // Prints `frame=N stage=… key=value` lines. Exit 0 iff the frame decodes (status ok).
 import 'dart:io';
 
@@ -17,7 +17,7 @@ import 'package:cimbar_scanner/core/services/gif_parser.dart';
 
 void main(List<String> args) {
   if (args.isEmpty) {
-    stderr.writeln('usage: decode_image.dart <image> [--frame N] [--golden x.json] [--heatmap out.png] [--mode exact|camera]');
+    stderr.writeln('usage: decode_image.dart <image> [--frame N] [--golden x.json] [--heatmap out.png] [--mode exact|camera] [--no-drift]');
     exit(2);
   }
   final path = args[0];
@@ -25,6 +25,7 @@ void main(List<String> args) {
   String? goldenPath;
   String? heatmapPath;
   String? mode;
+  var useDrift = true;
   for (var i = 1; i < args.length; i++) {
     switch (args[i]) {
       case '--frame':
@@ -51,6 +52,8 @@ void main(List<String> args) {
           exit(2);
         }
         mode = args[++i];
+      case '--no-drift':
+        useDrift = false;
       default:
         stderr.writeln('unknown argument ${args[i]}');
         exit(2);
@@ -86,7 +89,7 @@ void main(List<String> args) {
 
   final buffer = RgbBuffer.fromImage(image);
   final decoder = FrameDecoder();
-  final result = mode == 'exact' ? decoder.decodeExact(buffer) : decoder.decode(buffer);
+  final result = mode == 'exact' ? decoder.decodeExact(buffer) : decoder.decode(buffer, useDrift: useDrift);
 
   GoldenFrame? truth;
   if (goldenPath != null) {
