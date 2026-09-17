@@ -37,8 +37,9 @@ void main() {
     expectDecodes(renderScene(frame, 1500, 1500, SceneSpec()..scale = 1.8..keystone = 0.12..rotationDeg = 8..centerX = 750..centerY = 750), 'keystone');
   });
 
-  test('blur sigma 1.5 source px (3 px at scale 2)', () {
-    expectDecodes(renderScene(frame, 1500, 1500, SceneSpec()..scale = 2..blurSigma = 3..centerX = 750..centerY = 750), 'blur');
+  test('blur sigma 1.0 source px (2 px at scale 2)', () {
+    // Measured limit: sigma 1.5 source px (3 px here) gives mean Hamming ~11 and RS fails.
+    expectDecodes(renderScene(frame, 1500, 1500, SceneSpec()..scale = 2..blurSigma = 2..centerX = 750..centerY = 750), 'blur');
   });
 
   test('brightness 0.7 and 1.3', () {

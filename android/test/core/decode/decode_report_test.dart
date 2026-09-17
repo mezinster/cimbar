@@ -59,7 +59,8 @@ void main() {
     final r = FrameDecoder().decode(scene.image, useDrift: false);
     final lines = DecodeReport.lines(r, frameIndex: 0);
     expect(lines.any((l) => l.startsWith('frame=0 stage=locate ok=true') && l.contains('corners=')), isTrue, reason: lines.join('\n'));
-    expect(lines.any((l) => l.startsWith('frame=0 stage=grid estimate=64')), isTrue);
+    // The estimate is a tolerance-gated diagnostic (64 ± 6); the run-length module is ~1% noisy.
+    expect(lines.any((l) => RegExp(r'^frame=0 stage=grid estimate=(5[89]|6[0-9]|70)$').hasMatch(l)), isTrue, reason: lines.join('\n'));
     expect(lines.any((l) => l.startsWith('frame=0 stage=wb rgb=')), isTrue);
     expect(lines.any((l) => l.startsWith('frame=0 stage=result status=ok')), isTrue);
   });
