@@ -39,7 +39,7 @@ Encryption is optional. On encode, if a passphrase is provided, the payload is e
 
 **Module responsibilities (all in `web-app/`):**
 
-- `index.html` — all UI (tabs, drag-drop, progress, stats, present mode) and the orchestrating inline `<script>` that drives the full encode/decode flow
+- `index.html` — all UI (the Encode / Decode GIF / About tabs, drag-drop, progress, stats, present mode, language picker) and the orchestrating inline `<script>` that drives the full encode/decode flow
 - `format.js` — CimBar v2 format constants and pure helpers shared by encoder, decoder and tests: loads `spec/cimbar-v2.json` in Node or `format-data.js` in the browser. Exposes cell geometry (`usableCellPositions`, `cellOrigin`), header codec (`encodeHeader`/`decodeHeader`), bit packing (`packCells`/`unpackCells`, `cellValue`/`cellSymbol`/`cellColor`), and frame byte-budget helpers (`rawBytesPerFrame`, `rsBlockSizes`, `dataBytesPerFrame`, `fileBytesPerFrame`). Exposes `window.CimbarFormat`
 - `format-data.js` — **generated**; a browser-loadable mirror of `spec/cimbar-v2.json` (the browser cannot `require()` JSON). Sets `window.CIMBAR_SPEC`. Regenerate with `node tools/gen_format_data.js` whenever the spec changes
 - `cimbar.js` — core v2 barcode logic built on `format.js`: `renderFrame`/`decodeFrameExact` (draw/read frame pixels), `encodeRSFrame`/`decodeRSFrame` (RS encode/decode with byte-stride interleaving), `splitIntoFrames`/`FrameAssembler` (chunk a payload into headered frames and reassemble them out of order), `buildPayload`/`parsePayload`/`withLengthPrefix`/`stripLengthPrefix` (file container). Exposes `window.Cimbar`
@@ -87,6 +87,9 @@ node tests/test_frame.js
 node tests/test_rs.js
 node tests/test_goldens.js
 node tests/test_pipeline_node.js
+node tests/test_i18n.js
+node tests/test_browser_load.js
+node tests/test_healthcheck.js
 python3 tests/test_pipeline.py                              # Python orchestrator (runs all Node tests)
 python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # also runs GIF structure check
 python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF check (needs Pillow)
@@ -98,10 +101,10 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_format.js` | `format.js` and `spec/cimbar-v2.json`: grid/finder constant self-consistency, palette, tile set validity, capacity derivation (2880/2112/2104), `format-data.js` freshness, reserved-cell geometry, header encode/decode, `packCells`/`unpackCells` round trip, `cellValue`/`cellSymbol`/`cellColor`. |
 | `tests/test_frame.js` | `cimbar.js` v2 API: `renderFrame` finder/cell painting, `decodeFrameExact` round trip, `encodeRSFrame`/`decodeRSFrame` (including failed-block zero-fill), `splitIntoFrames` header/padding, `FrameAssembler` accept/dedup/reject/complete, payload helpers, and a full GIF round trip via `MockCanvas`. |
 | `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, ≤32 error correction, >32 error detection, Forney/Omega correctness. |
-| `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). Android's Plan 2/3 test suites are planned to consume the same goldens. |
+| `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). The Dart suite consumes the same goldens via `GoldenSidecar` (`frame_decoder_golden_test.dart`, `decode_pipeline_v2_test.dart`). |
 | `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
 | `tests/test_i18n.js` | `i18n.js`: every language defines every English key with no empty strings and the same `{placeholders}`, `t()` interpolates and falls back to English, language detection (stored choice → browser languages → English), and every `data-i18n*` key used in `index.html` exists. |
-| `tests/test_browser_load.js` | Loads the seven page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does) and asserts `Cimbar`, `CimbarFormat`, `CimbarCrypto`, `ReedSolomon`, `GifEncoder`, `GifDecoder` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
+| `tests/test_browser_load.js` | Loads the eight page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does), checks the dependency order (`format-data.js` before `format.js`, `format.js` before `cimbar.js`/`gif-encoder.js`, `i18n.js` last) and asserts `ReedSolomon`, `CIMBAR_SPEC`, `CimbarFormat`, `Cimbar`, `CimbarCrypto`, `GifEncoder`, `GifDecoder`, `CimbarI18n` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
 | `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
 | `tests/test_pipeline.py` | Python subprocess orchestrator: runs the six Node scripts above and, if a GIF path is given, `test_gif.py`. |
@@ -109,7 +112,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 
 ### Known Subtleties (Web)
 
-- The page scripts are classic `<script>` tags, so every file's top-level `const`/`let`/`class` lives in ONE shared global scope: two files declaring `const SPEC` is a `SyntaxError` in the browser (and `Cimbar` ends up undefined) even though every Node test passes, because Node gives each file its own module scope. `cimbar.js` is wrapped in an IIFE for that reason; `tests/test_browser_load.js` enforces it for all seven scripts.
+- The page scripts are classic `<script>` tags, so every file's top-level `const`/`let`/`class` lives in ONE shared global scope: two files declaring `const SPEC` is a `SyntaxError` in the browser (and `Cimbar` ends up undefined) even though every Node test passes, because Node gives each file its own module scope. `cimbar.js` and `i18n.js` are wrapped in IIFEs for that reason; `tests/test_browser_load.js` enforces it for all eight scripts.
 - `decodeFrameExact` unpacks exactly `usableCells × 6 / 8 = 2880` bytes (an exact division, no rounding); `decodeRSFrame` uses `format.js`'s `rawBytesPerFrame()` as the byte limit so block boundaries match the encoder.
 - `MockCanvas.getImageData` must return a copy (`_pixels.slice()`), not a reference — the real DOM API always copies, and GifEncoder stores the returned object by reference.
 - The 4-byte big-endian length prefix in frame data is the only mechanism that strips RS zero-padding before AES-GCM decryption.

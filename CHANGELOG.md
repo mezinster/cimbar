@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-09-18
+
 ### Added
 - Web app localization: English, Russian, Ukrainian, Turkish and Georgian with a language selector in the header (`web-app/i18n.js`, stored in localStorage, browser language by default).
 - Manual S3 + CloudFront deploy workflow for the web app (`.github/workflows/deploy-webapp.yml`) with OIDC credentials, build-marker healthcheck and automatic rollback; `web-app/tools/healthcheck.js` with tests.
@@ -15,19 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v2 camera decode stages in Dart: finder locator, homography grid model, finder-core white balance, per-cell drift solver; synthetic degradation test harness (scale, rotation, perspective, blur, brightness, noise, barrel distortion, photo backgrounds).
 - Live scan and in-app photo capture on v2: focus/exposure lock (`CapturePolicy`) with an aiming guide and contextual hints, in-app photo capture (`PhotoCaptureScreen`), ROI-based per-frame decode with hint reuse across frames, and a single long-lived background decode isolate (`DecodeIsolate`) that drops frames instead of queuing them while busy.
 - `test/core/decode/benchmark_test.dart`: a synthetic-scene decode timing benchmark, writing `build/benchmark.txt`.
+- Web app present mode: shows the encoded GIF full screen, scaled to fit the viewport, for another device's camera to scan.
 
 ### Removed
 - The v1 decoder and its Dart camera pipeline (`camera_decode_pipeline`, `frame_locator`, `symbol_hash_detector`, `image_preprocessing`, `perspective_transform`, `frame_decode_isolate`, `live_scanner`, `cimbar_decoder`, `yuv_converter`), its constants file, and its Settings decode-tuning sliders/toggles.
 - The v1-era Dart tests and test-only synthetic encoder that exercised the above.
+- The **Import Binary** feature from both the web app and the Android app — the web app's tabs are now Encode / Decode GIF / About.
+- The web app's frame-size menu: v2 has a single 608 px frame.
 
 ### Changed
 - Android toolchain: Gradle 9.1.0, AGP 9.0.1, Kotlin 2.3.20, Java 17, `compileSdk`/`targetSdk` from the Flutter SDK (matching the Flutter 3.44 template); CI builds with Flutter 3.44.x.
 - **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app and Android app (GIF import, live scan, photo capture) all encode/decode (or decode) v2. v1 GIFs must be re-encoded.
-- Web app: frame-size menu removed, present-mode full-screen display added.
+- Encryption is now optional in both apps: encode without a passphrase, and decode auto-detects encryption from the payload's `CB 42` magic bytes instead of always demanding one.
 - CI (`.github/workflows/ci.yml`) now runs both test suites: the Flutter test runner (`android/tests/run_all.sh`, including the corpus benchmark table) and the web-app Node test suite (`web-app/tests/run_all.sh`), and uploads the corpus/benchmark reports as a build artifact.
 
 ### Fixed
 - Web app failed to load in the browser (`Cimbar is not defined`): `format.js` and `cimbar.js` both declared top-level `const SPEC`/`API` in the shared global scope; `cimbar.js` is now an IIFE and a browser-load test guards all scripts.
+- Bottom tab bar went dead after a scan: Live Scan and Photo Capture were pushed on the shell's nested navigator, so they kept covering the screen while tab taps switched the route underneath. Both are now pushed on the root navigator, with a regression test.
+- `ResultCard`'s save/share buttons overflowed on narrow phones with long translated labels; they now wrap.
+- Release workflow failed on Flutter 3.44: it is pinned to Flutter 3.44.x and `pubspec.yaml`'s SDK floor matches the toolchain.
 
 ## [0.8.5] — 2026-02-23
 
@@ -104,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flutter analyze errors, warnings, and infos
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
-[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.8.5...HEAD
+[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/mezinster/cimbar/compare/v0.8.5...v0.9.1
 [0.8.5]: https://github.com/mezinster/cimbar/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/mezinster/cimbar/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/mezinster/cimbar/compare/v0.8.2...v0.8.3

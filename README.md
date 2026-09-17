@@ -1,6 +1,6 @@
 # CimBar — Color Icon Matrix Barcode
 
-CimBar encodes any file into an animated GIF where each frame is a grid of colored squares, then decodes it back.
+CimBar encodes any file into an animated GIF where each frame is a grid of colored tile shapes, then decodes it back.
 
 Try it now at **https://nfcarchiver.com/cimbar/**
 
@@ -38,31 +38,27 @@ Then open `http://localhost:8080` in your browser.
 
 1. Click the **Encode** tab.
 2. Drag and drop any file onto the drop zone, or click it to browse.
-3. Enter a passphrase. Keep it — you'll need it to decode.
+3. Optionally enter a passphrase. Encryption is off when the field is left empty; if you do use one, keep it — you'll need it to decode.
 4. Optionally choose a **frame delay** — `100 ms` (fast), `200 ms` (default), or `400 ms` (slow). There is no frame-size choice in v2: every barcode is a single 608×608 px frame.
-5. Click **Encrypt & Encode to GIF**.
+5. Click **Encode to GIF**.
 6. Watch the preview animate as frames are rendered.
 7. Click **Download GIF** to save the result, or **Present full screen** to show the looping GIF full-screen (scaled to fit the viewport) for another device's camera to scan.
 
-The stats panel shows the number of frames, encoded size, and usable cells per frame.
+The stats panel shows the number of frames, the encoded size in bytes, and the bytes carried per frame.
 
 ---
 
 ## Decoding a GIF
 
-1. Click the **Decode** tab.
+1. Click the **Decode GIF** tab.
 2. Drag and drop the GIF file, or click to browse.
-3. Enter the same passphrase used during encoding.
-4. Click **Decode & Decrypt**.
+3. Enter the same passphrase used during encoding — leave the field empty if the GIF is not encrypted. Encryption is auto-detected from the recovered payload's `CB 42` magic bytes.
+4. Click **Decode GIF**.
 5. The original file is downloaded automatically with its original filename.
 
-If the passphrase is wrong or the GIF is corrupted, you will see an error message.
+If the passphrase is wrong or the GIF is corrupted, you will see an error message in the log.
 
----
-
-## Importing a binary payload
-
-The **Import Binary** tab accepts the raw encrypted binary that the open-source C++ `cimbar` scanner produces when it reads a physical CimBar printout with a camera. Paste or load the binary and enter the passphrase to decrypt it directly, without needing the GIF.
+The third tab, **About**, explains the format and shows the per-frame capacity numbers.
 
 ---
 
@@ -80,7 +76,7 @@ The `android/` directory contains a Flutter app that decodes CimBar v2 GIFs on A
 
 - **Import GIF** — Pick a CimBar GIF file, optionally enter the passphrase, decode and save/share the original file
 - **Camera** — Take a photo in-app (or pick one from the gallery) for a single-frame barcode, or use Live Scan for a multi-frame animated barcode
-- **Settings** — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian)
+- **About** (the fourth tab, `SettingsScreen`) — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian), and Privacy Policy / License / Source Code links
 
 ### Live Camera Scanning
 
@@ -92,7 +88,7 @@ For multi-frame CimBar barcodes (animated GIFs):
 4. A progress bar shows frames filled out of the total as they're captured, in any order.
 5. When all frames are captured, the app auto-decrypts (if needed) and shows the result.
 
-The scanner reassembles frames using their header's sequence number and total frame count — no adjacency-chain guessing is needed. Each camera frame is decoded on a background isolate so the UI stays responsive; a busy decoder simply drops the next frame rather than queuing it.
+The scanner reassembles frames using each frame header's sequence number and total frame count, so frames can arrive in any order. Each camera frame is decoded on a background isolate so the UI stays responsive; a busy decoder simply drops the next frame rather than queuing it.
 
 ### Building
 
@@ -119,7 +115,7 @@ The Android app ports the full v2 decode pipeline from the web app to Dart — G
 
 ### Capturing a corpus sample
 
-The decode pipeline is also checked against real camera captures, not just synthetic scenes. To contribute one: enable Settings → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the capture button, aim at a barcode, and tap the camera icon to save a `capture_<ts>.png`/`.txt` pair to the app's documents directory. See `android/test/fixtures/corpus/README.md` for how to pull those files off the device and turn them into a corpus test case.
+The decode pipeline is also checked against real camera captures, not just synthetic scenes. To contribute one: enable About → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the capture button, aim at a barcode, and tap the camera icon to save a `capture_<ts>.png`/`.txt` pair to the app's documents directory. See `android/test/fixtures/corpus/README.md` for how to pull those files off the device and turn them into a corpus test case.
 
 ---
 
@@ -131,7 +127,7 @@ Each frame uses Reed-Solomon RS(255, 191) coding: 64 ECC bytes per 255-byte bloc
 
 ## Wire format
 
-The encrypted binary has a fixed header for interoperability with the C++ `cimbar` scanner:
+When a passphrase is used, the payload is wrapped in this fixed wire format before it is split into frames:
 
 ```
 [CB 42 01 00]  4 bytes  magic
@@ -167,6 +163,9 @@ node tests/test_frame.js          # frame render/decode, RS framing, assembler
 node tests/test_rs.js             # Reed-Solomon correction
 node tests/test_goldens.js        # golden GIFs vs. ground-truth sidecars
 node tests/test_pipeline_node.js  # full GIF pipeline with length prefix
+node tests/test_i18n.js           # UI strings in five languages
+node tests/test_browser_load.js   # page scripts in one shared global scope
+node tests/test_healthcheck.js    # post-deploy healthcheck tool
 python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # Python orchestrator + GIF structure check
 python3 tests/test_gif.py path/to/output.gif 608                    # GIF structure (needs Pillow)
 ```
@@ -180,7 +179,7 @@ cd android
 sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
 ```
 
-Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, the v2 format layer (header, bit packing, RS framing, file container), the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier) against a synthetic-degradation harness, AES-256-GCM crypto, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, and a real-capture corpus benchmark.
+The suite (196 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2 format layer (header, bit packing, RS framing, file container), the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 

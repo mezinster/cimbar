@@ -34,7 +34,7 @@ The camera path is real: a case's status comes from the locator → homography �
 
 To capture one from a device:
 
-1. In the app, go to Settings → Developer and turn on the debug switch.
+1. In the app, go to the About tab → Developer and turn on the debug switch.
 2. Open Camera → Live Scan.
 3. Triple-tap the status panel at the bottom of the screen to turn on the debug overlay (this also reveals a camera icon in the top-right).
 4. Aim the phone at the barcode (present mode on a monitor, or phone-to-phone) per the capture checklist above.
