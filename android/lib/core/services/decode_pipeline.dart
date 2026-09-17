@@ -82,8 +82,13 @@ class DecodePipeline {
     } on FormatException catch (e) {
       yield DecodeProgress(state: DecodeState.error, message: 'File header corrupt: ${e.message}');
       return;
-    } catch (e) {
+    } on StateError catch (e) {
+      // CryptoService.decrypt throws StateError on a wrong passphrase or a
+      // corrupt auth tag; anything else here is not a decryption problem.
       yield DecodeProgress(state: DecodeState.error, message: 'Decryption failed: $e');
+      return;
+    } catch (e) {
+      yield DecodeProgress(state: DecodeState.error, message: 'Decode failed: $e');
       return;
     }
 

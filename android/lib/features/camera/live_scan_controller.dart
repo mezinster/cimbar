@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,7 @@ import '../../core/decode/yuv_frame.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/capture_policy.dart';
 import '../../core/services/decode_isolate.dart';
+import '../../core/services/file_service.dart';
 import '../../core/services/payload_decoder.dart';
 
 final liveScanControllerProvider =
@@ -33,7 +35,6 @@ class LiveScanState {
   final bool debugEnabled;
   final List<String> debugLog;
   final String? captureStatus;
-  final int decodeErrors;
 
   const LiveScanState({
     this.isScanning = false,
@@ -51,7 +52,6 @@ class LiveScanState {
     this.debugEnabled = false,
     this.debugLog = const [],
     this.captureStatus,
-    this.decodeErrors = 0,
   });
 
   bool get isComplete => total > 0 && filled >= total;
@@ -74,7 +74,8 @@ class LiveScanState {
     List<String>? debugLog,
     String? captureStatus,
     bool clearCaptureStatus = false,
-    int? decodeErrors,
+    bool clearResult = false,
+    bool clearError = false,
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
@@ -87,12 +88,11 @@ class LiveScanState {
       imageHeight: imageHeight ?? this.imageHeight,
       pendingLock: pendingLock ?? this.pendingLock,
       isDecrypting: isDecrypting ?? this.isDecrypting,
-      result: result ?? this.result,
-      errorMessage: errorMessage ?? this.errorMessage,
+      result: clearResult ? null : (result ?? this.result),
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       debugEnabled: debugEnabled ?? this.debugEnabled,
       debugLog: debugLog ?? this.debugLog,
       captureStatus: clearCaptureStatus ? null : (captureStatus ?? this.captureStatus),
-      decodeErrors: decodeErrors ?? this.decodeErrors,
     );
   }
 }
@@ -124,6 +124,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _frameNum = 0;
     _consecutiveErrors = 0;
     state = LiveScanState(isScanning: true, debugEnabled: state.debugEnabled);
+    await _spawnIsolate();
+  }
+
+  Future<void> _spawnIsolate() async {
     final gen = _gen;
     _spawning ??= DecodeIsolate.spawn();
     final isolate = await _spawning!;
@@ -159,6 +163,10 @@ class LiveScanController extends StateNotifier<LiveScanState> {
 
   void onCameraFrame(YuvFrame frame) {
     if (!wantsFrame) return;
+    if (_isolate!.isDead) {
+      _onIsolateDeath();
+      return;
+    }
     final capture = _captureNext;
     _captureNext = false;
     final job = FrameJob(frame: frame, useDrift: true, hint: _hint, capture: capture);
@@ -168,6 +176,16 @@ class LiveScanController extends StateNotifier<LiveScanState> {
           onError: (e) => _onIsolateError(n, e),
         );
   }
+
+  /// Drive one decoded frame through the controller without an isolate or a
+  /// camera: the device-free path the widget-layer tests use.
+  @visibleForTesting
+  void onOutcomeForTest(FrameOutcome outcome) => _onOutcome(++_frameNum, outcome, false);
+
+  /// Drive one isolate failure through the controller (3 in a row surface
+  /// `decoder_failed:`).
+  @visibleForTesting
+  void onIsolateErrorForTest(Object error) => _onIsolateError(++_frameNum, error);
 
   void _onOutcome(int n, FrameOutcome o, bool captureRequested) {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -202,7 +220,19 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       imageWidth: o.width,
       imageHeight: o.height,
       pendingLock: lock == LockAction.none ? state.pendingLock : lock,
+      // A frame came back, so the "decoder failed" panel is stale: fall back
+      // to the progress bar / hints until three more errors pile up.
+      clearError: true,
     );
+  }
+
+  /// The worker isolate exited or crashed. Drop the dead wrapper, count the
+  /// death towards the 3-consecutive-errors rule and bring a fresh worker up;
+  /// frames are dropped (`wantsFrame` is false) until it is ready.
+  void _onIsolateDeath() {
+    disposeIsolate();
+    _onIsolateError(_frameNum, StateError('decode isolate died'));
+    unawaited(_spawnIsolate());
   }
 
   /// Isolate call rejected (worker crash, or dispose racing an in-flight decode).
@@ -212,7 +242,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _consecutiveErrors++;
     _log('frame=$n isolate error: $msg');
     if (!mounted) return;
-    state = state.copyWith(framesAnalyzed: n, decodeErrors: state.decodeErrors + 1);
+    state = state.copyWith(framesAnalyzed: n);
     if (_consecutiveErrors >= 3) {
       state = state.copyWith(errorMessage: 'decoder_failed:$msg');
     }
@@ -272,7 +302,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   Future<String?> _autoSave(DecodeResult result) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${result.filename}');
+      final file = File('${dir.path}/${FileService.safeBasename(result.filename)}');
       await file.writeAsBytes(result.data);
       return file.path;
     } catch (_) {

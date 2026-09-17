@@ -50,7 +50,7 @@ class LumaPlane {
       out[i] = (77 * s[j] + 150 * s[j + 1] + 29 * s[j + 2]) >> 8;
       j += 3;
     }
-    return LumaPlane(rgb.width, rgb.height, out);
+    return LumaPlane(rgb.width, rgb.height, out, originX: rgb.originX, originY: rgb.originY);
   }
 
   /// Buffer-local pixel lookup (not offset by origin).

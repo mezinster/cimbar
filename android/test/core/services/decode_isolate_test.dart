@@ -41,4 +41,18 @@ void main() {
     iso.dispose();
     await expectLater(future, throwsStateError);
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('a dead worker fails the in-flight decode and every later one', () async {
+    final frame = loadGoldenFrame('hello', 0);
+    final scene = renderScene(frame, 1280, 720, SceneSpec()..centerX = 640..centerY = 360);
+    final yuv = rgbToYuv420(scene.image, semiPlanar: true);
+    final iso = await DecodeIsolate.spawn();
+    final future = iso.decode(FrameJob(frame: yuv, useDrift: true));
+    iso.killForTest(); // worker crash: the reply port stays open, onExit fires
+    await expectLater(future, throwsStateError);
+    expect(iso.isDead, isTrue);
+    // A decode on a dead wrapper fails synchronously, it does not hang.
+    expect(() => iso.decode(FrameJob(frame: yuv, useDrift: true)), throwsStateError);
+    iso.dispose();
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

@@ -60,13 +60,15 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_disposed) return;
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      _cameraController?.stopImageStream().catchError((_) {});
-      _cameraController?.dispose();
+      final cam = _cameraController;
+      if (cam == null) return;
       _cameraController = null;
+      cam.stopImageStream().catchError((_) {});
+      cam.dispose();
+      if (mounted) setState(() {});
     } else if (state == AppLifecycleState.resumed) {
-      _initCamera();
+      if (_cameraController == null) _initCamera();
     }
   }
 
@@ -199,6 +201,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
 
     final cam = _cameraController;
     final previewReady = !_disposed && cam != null && cam.value.isInitialized;
+    final previewSwapped = previewReady && CornersOverlayPainter.isRotated(cam.description.sensorOrientation);
 
     return PopScope(
       canPop: true,
@@ -214,8 +217,11 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
                 child: FittedBox(
                   fit: BoxFit.contain,
                   child: SizedBox(
-                    width: cam.value.previewSize!.height,
-                    height: cam.value.previewSize!.width,
+                    // Swap only when the sensor turns the axes — the same rule
+                    // CornersOverlayPainter maps with, so the overlay and the
+                    // preview always agree.
+                    width: previewSwapped ? cam.value.previewSize!.height : cam.value.previewSize!.width,
+                    height: previewSwapped ? cam.value.previewSize!.width : cam.value.previewSize!.height,
                     child: CameraPreview(cam),
                   ),
                 ),

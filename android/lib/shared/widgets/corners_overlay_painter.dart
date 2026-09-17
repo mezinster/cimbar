@@ -13,25 +13,36 @@ class CornersOverlayPainter extends CustomPainter {
 
   CornersOverlayPainter({required this.corners, required this.sourceImageWidth, required this.sourceImageHeight, required this.sensorOrientation});
 
-  Offset _map(double x, double y, Size size) {
-    final rotated = sensorOrientation == 90 || sensorOrientation == 270;
-    final rw = rotated ? sourceImageHeight.toDouble() : sourceImageWidth.toDouble();
-    final rh = rotated ? sourceImageWidth.toDouble() : sourceImageHeight.toDouble();
+  Offset _map(double x, double y, Size size) =>
+      mapPoint(x, y, size, sourceImageWidth, sourceImageHeight, sensorOrientation);
+
+  /// True when a [sensorOrientation] turns the source frame's axes, so the
+  /// preview is laid out with width and height swapped. The screen's preview
+  /// sizing must use the same rule as this painter or the overlay drifts.
+  static bool isRotated(int sensorOrientation) => sensorOrientation == 90 || sensorOrientation == 270;
+
+  /// Maps one source-frame point to the `BoxFit.contain` preview area:
+  /// rotate by [sensorOrientation], then scale and center.
+  /// 90 deg CW is `(x, y) -> (H - y, x)`. The previous overlay painter used
+  /// the CCW mapping and was never validated on a device; confirm on the
+  /// first device run.
+  @visibleForTesting
+  static Offset mapPoint(double x, double y, Size size, int sourceW, int sourceH, int sensorOrientation) {
+    final rotated = isRotated(sensorOrientation);
+    final rw = rotated ? sourceH.toDouble() : sourceW.toDouble();
+    final rh = rotated ? sourceW.toDouble() : sourceH.toDouble();
     final scale = (size.width / rw < size.height / rh) ? size.width / rw : size.height / rh; // contain
     final ox = (size.width - rw * scale) / 2, oy = (size.height - rh * scale) / 2;
     double rx, ry;
-    // 90° CW: (x, y) → (H − y, x). The previous overlay painter used the
-    // CCW mapping and was never validated on a device; confirm on the first
-    // device run.
     if (sensorOrientation == 90) {
-      rx = sourceImageHeight - y;
+      rx = sourceH - y;
       ry = x;
     } else if (sensorOrientation == 270) {
       rx = y;
-      ry = sourceImageWidth - x;
+      ry = sourceW - x;
     } else if (sensorOrientation == 180) {
-      rx = sourceImageWidth - x;
-      ry = sourceImageHeight - y;
+      rx = sourceW - x;
+      ry = sourceH - y;
     } else {
       rx = x;
       ry = y;

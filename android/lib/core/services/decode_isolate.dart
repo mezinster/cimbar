@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:image/image.dart' as img;
 
 import '../decode/diagnostics.dart';
@@ -55,8 +56,6 @@ class FrameOutcome {
     required this.height,
     this.capturePng,
   });
-
-  bool get located => corners != null;
 }
 
 /// Runs [FrameDecoder.decodeYuv420] in one long-lived background isolate.
@@ -66,33 +65,62 @@ class DecodeIsolate {
   final SendPort _toWorker;
   final ReceivePort _fromWorker;
   Completer<FrameOutcome>? _pending;
+  bool _dead = false;
 
   DecodeIsolate._(this._isolate, this._toWorker, this._fromWorker) {
-    _fromWorker.listen((msg) {
-      final p = _pending;
-      _pending = null;
-      if (p == null) return;
-      if (msg is FrameOutcome) {
-        p.complete(msg);
-      } else {
-        p.completeError(StateError('decode isolate error: $msg'));
-      }
-    });
+    _fromWorker.listen(_onMessage);
+  }
+
+  /// [_fromWorker] carries three kinds of message: a [FrameOutcome] reply, a
+  /// String the worker sent after catching a job exception (the worker is
+  /// still alive), and — because the port is also registered as the isolate's
+  /// `onExit`/`onError` port — a `null` exit notification or a 2-element
+  /// error List. The last two mean the worker is gone for good.
+  void _onMessage(Object? msg) {
+    final p = _pending;
+    _pending = null;
+    if (msg is FrameOutcome) {
+      p?.complete(msg);
+      return;
+    }
+    final exited = msg == null;
+    if (exited || msg is List) _dead = true;
+    p?.completeError(StateError(exited ? 'decode isolate exited' : 'decode isolate error: $msg'));
   }
 
   static Future<DecodeIsolate> spawn() async {
     final handshake = ReceivePort();
-    final isolate = await Isolate.spawn(_worker, handshake.sendPort);
+    // The reply port must exist before the spawn so it can double as the
+    // isolate's onExit/onError port: a worker that dies then wakes us up
+    // instead of leaving the caller's future pending forever.
+    final fromWorker = ReceivePort();
+    final Isolate isolate;
+    try {
+      isolate = await Isolate.spawn(
+        _worker,
+        handshake.sendPort,
+        onExit: fromWorker.sendPort,
+        onError: fromWorker.sendPort,
+      );
+    } catch (_) {
+      handshake.close();
+      fromWorker.close();
+      rethrow;
+    }
     final toWorker = await handshake.first as SendPort;
     handshake.close();
-    final fromWorker = ReceivePort();
     toWorker.send(fromWorker.sendPort);
     return DecodeIsolate._(isolate, toWorker, fromWorker);
   }
 
   bool get busy => _pending != null;
 
+  /// True once the worker isolate has exited or crashed (or [dispose] ran).
+  /// A dead wrapper never decodes again; callers respawn.
+  bool get isDead => _dead;
+
   Future<FrameOutcome> decode(FrameJob job) {
+    if (_dead) throw StateError('DecodeIsolate is dead');
     if (_pending != null) throw StateError('DecodeIsolate is busy');
     final c = Completer<FrameOutcome>();
     _pending = c;
@@ -105,10 +133,16 @@ class DecodeIsolate {
   void dispose() {
     final p = _pending;
     _pending = null;
+    _dead = true;
     p?.completeError(StateError('DecodeIsolate disposed'));
     _fromWorker.close();
     _isolate.kill(priority: Isolate.immediate);
   }
+
+  /// Kills the worker *without* closing the reply port, so the onExit
+  /// notification is delivered — the way a real worker crash looks.
+  @visibleForTesting
+  void killForTest() => _isolate.kill(priority: Isolate.immediate);
 
   static void _worker(SendPort handshake) {
     final inbox = ReceivePort();

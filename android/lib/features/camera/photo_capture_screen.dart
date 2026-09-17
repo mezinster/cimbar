@@ -9,7 +9,7 @@ class PhotoCaptureScreen extends StatefulWidget {
   State<PhotoCaptureScreen> createState() => _PhotoCaptureScreenState();
 }
 
-class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
+class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> with WidgetsBindingObserver {
   CameraController? _controller;
   String? _error;
   bool _taking = false;
@@ -17,7 +17,21 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      final c = _controller;
+      if (c == null) return;
+      _controller = null;
+      c.dispose();
+      if (mounted) setState(() {});
+    } else if (state == AppLifecycleState.resumed) {
+      if (_controller == null) _init();
+    }
   }
 
   Future<void> _init() async {
@@ -45,6 +59,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
   }

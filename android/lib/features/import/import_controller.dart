@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
 import '../../core/services/decode_pipeline.dart';
+import '../../core/services/file_service.dart';
 
 final importControllerProvider =
     StateNotifierProvider<ImportController, ImportState>((ref) {
@@ -98,7 +99,7 @@ class ImportController extends StateNotifier<ImportState> {
   Future<String?> _autoSave(DecodeResult result) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${result.filename}');
+      final file = File('${dir.path}/${FileService.safeBasename(result.filename)}');
       await file.writeAsBytes(result.data);
       return file.path;
     } catch (_) {

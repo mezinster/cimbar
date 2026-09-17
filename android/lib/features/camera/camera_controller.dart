@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
 import '../../core/services/decode_pipeline.dart';
+import '../../core/services/file_service.dart';
 import '../../core/services/photo_decoder.dart';
 
 final cameraControllerProvider =
@@ -14,12 +15,19 @@ final cameraControllerProvider =
   return CameraController();
 });
 
+/// [errorCode] is the stable tag [PhotoDecodeResult] produced ('multi_frame',
+/// 'passphrase_required', 'not_located', 'decode_failed'); the screen maps it
+/// to a localized string and only falls back to the English
+/// `progress.message` when it is null. [errorTotal] carries the frame count
+/// 'multi_frame' needs.
 class CameraState {
   final Uint8List? capturedPhotoBytes;
   final String? capturedPhotoPath;
   final DecodeProgress? progress;
   final DecodeResult? result;
   final bool isDecoding;
+  final String? errorCode;
+  final int? errorTotal;
 
   const CameraState({
     this.capturedPhotoBytes,
@@ -27,6 +35,8 @@ class CameraState {
     this.progress,
     this.result,
     this.isDecoding = false,
+    this.errorCode,
+    this.errorTotal,
   });
 
   CameraState copyWith({
@@ -35,8 +45,11 @@ class CameraState {
     DecodeProgress? progress,
     DecodeResult? result,
     bool? isDecoding,
+    String? errorCode,
+    int? errorTotal,
     bool clearResult = false,
     bool clearProgress = false,
+    bool clearError = false,
   }) {
     return CameraState(
       capturedPhotoBytes: capturedPhotoBytes ?? this.capturedPhotoBytes,
@@ -44,6 +57,8 @@ class CameraState {
       progress: clearProgress ? null : (progress ?? this.progress),
       result: clearResult ? null : (result ?? this.result),
       isDecoding: isDecoding ?? this.isDecoding,
+      errorCode: clearError ? null : (errorCode ?? this.errorCode),
+      errorTotal: clearError ? null : (errorTotal ?? this.errorTotal),
     );
   }
 }
@@ -91,6 +106,7 @@ class CameraController extends StateNotifier<CameraState> {
       isDecoding: true,
       clearResult: true,
       clearProgress: true,
+      clearError: true,
     );
 
     final bytes = state.capturedPhotoBytes!;
@@ -113,6 +129,8 @@ class CameraController extends StateNotifier<CameraState> {
       state = state.copyWith(
         isDecoding: false,
         result: r.result,
+        errorCode: r.errorCode,
+        errorTotal: r.total,
         progress: DecodeProgress(
           state: r.error == null ? DecodeState.done : DecodeState.error,
           progress: 1,
@@ -126,7 +144,7 @@ class CameraController extends StateNotifier<CameraState> {
   Future<String?> _autoSave(DecodeResult result) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${result.filename}');
+      final file = File('${dir.path}/${FileService.safeBasename(result.filename)}');
       await file.writeAsBytes(result.data);
       return file.path;
     } catch (_) {

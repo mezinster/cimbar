@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/decode_result.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/language_switcher_button.dart';
@@ -37,6 +38,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   void _onPassphraseChanged() => setState(() {});
+
+  /// The photo decoder reports failures as stable codes; render them in the
+  /// user's language and fall back to its English message only when there is
+  /// no code (the GIF pipeline's progress messages, which are English).
+  DecodeProgress _localized(AppLocalizations l10n, CameraState s) {
+    final p = s.progress!;
+    final code = s.errorCode;
+    if (code == null) return p;
+    final text = switch (code) {
+      'multi_frame' => l10n.errorMultiFrameNeedsLive(s.errorTotal ?? 0),
+      'passphrase_required' => l10n.errorPassphraseRequired,
+      'not_located' => l10n.errorNoBarcodeFound,
+      'decode_failed' => l10n.errorDecoderFailed(p.message ?? ''),
+      _ => p.message ?? '',
+    };
+    return DecodeProgress(state: p.state, progress: p.progress, message: text);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +155,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           ),
           const SizedBox(height: 16),
 
-          if (state.progress != null) ProgressCard(progress: state.progress!),
+          if (state.progress != null) ProgressCard(progress: _localized(l10n, state)),
 
           if (state.result != null) ...[
             const SizedBox(height: 16),
