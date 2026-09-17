@@ -226,6 +226,9 @@ class AppLocalizationsKa extends AppLocalizations {
   }
 
   @override
+  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
+
+  @override
   String get tabFiles => 'ფაილები';
 
   @override
@@ -247,38 +250,6 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get fileDeleted => 'ფაილი წაიშალა';
-
-  @override
-  String get decodeTuning => 'Decode Tuning';
-
-  @override
-  String get symbolSensitivity => 'Symbol Sensitivity';
-
-  @override
-  String get symbolSensitivityDesc =>
-      'Higher = stricter dot detection (corners must be brighter to read as 1)';
-
-  @override
-  String get whiteBalanceLabel => 'White Balance Correction';
-
-  @override
-  String get relativeColorLabel => 'Relative Color Matching';
-
-  @override
-  String get quadrantOffsetLabel => 'Quadrant Sample Offset';
-
-  @override
-  String get quadrantOffsetDesc =>
-      'Corner sample position as fraction of cell size';
-
-  @override
-  String get hashDetectionLabel => 'Hash Symbol Detection';
-
-  @override
-  String get adaptiveThresholdLabel => 'Adaptive Threshold';
-
-  @override
-  String get resetDefaults => 'Reset to Defaults';
 
   @override
   String get developerSection => 'დეველოპერი';

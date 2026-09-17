@@ -65,6 +65,7 @@
   "captureFailed": "Capture failed",
   "errorPassphraseRequired": "This file is encrypted: a passphrase is required",
   "errorDecoderFailed": "Decoder failed: {detail}",
+  "errorNoBarcodeFound": "No CimBar barcode found in the photo",
 
   "tabFiles": "Файлы",
   "filesTitle": "Декодированные файлы",
@@ -73,17 +74,6 @@
   "deleteFileTitle": "Удалить файл",
   "deleteFileConfirm": "Удалить {filename}?",
   "fileDeleted": "Файл удалён",
-
-  "decodeTuning": "Настройки декодирования",
-  "symbolSensitivity": "Чувствительность символов",
-  "symbolSensitivityDesc": "Выше = строже определение точек (углы должны быть ярче для чтения как 1)",
-  "whiteBalanceLabel": "Коррекция баланса белого",
-  "relativeColorLabel": "Относительное сопоставление цветов",
-  "quadrantOffsetLabel": "Смещение квадранта",
-  "quadrantOffsetDesc": "Позиция углового образца как доля размера ячейки",
-  "hashDetectionLabel": "Хеш-определение символов",
-  "adaptiveThresholdLabel": "Адаптивный порог",
-  "resetDefaults": "Сбросить настройки",
 
   "developerSection": "Разработчик",
   "debugModeLabel": "Режим отладки",

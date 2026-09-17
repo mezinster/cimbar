@@ -226,6 +226,9 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
+
+  @override
   String get tabFiles => 'Файлы';
 
   @override
@@ -247,38 +250,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get fileDeleted => 'Файл удалён';
-
-  @override
-  String get decodeTuning => 'Настройки декодирования';
-
-  @override
-  String get symbolSensitivity => 'Чувствительность символов';
-
-  @override
-  String get symbolSensitivityDesc =>
-      'Выше = строже определение точек (углы должны быть ярче для чтения как 1)';
-
-  @override
-  String get whiteBalanceLabel => 'Коррекция баланса белого';
-
-  @override
-  String get relativeColorLabel => 'Относительное сопоставление цветов';
-
-  @override
-  String get quadrantOffsetLabel => 'Смещение квадранта';
-
-  @override
-  String get quadrantOffsetDesc =>
-      'Позиция углового образца как доля размера ячейки';
-
-  @override
-  String get hashDetectionLabel => 'Хеш-определение символов';
-
-  @override
-  String get adaptiveThresholdLabel => 'Адаптивный порог';
-
-  @override
-  String get resetDefaults => 'Сбросить настройки';
 
   @override
   String get developerSection => 'Разработчик';

@@ -65,6 +65,7 @@
   "captureFailed": "Capture failed",
   "errorPassphraseRequired": "This file is encrypted: a passphrase is required",
   "errorDecoderFailed": "Decoder failed: {detail}",
+  "errorNoBarcodeFound": "No CimBar barcode found in the photo",
 
   "tabFiles": "Dosyalar",
   "filesTitle": "Dosyalar",
@@ -73,17 +74,6 @@
   "deleteFileTitle": "Dosyayı Sil",
   "deleteFileConfirm": "{filename} silinsin mi?",
   "fileDeleted": "Dosya silindi",
-
-  "decodeTuning": "Decode Tuning",
-  "symbolSensitivity": "Symbol Sensitivity",
-  "symbolSensitivityDesc": "Higher = stricter dot detection (corners must be brighter to read as 1)",
-  "whiteBalanceLabel": "White Balance Correction",
-  "relativeColorLabel": "Relative Color Matching",
-  "quadrantOffsetLabel": "Quadrant Sample Offset",
-  "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
-  "hashDetectionLabel": "Hash Symbol Detection",
-  "adaptiveThresholdLabel": "Adaptive Threshold",
-  "resetDefaults": "Reset to Defaults",
 
   "developerSection": "Geliştirici",
   "debugModeLabel": "Hata Ayıklama Modu",

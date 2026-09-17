@@ -184,6 +184,8 @@
       "detail": { "type": "String" }
     }
   },
+  "errorNoBarcodeFound": "No CimBar barcode found in the photo",
+  "@errorNoBarcodeFound": { "description": "Error shown when a still photo contains no locatable CimBar barcode" },
 
   "tabFiles": "Files",
   "@tabFiles": { "description": "Bottom navigation tab for file explorer" },
@@ -204,27 +206,6 @@
   },
   "fileDeleted": "File deleted",
   "@fileDeleted": { "description": "Snackbar message after file deletion" },
-
-  "decodeTuning": "Decode Tuning",
-  "@decodeTuning": { "description": "Section title for camera decode tuning settings" },
-  "symbolSensitivity": "Symbol Sensitivity",
-  "@symbolSensitivity": { "description": "Label for symbol detection threshold slider" },
-  "symbolSensitivityDesc": "Higher = stricter dot detection (corners must be brighter to read as 1)",
-  "@symbolSensitivityDesc": { "description": "Description for symbol sensitivity slider" },
-  "whiteBalanceLabel": "White Balance Correction",
-  "@whiteBalanceLabel": { "description": "Label for white balance toggle" },
-  "relativeColorLabel": "Relative Color Matching",
-  "@relativeColorLabel": { "description": "Label for relative color matching toggle" },
-  "quadrantOffsetLabel": "Quadrant Sample Offset",
-  "@quadrantOffsetLabel": { "description": "Label for quadrant offset slider" },
-  "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
-  "@quadrantOffsetDesc": { "description": "Description for quadrant offset slider" },
-  "hashDetectionLabel": "Hash Symbol Detection",
-  "@hashDetectionLabel": { "description": "Label for hash-based symbol detection toggle" },
-  "adaptiveThresholdLabel": "Adaptive Threshold",
-  "@adaptiveThresholdLabel": { "description": "Label for adaptive threshold preprocessing toggle" },
-  "resetDefaults": "Reset to Defaults",
-  "@resetDefaults": { "description": "Button to reset tuning to default values" },
 
   "developerSection": "Developer",
   "@developerSection": { "description": "Section title for developer settings" },

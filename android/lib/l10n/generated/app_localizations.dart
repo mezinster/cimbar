@@ -494,6 +494,12 @@ abstract class AppLocalizations {
   /// **'Decoder failed: {detail}'**
   String errorDecoderFailed(String detail);
 
+  /// Error shown when a still photo contains no locatable CimBar barcode
+  ///
+  /// In en, this message translates to:
+  /// **'No CimBar barcode found in the photo'**
+  String get errorNoBarcodeFound;
+
   /// Bottom navigation tab for file explorer
   ///
   /// In en, this message translates to:
@@ -535,66 +541,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File deleted'**
   String get fileDeleted;
-
-  /// Section title for camera decode tuning settings
-  ///
-  /// In en, this message translates to:
-  /// **'Decode Tuning'**
-  String get decodeTuning;
-
-  /// Label for symbol detection threshold slider
-  ///
-  /// In en, this message translates to:
-  /// **'Symbol Sensitivity'**
-  String get symbolSensitivity;
-
-  /// Description for symbol sensitivity slider
-  ///
-  /// In en, this message translates to:
-  /// **'Higher = stricter dot detection (corners must be brighter to read as 1)'**
-  String get symbolSensitivityDesc;
-
-  /// Label for white balance toggle
-  ///
-  /// In en, this message translates to:
-  /// **'White Balance Correction'**
-  String get whiteBalanceLabel;
-
-  /// Label for relative color matching toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Relative Color Matching'**
-  String get relativeColorLabel;
-
-  /// Label for quadrant offset slider
-  ///
-  /// In en, this message translates to:
-  /// **'Quadrant Sample Offset'**
-  String get quadrantOffsetLabel;
-
-  /// Description for quadrant offset slider
-  ///
-  /// In en, this message translates to:
-  /// **'Corner sample position as fraction of cell size'**
-  String get quadrantOffsetDesc;
-
-  /// Label for hash-based symbol detection toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Hash Symbol Detection'**
-  String get hashDetectionLabel;
-
-  /// Label for adaptive threshold preprocessing toggle
-  ///
-  /// In en, this message translates to:
-  /// **'Adaptive Threshold'**
-  String get adaptiveThresholdLabel;
-
-  /// Button to reset tuning to default values
-  ///
-  /// In en, this message translates to:
-  /// **'Reset to Defaults'**
-  String get resetDefaults;
 
   /// Section title for developer settings
   ///
