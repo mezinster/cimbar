@@ -8,6 +8,8 @@ import 'package:cimbar_scanner/core/decode/golden_sidecar.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
 import 'package:cimbar_scanner/core/services/gif_parser.dart';
 
+import '../../test_utils/synthetic_scene.dart';
+
 String repoPath(String rel) => '../$rel';
 
 void main() {
@@ -50,5 +52,15 @@ void main() {
     expect(p.r > 200 && p.g < 80, isTrue, reason: 'wrong symbol is red');
     final q = hm.getPixel(88 + 9 + 4, 16 + 4); // cell (9,0)
     expect(q.r == q.g && q.g == q.b, isTrue, reason: 'correct cell is gray');
+  });
+
+  test('camera-path lines include locate/grid/wb stages', () {
+    final scene = renderScene(RgbBuffer.fromImage(frame), 800, 800, SceneSpec()..centerX = 400..centerY = 400);
+    final r = FrameDecoder().decode(scene.image, useDrift: false);
+    final lines = DecodeReport.lines(r, frameIndex: 0);
+    expect(lines.any((l) => l.startsWith('frame=0 stage=locate ok=true') && l.contains('corners=')), isTrue, reason: lines.join('\n'));
+    expect(lines.any((l) => l.startsWith('frame=0 stage=grid estimate=64')), isTrue);
+    expect(lines.any((l) => l.startsWith('frame=0 stage=wb rgb=')), isTrue);
+    expect(lines.any((l) => l.startsWith('frame=0 stage=result status=ok')), isTrue);
   });
 }

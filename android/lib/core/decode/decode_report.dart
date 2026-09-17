@@ -46,6 +46,32 @@ class DecodeReport {
     final d = r.diag.toMap();
     final out = <String>[];
     final p = 'frame=$frameIndex';
+    if (r.diag.locateRan) {
+      out.add('$p stage=locate ${_kv({
+            'ok': '${r.diag.locateFail.isEmpty}',
+            'candidates': d['candidates']!,
+            'clusters': d['clusters']!,
+            'module': d['module']!,
+            'corners': d['corners']!,
+            'tlLuma': d['tlLuma']!,
+            'secondLuma': d['secondLuma']!,
+            'devNorm': d['devNorm']!,
+            'locateMs': d['locateMs']!,
+            if (r.diag.locateFail.isNotEmpty) 'fail': r.diag.locateFail,
+          })}');
+      if (r.diag.locateFail.isEmpty) {
+        out.add('$p stage=grid estimate=${d['gridEstimate']}');
+        out.add('$p stage=wb rgb=${d['wb']}');
+      }
+    }
+    if (r.diag.driftUsed) {
+      out.add('$p stage=drift ${_kv({
+            'meanAbs': d['driftMeanAbs']!,
+            'maxAbs': d['driftMaxAbs']!,
+            'widened': d['driftWidened']!,
+            'driftMs': d['driftMs']!,
+          })}');
+    }
     out.add('$p stage=cells ${_kv({
           'hammingMax': d['hammingMax']!,
           'hammingMean': d['hammingMean']!,
