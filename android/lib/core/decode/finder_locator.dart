@@ -80,7 +80,17 @@ class FinderLocator {
         if (m < 1.5) continue;
         if (!_ratiosOk(runs, i, m)) continue;
         final cx = runs[i].start + total / 2;
-        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
+        // tr/bl/br cores carry a 1-module black orientation dot dead center
+        // (spec §3.2); a vertical scan through the exact center column always
+        // crosses it, splitting the 3-module core into three 1-module runs so
+        // the 1:1:3:1:1 ratio check can never pass there. Try the center
+        // column first, then one module either side (still inside the
+        // 3-module white core, but clear of the 1-module dot).
+        (double, double)? vy;
+        for (final off in [0.0, -m, m]) {
+          vy = _confirmVertical(bin, w, h, (cx + off).floor(), y, m);
+          if (vy != null) break;
+        }
         if (vy == null) continue;
         candidates++;
         final (cy, mv) = vy;
