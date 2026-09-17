@@ -17,7 +17,8 @@ class DriftField {
 /// finder corners; each cell starts from the mean drift of its visited
 /// neighbours, tries the 3x3 offsets at ±1 px (luma-only sampling, symbol-only
 /// Hamming), widens to the ±2 ring when the best Hamming exceeds
-/// [wideThreshold], and clamps to ±[clampPx].
+/// [wideThreshold], and clamps to ±[clampPx]. Seed cells (no decided
+/// neighbours) always evaluate the ±2 ring as well, since they have no prior.
 class DriftSolver {
   final CellSampler sampler;
   final CellClassifier classifier;
@@ -95,8 +96,9 @@ class DriftSolver {
         }
         if (!moved) break;
       }
-      if (bestH > wideThreshold) {
-        field.widened++;
+      final needWide = bestH > wideThreshold;
+      if (needWide || nn == 0) {
+        if (needWide) field.widened++;
         final cx = bestX, cy = bestY;
         for (final (ox, oy) in _ring2) {
           final tx = cx + ox, ty = cy + oy;
