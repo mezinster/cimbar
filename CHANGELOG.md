@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Golden GIFs with ground-truth sidecars (`test-data/goldens/`) shared by the JS and Dart test suites.
 - Offline Dart CLI decoder `android/tool/decode_image.dart` and a real-capture corpus benchmark scaffold.
+- v2 camera decode stages in Dart: finder locator, homography grid model, finder-core white balance, per-cell drift solver; synthetic degradation test harness (scale, rotation, perspective, blur, brightness, noise, barrel distortion, photo backgrounds).
 
 ## [0.8.5] — 2026-02-23
 
