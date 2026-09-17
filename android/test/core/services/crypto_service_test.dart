@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cimbar_scanner/core/services/crypto_service.dart';
-import 'package:cimbar_scanner/core/constants/cimbar_constants.dart';
 
 void main() {
   group('CryptoService', () {
@@ -15,8 +14,8 @@ void main() {
       final encrypted = CryptoService.encrypt(original, passphrase);
 
       // Verify wire format header
-      expect(encrypted[0], equals(CimbarConstants.magic[0]));
-      expect(encrypted[1], equals(CimbarConstants.magic[1]));
+      expect(encrypted[0], equals(CryptoService.magic[0]));
+      expect(encrypted[1], equals(CryptoService.magic[1]));
       expect(encrypted[2], equals(0x01));
       expect(encrypted[3], equals(0x00));
       expect(encrypted.length, greaterThan(32 + 16)); // header + tag

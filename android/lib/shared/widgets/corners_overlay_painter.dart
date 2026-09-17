@@ -20,7 +20,7 @@ class CornersOverlayPainter extends CustomPainter {
     final scale = (size.width / rw < size.height / rh) ? size.width / rw : size.height / rh; // contain
     final ox = (size.width - rw * scale) / 2, oy = (size.height - rh * scale) / 2;
     double rx, ry;
-    // 90° CW: (x, y) → (H − y, x). The legacy BarcodeOverlayPainter used the
+    // 90° CW: (x, y) → (H − y, x). The previous overlay painter used the
     // CCW mapping and was never validated on a device; confirm on the first
     // device run.
     if (sensorOrientation == 90) {
@@ -66,7 +66,7 @@ class CornersOverlayPainter extends CustomPainter {
       path.lineTo(p.dx, p.dy);
     }
     path.close();
-    canvas.drawPath(path, Paint()..color = Colors.green.withOpacity(0.15)..style = PaintingStyle.fill);
+    canvas.drawPath(path, Paint()..color = Colors.green.withValues(alpha: 0.15)..style = PaintingStyle.fill);
     canvas.drawPath(path, Paint()..color = Colors.greenAccent..style = PaintingStyle.stroke..strokeWidth = 3);
     canvas.drawCircle(pts[0], 6, Paint()..color = Colors.orangeAccent); // TL marker
   }

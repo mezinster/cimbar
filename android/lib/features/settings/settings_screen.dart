@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/providers/decode_tuning_provider.dart';
+import '../../core/providers/debug_mode_provider.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 
@@ -18,8 +18,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final tuning = ref.watch(decodeTuningProvider);
-    final tuningNotifier = ref.read(decodeTuningProvider.notifier);
+    final debugMode = ref.watch(debugModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -28,95 +27,6 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          // Decode Tuning section
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.decodeTuning, style: theme.textTheme.titleMedium),
-                const SizedBox(height: 12),
-
-                // Symbol Sensitivity slider
-                Text(l10n.symbolSensitivity, style: theme.textTheme.bodyMedium),
-                Slider(
-                  value: tuning.symbolThreshold,
-                  min: 0.50,
-                  max: 0.95,
-                  divisions: 18,
-                  label: tuning.symbolThreshold.toStringAsFixed(2),
-                  onChanged: (v) => tuningNotifier.setSymbolThreshold(v),
-                ),
-                Text(
-                  l10n.symbolSensitivityDesc,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // White Balance toggle
-                SwitchListTile(
-                  title: Text(l10n.whiteBalanceLabel),
-                  value: tuning.enableWhiteBalance,
-                  onChanged: (v) => tuningNotifier.setEnableWhiteBalance(v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                // Relative Color Matching toggle
-                SwitchListTile(
-                  title: Text(l10n.relativeColorLabel),
-                  value: tuning.useRelativeColor,
-                  onChanged: (v) => tuningNotifier.setUseRelativeColor(v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                // Hash Symbol Detection toggle
-                SwitchListTile(
-                  title: Text(l10n.hashDetectionLabel),
-                  value: tuning.useHashDetection,
-                  onChanged: (v) => tuningNotifier.setUseHashDetection(v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                // Adaptive Threshold toggle
-                SwitchListTile(
-                  title: Text(l10n.adaptiveThresholdLabel),
-                  value: tuning.useAdaptiveThreshold,
-                  onChanged: (v) => tuningNotifier.setUseAdaptiveThreshold(v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 8),
-
-                // Quadrant Offset slider
-                Text(l10n.quadrantOffsetLabel, style: theme.textTheme.bodyMedium),
-                Slider(
-                  value: tuning.quadrantOffset,
-                  min: 0.15,
-                  max: 0.40,
-                  divisions: 25,
-                  label: tuning.quadrantOffset.toStringAsFixed(2),
-                  onChanged: (v) => tuningNotifier.setQuadrantOffset(v),
-                ),
-                Text(
-                  l10n.quadrantOffsetDesc,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Reset button
-                OutlinedButton.icon(
-                  onPressed: () => tuningNotifier.resetDefaults(),
-                  icon: const Icon(Icons.restore),
-                  label: Text(l10n.resetDefaults),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-
           // Developer section
           Padding(
             padding: const EdgeInsets.all(16),
@@ -133,8 +43,8 @@ class SettingsScreen extends ConsumerWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  value: tuning.debugModeEnabled,
-                  onChanged: (v) => tuningNotifier.setDebugModeEnabled(v),
+                  value: debugMode,
+                  onChanged: (v) => ref.read(debugModeProvider.notifier).set(v),
                   contentPadding: EdgeInsets.zero,
                 ),
               ],

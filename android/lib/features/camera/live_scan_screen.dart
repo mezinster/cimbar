@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -273,7 +271,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
                 bottom: 180,
                 child: Container(
                   constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
-                  color: Colors.black.withOpacity(0.8),
+                  color: Colors.black.withValues(alpha: 0.8),
                   padding: const EdgeInsets.all(8),
                   child: ListView(
                     controller: _debugScrollController,
@@ -292,7 +290,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
               child: GestureDetector(
                 onTap: _onStatusTap,
                 child: Container(
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withValues(alpha: 0.6),
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
                   child: _buildStatusPanel(l10n, scanState, controller),
                 ),

@@ -34,7 +34,7 @@ void main() {
     expect(withGood.status, DecodeStatus.ok, reason: '${withGood.diag.toMap()}');
     expect(withGood.data, truth);
     expect(withGood.diag.corners![0], closeTo(c[0], 2.0));
-    final bad = const RoiHint(0, 0, 200, 200);
+    const bad = RoiHint(0, 0, 200, 200);
     final withBad = FrameDecoder().decodeYuv420(yuv, hint: bad);
     expect(withBad.status, DecodeStatus.ok, reason: '${withBad.diag.toMap()}');
     expect(withBad.data, truth);
