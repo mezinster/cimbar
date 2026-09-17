@@ -244,7 +244,8 @@ the GIF paths and skips stages 6.2–6.3.
 4. Cluster hits within one module; a cluster is a candidate with center and module size.
 5. Choose four: for each pair of candidates as diagonal, find the pair whose
    parallelogram closure error is smallest (existing `devNorm` logic); reject if the best
-   error exceeds 0.09 of the mean side length or any two chosen module sizes differ by
+   error exceeds 0.35 of the mean side length (v1 validated 0.30 linear; an earlier draft of
+   this spec wrote 0.09, which was that value squared) or any two chosen module sizes differ by
    more than 2×.
 6. Classify TL: sample a 3×3 px patch at each candidate's center in **full-resolution**
    luma; TL is the one with the brightest center, and it must exceed the others by at
