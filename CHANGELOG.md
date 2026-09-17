@@ -7,14 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app encodes/decodes v2; Android GIF import decodes v2. v1 GIFs must be re-encoded.
-- Web app: frame-size menu removed, present-mode full-screen display added.
-
 ### Added
 - Golden GIFs with ground-truth sidecars (`test-data/goldens/`) shared by the JS and Dart test suites.
 - Offline Dart CLI decoder `android/tool/decode_image.dart` and a real-capture corpus benchmark scaffold.
 - v2 camera decode stages in Dart: finder locator, homography grid model, finder-core white balance, per-cell drift solver; synthetic degradation test harness (scale, rotation, perspective, blur, brightness, noise, barrel distortion, photo backgrounds).
+- Live scan and in-app photo capture on v2: focus/exposure lock (`CapturePolicy`) with an aiming guide and contextual hints, in-app photo capture (`PhotoCaptureScreen`), ROI-based per-frame decode with hint reuse across frames, and a single long-lived background decode isolate (`DecodeIsolate`) that drops frames instead of queuing them while busy.
+- `test/core/decode/benchmark_test.dart`: a synthetic-scene decode timing benchmark, writing `build/benchmark.txt`.
+
+### Removed
+- The v1 decoder and its Dart camera pipeline (`camera_decode_pipeline`, `frame_locator`, `symbol_hash_detector`, `image_preprocessing`, `perspective_transform`, `frame_decode_isolate`, `live_scanner`, `cimbar_decoder`, `yuv_converter`), its constants file, and its Settings decode-tuning sliders/toggles.
+- The v1-era Dart tests and test-only synthetic encoder that exercised the above.
+
+### Changed
+- **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app and Android app (GIF import, live scan, photo capture) all encode/decode (or decode) v2. v1 GIFs must be re-encoded.
+- Web app: frame-size menu removed, present-mode full-screen display added.
+- CI (`.github/workflows/ci.yml`) now runs both test suites: the Flutter test runner (`android/tests/run_all.sh`, including the corpus benchmark table) and the web-app Node test suite (`web-app/tests/run_all.sh`), and uploads the corpus/benchmark reports as a build artifact.
 
 ## [0.8.5] — 2026-02-23
 

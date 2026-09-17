@@ -9,9 +9,7 @@ This repo contains:
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
 - **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
 
-**Note:** the Android app still implements the previous (v1) format; GIFs from the current web app will not decode on Android until the v2 port lands.
-
-Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files are encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
+Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files can optionally be encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
 This is the CimBar v2 format — it replaces the original 7-bit/8-color/corner-dot format completely. **Files encoded before this change must be re-encoded**; old GIFs will not decode with the current app, and GIFs made with the current app will not decode with an older version.
 
@@ -70,26 +68,25 @@ The **Import Binary** tab accepts the raw encrypted binary that the open-source 
 
 ## Android App
 
-The `android/` directory contains a Flutter app that can decode CimBar GIFs on Android devices.
+The `android/` directory contains a Flutter app that decodes CimBar v2 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
 
 ### Features
 
-- **Import GIF** — Pick a CimBar GIF file, enter the passphrase, decode and save the original file
-- **Import Binary** — Decrypt raw binary output from the C++ `cimbar` scanner
-- **Camera** — Single-photo capture for single-frame barcodes, plus live multi-frame scanning for animated barcodes. Camera decode uses white balance correction, relative color matching, and configurable symbol sensitivity to handle varying lighting conditions.
-- **Settings** — Decode tuning (symbol sensitivity, white balance, relative color matching, quadrant offset — all adjustable at runtime and persisted), language selection (English, Russian, Turkish, Ukrainian, Georgian)
+- **Import GIF** — Pick a CimBar GIF file, optionally enter the passphrase, decode and save/share the original file
+- **Camera** — Take a photo in-app (or pick one from the gallery) for a single-frame barcode, or use Live Scan for a multi-frame animated barcode
+- **Settings** — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian)
 
 ### Live Camera Scanning
 
-For multi-frame CimBar barcodes (animated GIFs), the app supports live camera scanning:
+For multi-frame CimBar barcodes (animated GIFs):
 
-1. Go to the **Camera** tab and enter the passphrase.
-2. Tap **Live Scan** to open the full-screen camera.
-3. Point the camera at the cycling animated GIF on another screen.
-4. The overlay shows progress: "Scanning... X/Y frames captured".
-5. When all frames are captured, the app auto-decrypts and shows the result.
+1. Go to the **Camera** tab, optionally enter the passphrase, and tap **Live Scan** to open the full-screen camera.
+2. Line the barcode up inside the aiming square; the camera locks focus and exposure once it's found, and unlocks again if it's lost for 2 seconds.
+3. Hints ("move closer", "move back", "hold still", "adjust angle/lighting") appear when the barcode is located but not decoding well.
+4. A progress bar shows frames filled out of the total as they're captured, in any order.
+5. When all frames are captured, the app auto-decrypts (if needed) and shows the result.
 
-The scanner handles multi-cycle capture — it can pick up different frames across multiple animation loops and reassemble them in the correct order using adjacency-chain tracking. CimBar frames have no sequence numbers, so the scanner identifies frame order by observing which frame follows which during live capture, and detects frame 0 by its 4-byte length prefix.
+The scanner reassembles frames using their header's sequence number and total frame count — no adjacency-chain guessing is needed. Each camera frame is decoded on a background isolate so the UI stays responsive; a busy decoder simply drops the next frame rather than queuing it.
 
 ### Building
 
@@ -103,14 +100,20 @@ flutter build apk --debug      # debug APK
 flutter build apk --release    # release APK
 ```
 
+Note: building with a Flutter SDK newer than 3.24.x may fail against the repo's pinned Gradle/AGP versions — see `android/CLAUDE.md`'s Build section.
+
 ### Running tests
 
 ```bash
 cd android
-flutter test
+sh tests/run_all.sh
 ```
 
-The Android app ports the full decode pipeline from the web app to Dart, including GF(256) arithmetic, Reed-Solomon RS(255,191), CimBar pixel decoding, AES-256-GCM decryption, and live camera scanning — all with matching unit tests.
+The Android app ports the full v2 decode pipeline from the web app to Dart — GF(256) arithmetic, Reed-Solomon RS(255,191), the finder locator, homography grid model, white balance, drift solver, cell classifier, AES-256-GCM decryption, and the live-scan/photo capture layer — all with matching unit tests, plus a synthetic-degradation test harness and a real-capture corpus benchmark.
+
+### Capturing a corpus sample
+
+The decode pipeline is also checked against real camera captures, not just synthetic scenes. To contribute one: enable Settings → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the capture button, aim at a barcode, and tap the camera icon to save a `capture_<ts>.png`/`.txt` pair to the app's documents directory. See `android/test/fixtures/corpus/README.md` for how to pull those files off the device and turn them into a corpus test case.
 
 ---
 
@@ -164,14 +167,14 @@ python3 tests/test_gif.py path/to/output.gif 608                    # GIF struct
 
 ### Android App
 
-Requires Flutter SDK:
+Requires the Flutter SDK:
 
 ```bash
 cd android
-flutter test
+sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
 ```
 
-Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, symbol round-trip (including camera-exposure threshold), AES-GCM crypto, the full RS frame pipeline, YUV→RGB conversion, and live scanner logic (deduplication, adjacency-chain ordering, frame 0 detection, multi-frame assembly).
+Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, the v2 format layer (header, bit packing, RS framing, file container), the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier) against a synthetic-degradation harness, AES-256-GCM crypto, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, and a real-capture corpus benchmark.
 
 ---
 

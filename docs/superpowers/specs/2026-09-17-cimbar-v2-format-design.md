@@ -1,7 +1,7 @@
 # CimBar v2: Camera-First Format and Decoder — Design Spec
 
 Date: 2026-09-17
-Status: Approved design, awaiting implementation plan
+Status: Implemented (Plans 1–4); real-capture corpus and on-device timing pending
 
 ## 1. Why
 
@@ -446,3 +446,31 @@ Steps 1–5 need no device. Step 7 is the only step that needs the user at a pho
   conversion and single isolate are the planned mitigations, FFI is the fallback.
 - Present mode at 1× on a 1080p monitor gives 8 px cells on screen; the phone must be
   close enough that a cell spans ≥ 5 camera px. The "move closer" hint covers this.
+
+## Deviations recorded during implementation
+
+Values below are what shipped in `android/lib/core/decode/` and `android/lib/core/services/`,
+where they differ from an initial reading of this spec:
+
+- **Finder parallelogram tolerance (`FinderLocator.maxDevNorm`) is 0.35, was 0.09 earlier in
+  implementation** — real camera/photo degradation needed more slack than the initial
+  synthetic-only estimate.
+- **Full `FrameDecoder.decode` blur coverage tops out at σ ≈ 1.0 source px** (2 px at 2× scale) in
+  `camera_path_test.dart`'s degradation matrix, though `finder_locator_test.dart` alone (locate
+  only, no RS decode) is tested up to σ 2.5 px — decode-through-RS is the tighter bound.
+- **Grid-size gate is 64 ± 10 cells**, using the mean of all four side lengths (not just two) to
+  cancel keystone to first order, not a tighter single-axis tolerance.
+- **ROI margin is 4.5 modules, not 1** — the finder centers sit 3.5 cells inside the grid edge,
+  so the camera-path ROI (finder bounding box + margin) needs `module * 4.5` to guarantee full
+  grid coverage, with one module of margin to spare.
+- **"Move closer" hint fires at `module < 6 px`** — matching the locator's own module floor (see
+  next item), not an independently chosen UX threshold.
+- **Locator module floor is 3 downscaled px** — below this, photo texture aliases into false
+  finder candidates at the 2× downscale the locator scans.
+- **Finder core dotted pattern uses a 25% run-length tolerance** (`FinderLocator._p7Tol`), tighter
+  than the 50% tolerance used for the solid 1:1:3:1:1 core pattern — a uniform 7-run band is easy
+  to false-positive on at looser tolerances.
+- **Locator row scan stays per-row** — an attempted stride-2 row scan lost hits on small, rotated
+  finders and was reverted; only the column scan around a hit is bounded (±7 modules).
+- **Drift hill-climb is capped at 3 steps** — measured drift on the degradation matrix stays
+  ≤ 2.1 px, so 3 steps of the ±1/±2 px search converge without needing an unbounded climb.
