@@ -90,7 +90,7 @@ node tests/test_pipeline_node.js
 node tests/test_i18n.js
 node tests/test_browser_load.js
 node tests/test_healthcheck.js
-python3 tests/test_pipeline.py                              # Python orchestrator (runs all Node tests)
+python3 tests/test_pipeline.py                              # Python orchestrator (runs six of the nine Node tests; sh tests/run_all.sh runs all)
 python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # also runs GIF structure check
 python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF check (needs Pillow)
 ```
@@ -107,7 +107,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_browser_load.js` | Loads the eight page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does), checks the dependency order (`format-data.js` before `format.js`, `format.js` before `cimbar.js`/`gif-encoder.js`, `i18n.js` last) and asserts `ReedSolomon`, `CIMBAR_SPEC`, `CimbarFormat`, `Cimbar`, `CimbarCrypto`, `GifEncoder`, `GifDecoder`, `CimbarI18n` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
 | `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
-| `tests/test_pipeline.py` | Python subprocess orchestrator: runs the six Node scripts above and, if a GIF path is given, `test_gif.py`. |
+| `tests/test_pipeline.py` | Python subprocess orchestrator: runs six of the nine Node scripts above (tiles, format, frame, RS, goldens, pipeline — not `test_i18n.js`, `test_browser_load.js` or `test_healthcheck.js`) and, if a GIF path is given, `test_gif.py`. `sh tests/run_all.sh` is what runs all nine. |
 | `tests/mock_canvas.js` | Node.js mock of Canvas 2D API. `getImageData` returns a copy of the pixel buffer (matching browser behavior). |
 
 ### Known Subtleties (Web)
