@@ -31,4 +31,14 @@ void main() {
     expect(o2.status, DecodeStatus.ok);
     iso.dispose();
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('dispose fails an in-flight decode instead of hanging forever', () async {
+    final frame = loadGoldenFrame('hello', 0);
+    final scene = renderScene(frame, 1280, 720, SceneSpec()..centerX = 640..centerY = 360);
+    final yuv = rgbToYuv420(scene.image, semiPlanar: true);
+    final iso = await DecodeIsolate.spawn();
+    final future = iso.decode(FrameJob(frame: yuv, useDrift: true));
+    iso.dispose();
+    await expectLater(future, throwsStateError);
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

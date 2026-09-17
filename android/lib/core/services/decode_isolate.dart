@@ -100,7 +100,12 @@ class DecodeIsolate {
     return c.future;
   }
 
+  /// Kills the worker isolate and closes the reply port. An in-flight
+  /// [decode] call fails with a [StateError] rather than hanging forever.
   void dispose() {
+    final p = _pending;
+    _pending = null;
+    p?.completeError(StateError('DecodeIsolate disposed'));
     _fromWorker.close();
     _isolate.kill(priority: Isolate.immediate);
   }
@@ -118,8 +123,8 @@ class DecodeIsolate {
       if (msg is FrameJob) {
         try {
           out!.send(runJob(decoder, msg));
-        } catch (e) {
-          out!.send('$e');
+        } catch (e, st) {
+          out!.send('$e\n$st');
         }
       }
     });

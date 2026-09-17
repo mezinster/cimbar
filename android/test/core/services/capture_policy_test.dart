@@ -39,4 +39,15 @@ void main() {
     expect(p.update(outcome(DecodeStatus.rsFailed, module: 12, ox: 25), 400).$1, ScanHint.adjustAngle);
     expect(p.update(outcome(DecodeStatus.notLocated), 500).$1, ScanHint.none);
   });
+
+  test('reset clears lock and stale corner history', () {
+    final p = CapturePolicy();
+    expect(p.update(outcome(DecodeStatus.ok), 0).$2, LockAction.lock);
+    expect(p.locked, isTrue);
+    p.reset();
+    expect(p.locked, isFalse);
+    final r = p.update(outcome(DecodeStatus.ok, ox: 25), 100);
+    expect(r.$2, LockAction.lock);
+    expect(r.$1, ScanHint.none);
+  });
 }
