@@ -59,7 +59,7 @@ class FinderLocator {
   final double tlMargin;
   final int maxClusters;
 
-  const FinderLocator({this.downscale = 2, this.maxDevNorm = 0.09, this.tlMargin = 40, this.maxClusters = 12});
+  const FinderLocator({this.downscale = 2, this.maxDevNorm = 0.35, this.tlMargin = 40, this.maxClusters = 12});
 
   LocateResult locate(LumaPlane full) {
     final ds = downscale == 2 ? full.downscale2() : full;
@@ -72,25 +72,14 @@ class FinderLocator {
     var candidates = 0;
     for (var y = 0; y < h; y++) {
       final runs = _rowRuns(bin, w, y);
-      for (var i = 0; i + 4 < runs.length; i++) {
-        if (runs[i].dark) continue; // pattern starts with a light run
-        if (i == 0 || i + 5 >= runs.length) continue; // need dark on both sides
-        final total = runs[i].length + runs[i + 1].length + runs[i + 2].length + runs[i + 3].length + runs[i + 4].length;
-        final m = total / 7;
+      for (var i = 1; i < runs.length; i++) {
+        if (runs[i].dark) continue;
+        final match = _matchPattern(runs, i);
+        if (match == null) continue;
+        final (total, m) = match;
         if (m < 1.5) continue;
-        if (!_ratiosOk(runs, i, m)) continue;
         final cx = runs[i].start + total / 2;
-        // tr/bl/br cores carry a 1-module black orientation dot dead center
-        // (spec §3.2); a vertical scan through the exact center column always
-        // crosses it, splitting the 3-module core into three 1-module runs so
-        // the 1:1:3:1:1 ratio check can never pass there. Try the center
-        // column first, then one module either side (still inside the
-        // 3-module white core, but clear of the 1-module dot).
-        (double, double)? vy;
-        for (final off in [0.0, -m, m]) {
-          vy = _confirmVertical(bin, w, h, (cx + off).floor(), y, m);
-          if (vy != null) break;
-        }
+        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
         if (vy == null) continue;
         candidates++;
         final (cy, mv) = vy;
@@ -184,7 +173,17 @@ class FinderLocator {
     if (tr == null || bl == null) {
       return LocateResult(candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second, failReason: 'TR/BL orientation ambiguous');
     }
-    return LocateResult(tl: tl, tr: tr, bl: bl, br: br, candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
+    // Axis-aligned row/column scans measure a chord through a rotated
+    // finder, which is 1/cos(theta) longer than the true module; fold the
+    // TL->TR heading into [-45,45] degrees and correct for it.
+    var folded = math.atan2(tr.y - tl.y, tr.x - tl.x) % (math.pi / 2);
+    if (folded > math.pi / 4) folded -= math.pi / 2;
+    final cosF = math.cos(folded);
+    final tlC = Finder(tl.x, tl.y, tl.module * cosF);
+    final trC = Finder(tr.x, tr.y, tr.module * cosF);
+    final blC = Finder(bl.x, bl.y, bl.module * cosF);
+    final brC = Finder(br.x, br.y, br.module * cosF);
+    return LocateResult(tl: tlC, tr: trC, bl: blC, br: brC, candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
   }
 
   static double _dist(_Cluster a, _Cluster b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
@@ -246,14 +245,33 @@ class FinderLocator {
     return runs;
   }
 
-  /// 1:1:3:1:1 with each run within 50% of its expected length.
-  static bool _ratiosOk(List<_Run> runs, int i, double m) {
-    const expected = [1.0, 1.0, 3.0, 1.0, 1.0];
-    for (var k = 0; k < 5; k++) {
-      final e = expected[k] * m;
-      if ((runs[i + k].length - e).abs() > 0.5 * e) return false;
+  static const List<double> _p5 = [1, 1, 3, 1, 1];
+  static const List<double> _p7 = [1, 1, 1, 1, 1, 1, 1]; // core split by the tr/bl/br dot
+
+  /// Match a finder cross-section starting at light run [i]: the 5-run
+  /// 1:1:3:1:1 pattern (solid core) or the 7-run 1:1:1:1:1:1:1 pattern (core
+  /// split by the dot). Runs alternate, so a dark run precedes i (i >= 1) and
+  /// follows the window when i + n < runs.length. Returns (total, module).
+  static (int, double)? _matchPattern(List<_Run> runs, int i) {
+    for (final pat in [_p5, _p7]) {
+      final n = pat.length;
+      if (i + n >= runs.length) continue;
+      var total = 0;
+      for (var k = 0; k < n; k++) {
+        total += runs[i + k].length;
+      }
+      final m = total / 7;
+      var ok = true;
+      for (var k = 0; k < n; k++) {
+        final e = pat[k] * m;
+        if ((runs[i + k].length - e).abs() > 0.5 * e) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return (total, m);
     }
-    return true;
+    return null;
   }
 
   /// Vertical confirmation at column x around row y: returns (centerY, module) or null.
@@ -261,15 +279,15 @@ class FinderLocator {
     if (x < 0 || x >= w) return null;
     final y0 = math.max(0, (y - 6 * m).floor()), y1 = math.min(h, (y + 6 * m).ceil());
     final runs = _colRuns(bin, w, x, y0, y1);
-    for (var i = 1; i + 5 < runs.length; i++) {
+    for (var i = 1; i < runs.length; i++) {
       if (runs[i].dark) continue;
-      final mid = runs[i + 2];
-      if (y < mid.start - m || y >= mid.start + mid.length + m) continue;
-      final total = runs[i].length + runs[i + 1].length + mid.length + runs[i + 3].length + runs[i + 4].length;
-      final mv = total / 7;
+      final match = _matchPattern(runs, i);
+      if (match == null) continue;
+      final (total, mv) = match;
+      final start = runs[i].start;
+      if (y < start || y >= start + total) continue; // the window must contain the row
       if (mv < 0.5 * m || mv > 2 * m) continue;
-      if (!_ratiosOk(runs, i, mv)) continue;
-      return (runs[i].start + total / 2, mv);
+      return (start + total / 2, mv);
     }
     return null;
   }

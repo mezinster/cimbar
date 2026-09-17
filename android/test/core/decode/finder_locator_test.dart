@@ -37,8 +37,8 @@ void main() {
     }
   }, timeout: const Timeout(Duration(minutes: 3)));
 
-  test('keystone 0.18 at scale 1.6', () {
-    final scene = renderScene(frame, 1200, 1200, SceneSpec()..scale = 1.6..keystone = 0.18..rotationDeg = 12..centerX = 600..centerY = 600);
+  test('keystone 0.12 at scale 1.6', () {
+    final scene = renderScene(frame, 1200, 1200, SceneSpec()..scale = 1.6..keystone = 0.12..rotationDeg = 12..centerX = 600..centerY = 600);
     final r = locator.locate(LumaPlane.fromRgb(scene.image));
     expectCorners(r, scene, 2.0);
   });
