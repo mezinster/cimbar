@@ -14,7 +14,7 @@
 
 - All new code under `android/lib/core/decode/` and `android/test/test_utils/` imports only `dart:*`, `package:image` (file decode in tests only) and `lib/core/`. **No `package:flutter`**; `dart run tool/decode_image.dart` must keep working.
 - Coordinates: `RgbBuffer`/`LumaPlane` use continuous coordinates where pixel `k` covers `[k, k+1)` and its center is `k + 0.5`. Grid models map cell units (one unit = one 9 px pitch, origin at cell (0,0)'s top-left) to source pixels; finder centers are at cell coords (3.5, 3.5), (60.5, 3.5), (3.5, 60.5), (60.5, 60.5), i.e. frame pixels (47.5, 47.5), (560.5, 47.5), (47.5, 560.5), (560.5, 560.5).
-- Locator (spec §6.2): downscale 2× by area average; run pattern light:dark:light(3):dark:light with every run within 50 % of the module estimate (total ÷ 7); vertical confirmation at each row hit; clustering within one module; four corners chosen by minimum parallelogram closure error `devNorm = |(P+Q) − (R+S)| / meanSide` ≤ 0.35 (v1 validated 30% linear; the spec's 0.09 was that value squared) with all four modules within 2× of each other; TL = brightest full-res 3×3 core center, exceeding every other by ≥ 40 luma; TR/BL by the sign of `(BR−TL) × (P−TL)` (negative → TR, positive → BL in image coordinates with y down).
+- Locator (spec §6.2): downscale 2× by area average; run pattern light:dark:light(3):dark:light, or its 7-run 1:1:1:1:1:1:1 form when the core dot splits the middle run, with every run within 50 % of the module estimate (total ÷ 7); vertical confirmation at the center column of each row hit; run-length modules corrected by cos of the grid rotation folded into ±45°; clustering within one module; four corners chosen by minimum parallelogram closure error `devNorm = |(P+Q) − (R+S)| / meanSide` ≤ 0.35 (v1 validated 30% linear; the spec's 0.09 was that value squared) with all four modules within 2× of each other; TL = brightest full-res 3×3 core center, exceeding every other by ≥ 40 luma; TR/BL by the sign of `(BR−TL) × (P−TL)` (negative → TR, positive → BL in image coordinates with y down).
 - Grid size (§3.2): `estimate = round(meanCenterDistance / module) + 7`; accept only `|estimate − 64| ≤ 6`, else `unsupportedGrid`.
 - White point (§6.3): per-channel 90th percentile over the four finder cores (the eight core cells around the dot cell, sampled at five points each), applied via `CellClassifier.classify(whitePoint:)`; if any channel < 30, no white balance.
 - Drift (§6.5): BFS from the cells adjacent to the four corners; initial drift = mean of visited 4-neighbours; 9 positions (initial + 8 neighbours at ±1 px); widen to the ±2 ring (16 more positions) when the best Hamming > 20; clamp to ±6 px; luma-only sampling and symbol-only classification during the search; final classification samples RGB at the winning offset.
@@ -1058,22 +1058,14 @@ class FinderLocator {
     var candidates = 0;
     for (var y = 0; y < h; y++) {
       final runs = _rowRuns(bin, w, y);
-      for (var i = 0; i + 4 < runs.length; i++) {
+      for (var i = 1; i < runs.length; i++) {
         if (runs[i].dark) continue; // pattern starts with a light run
-        if (i == 0 || i + 5 >= runs.length) continue; // need dark on both sides
-        final total = runs[i].length + runs[i + 1].length + runs[i + 2].length + runs[i + 3].length + runs[i + 4].length;
-        final m = total / 7;
+        final match = _matchPattern(runs, i);
+        if (match == null) continue;
+        final (total, m) = match;
         if (m < 1.5) continue;
-        if (!_ratiosOk(runs, i, m)) continue;
         final cx = runs[i].start + total / 2;
-        // TR/BL/BR carry a 1-module dot at the core center, so the exact
-        // center column never shows 1:1:3:1:1 — also try one module to either
-        // side (still inside the 3-module core, outside the dot).
-        (double, double)? vy;
-        for (final off in [0.0, -m, m]) {
-          vy = _confirmVertical(bin, w, h, (cx + off).floor(), y, m);
-          if (vy != null) break;
-        }
+        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
         if (vy == null) continue;
         candidates++;
         final (cy, mv) = vy;
@@ -1167,7 +1159,13 @@ class FinderLocator {
     if (tr == null || bl == null) {
       return LocateResult(candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second, failReason: 'TR/BL orientation ambiguous');
     }
-    return LocateResult(tl: tl, tr: tr, bl: bl, br: br, candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
+    // Axis-aligned chords through a finder rotated by θ are 1/cos θ longer than
+    // the true module: correct with the grid rotation folded into ±45°.
+    var folded = math.atan2(tr.y - tl.y, tr.x - tl.x) % (math.pi / 2);
+    if (folded > math.pi / 4) folded -= math.pi / 2;
+    final cosF = math.cos(folded);
+    Finder fix(Finder f) => Finder(f.x, f.y, f.module * cosF);
+    return LocateResult(tl: fix(tl), tr: fix(tr), bl: fix(bl), br: fix(br), candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
   }
 
   static double _dist(_Cluster a, _Cluster b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
@@ -1229,14 +1227,33 @@ class FinderLocator {
     return runs;
   }
 
-  /// 1:1:3:1:1 with each run within 50% of its expected length.
-  static bool _ratiosOk(List<_Run> runs, int i, double m) {
-    const expected = [1.0, 1.0, 3.0, 1.0, 1.0];
-    for (var k = 0; k < 5; k++) {
-      final e = expected[k] * m;
-      if ((runs[i + k].length - e).abs() > 0.5 * e) return false;
+  static const List<double> _p5 = [1, 1, 3, 1, 1];
+  static const List<double> _p7 = [1, 1, 1, 1, 1, 1, 1]; // core split by the tr/bl/br dot
+
+  /// Match a finder cross-section starting at light run [i]: the 5-run
+  /// 1:1:3:1:1 pattern (solid core) or the 7-run 1:1:1:1:1:1:1 pattern (core
+  /// split by the dot). Runs alternate, so a dark run precedes i (i >= 1) and
+  /// follows the window when i + n < runs.length. Returns (total, module).
+  static (int, double)? _matchPattern(List<_Run> runs, int i) {
+    for (final pat in [_p5, _p7]) {
+      final n = pat.length;
+      if (i + n >= runs.length) continue;
+      var total = 0;
+      for (var k = 0; k < n; k++) {
+        total += runs[i + k].length;
+      }
+      final m = total / 7;
+      var ok = true;
+      for (var k = 0; k < n; k++) {
+        final e = pat[k] * m;
+        if ((runs[i + k].length - e).abs() > 0.5 * e) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return (total, m);
     }
-    return true;
+    return null;
   }
 
   /// Vertical confirmation at column x around row y: returns (centerY, module) or null.
@@ -1244,15 +1261,15 @@ class FinderLocator {
     if (x < 0 || x >= w) return null;
     final y0 = math.max(0, (y - 6 * m).floor()), y1 = math.min(h, (y + 6 * m).ceil());
     final runs = _colRuns(bin, w, x, y0, y1);
-    for (var i = 1; i + 5 < runs.length; i++) {
+    for (var i = 1; i < runs.length; i++) {
       if (runs[i].dark) continue;
-      final mid = runs[i + 2];
-      if (y < mid.start - m || y >= mid.start + mid.length + m) continue;
-      final total = runs[i].length + runs[i + 1].length + mid.length + runs[i + 3].length + runs[i + 4].length;
-      final mv = total / 7;
+      final match = _matchPattern(runs, i);
+      if (match == null) continue;
+      final (total, mv) = match;
+      final start = runs[i].start;
+      if (y < start || y >= start + total) continue; // the window must contain the row
       if (mv < 0.5 * m || mv > 2 * m) continue;
-      if (!_ratiosOk(runs, i, mv)) continue;
-      return (runs[i].start + total / 2, mv);
+      return (start + total / 2, mv);
     }
     return null;
   }
