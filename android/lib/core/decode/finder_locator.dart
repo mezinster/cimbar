@@ -47,8 +47,7 @@ class _Cluster {
 
 class _Refined {
   final double x, y, m;
-  final int hits;
-  const _Refined(this.x, this.y, this.m, this.hits);
+  const _Refined(this.x, this.y, this.m);
 }
 
 class _Run {
@@ -138,9 +137,25 @@ class FinderLocator {
 
     final strong = clusters.where((c) => c.hits >= 2).toList()..sort((a, b) => b.hits.compareTo(a.hits));
     final refined = <_Refined>[];
+    final unrefined = <_Cluster>[];
     for (final c in strong.take(maxClusters)) {
       final r = _refine(bin, w, h, c.x, c.y, c.m);
-      if (r != null) refined.add(_Refined(r.$1, r.$2, r.$3, c.hits));
+      if (r != null) {
+        refined.add(_Refined(r.$1, r.$2, r.$3));
+      } else {
+        unrefined.add(c);
+      }
+    }
+    if (refined.length < 4) {
+      // refinement can fail one module off the core on textured scenes; the
+      // centroid is still a usable corner. Only fall back to it when the
+      // successfully-refined pool is otherwise too small — an unrefined
+      // centroid competing on parallelogram fit alone can look deceptively
+      // clean and out-rank a real, refined corner. (Ranking clusters by fit
+      // quality is deferred to Plan 4.)
+      for (final c in unrefined) {
+        refined.add(_Refined(c.x, c.y, c.m));
+      }
     }
     if (refined.length < 4) {
       return LocateResult(candidates: candidates, clusters: strong.length, failReason: 'fewer than 4 finder candidates (${refined.length} after refinement, ${strong.length} clusters)');
@@ -165,7 +180,9 @@ class FinderLocator {
             final ex = (p.x + q.x) - (r.x + s.x), ey = (p.y + q.y) - (r.y + s.y);
             final dev = math.sqrt(ex * ex + ey * ey) / side;
             final ratio = side / ((mMax + mMin) / 2);
-            if (ratio < 40 || ratio > 75) continue; // finder centers are 57 modules apart
+            // finder centers are 57 modules apart; the module here is still 1/cosθ-inflated
+            // (57·cos45° ≈ 40), so the floor is 36
+            if (ratio < 36 || ratio > 75) continue;
             if (dev < bestDev) {
               bestDev = dev;
               bestQuad = [p, r, q, s];

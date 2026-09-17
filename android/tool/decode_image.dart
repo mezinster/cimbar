@@ -33,7 +33,12 @@ void main(List<String> args) {
           stderr.writeln('missing value for ${args[i]}');
           exit(2);
         }
-        frameIndex = int.parse(args[++i]);
+        final parsed = int.tryParse(args[++i]);
+        if (parsed == null) {
+          stderr.writeln('invalid value for --frame');
+          exit(2);
+        }
+        frameIndex = parsed;
       case '--golden':
         if (i + 1 >= args.length) {
           stderr.writeln('missing value for ${args[i]}');

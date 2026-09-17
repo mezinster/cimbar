@@ -91,10 +91,11 @@ Asymmetry for orientation: the TL finder's core is solid white. TR, BL and BR ca
 9×9 px black dot at the center of the core (the core's middle cell). The decoder identifies
 TL as the finder whose core center is dark-free.
 
-Grid size derivation: `gridCells = round(7 × barcodeSidePx / finderSidePx)`, where both
-lengths are measured between finder centers in the same units. A decoder that measures a
-value other than 64 reports `unsupportedGrid` and stops. This is how future grid sizes will
-be added without a header change.
+Grid size derivation: `gridCells = round(centerDistancePx / modulePx) + 7`, where
+centerDistancePx is the mean of the four center-to-center sides and modulePx the finder
+module (one ring width); finder centers sit 57 modules apart on a 64-cell grid. A decoder
+that measures a value outside 64 ± 10 reports `unsupportedGrid` and stops. This is how
+future grid sizes will be added without a header change.
 
 ### 3.3 Colors
 

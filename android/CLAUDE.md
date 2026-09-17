@@ -72,7 +72,7 @@ Pure-Dart, no Flutter/UI dependencies — matches the web-app JS `format.js`/`ci
 - `decode/cell_sampler.dart` — `CellSampler.sample`: reads a cell's 8×8 tile into a `CellPatch{luma, rgb}` through a `GridModel`
 - `decode/cell_classifier.dart` — `CellClassifier.classify -> CellClassification{symbol, hamming, color, colorMargin}`: symbol via average-hash Hamming distance to the 16 tiles, color via nearest palette entry
 - `decode/diagnostics.dart` — `DecodeStatus` enum (`ok, notLocated, unsupportedGrid, rsFailed, badHeader`) and `Diagnostics`/`FrameResult{status, cells, raw, data, header, diag}`
-- `decode/frame_decoder.dart` — `FrameDecoder`: `decode(image, {grid, useDrift = true})` runs the camera path (LumaPlane → FinderLocator → HomographyGridModel → grid-size check (64 ± 6) → WhitePoint → DriftSolver → cells → RS → header); `decodeExact(image)` is the GIF path; `decodeWithGrid(image, grid, {whitePoint, useDrift, luma, diag})` is the shared core
+- `decode/frame_decoder.dart` — `FrameDecoder`: `decode(image, {grid, useDrift = true})` runs the camera path (LumaPlane → FinderLocator → HomographyGridModel → grid-size check (64 ± 10) → WhitePoint → DriftSolver → cells → RS → header); `decodeExact(image)` is the GIF path; `decodeWithGrid(image, grid, {whitePoint, useDrift, luma, diag})` is the shared core
 - `decode/frame_assembler.dart` — `FrameAssembler.add(data, {blocksFailed}) -> AddResult{accepted, reason, header}`: sequence-slot assembly across frames, dedup/total/fileId-reset rules matching web-app's `FrameAssembler`
 - `decode/golden_sidecar.dart` — `GoldenSidecar.load`/`GoldenSidecar.gifPathFor`: loader for `test-data/goldens/<name>.json` ground truth, shared by Dart and JS test suites
 - `decode/decode_report.dart` — `DecodeReport.compare` (`Uint8List` cells vs. truth -> `TruthComparison{symbolAccuracy, colorAccuracy, cellAccuracy, wrongCellIndices}`), `DecodeReport.lines` (structured `frame=N stage=… key=value` diagnostic lines), `DecodeReport.heatmap` (PNG marking wrong cells)
@@ -117,6 +117,8 @@ frame=2 stage=header valid=true version=2 fileId=0x1002 seq=2 total=6 encrypted=
 frame=2 stage=result status=ok
 frame=2 stage=truth symbolAcc=0.995 colorAcc=1.000 cellAcc=0.995 wrongCells=19
 ```
+
+(`stage=grid estimate=60` above; 60–64 typical; gate 64 ± 10)
 
 `--no-drift` skips the `stage=drift` line and the `DriftSolver` pass (`decode(image, useDrift: false)`); on the same scene it still decodes (`status=ok`) but with a higher `hammingMean` (10.32 vs. 4.08 above) since drift is what corrects the residual per-cell misalignment homography alone can't model. A photo with no barcode in it reports `stage=locate ok=false … fail=<reason>` and `stage=result status=notLocated` with exit code 1.
 
@@ -365,7 +367,7 @@ Radial distortion coefficient from edge midpoint deviation, corrected via `initU
 
 ## Tests
 
-Run: `flutter test` from `android/` directory.
+Run: `sh tests/run_all.sh` from `android/` (never bare `flutter test`; see Build).
 
 | File | What it tests |
 |------|--------------|

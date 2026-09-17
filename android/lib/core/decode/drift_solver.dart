@@ -5,6 +5,9 @@ import 'cell_classifier.dart';
 import 'cell_sampler.dart';
 
 /// Per-cell drift in source pixels, indexed row*64 + col.
+///
+/// [meanAbs]/[maxAbs] are the mean and max of `(|dx| + |dy|) / 2` per cell,
+/// not vector magnitudes.
 class DriftField {
   final Float32List dx = Float32List(CimbarSpec.gridCells * CimbarSpec.gridCells);
   final Float32List dy = Float32List(CimbarSpec.gridCells * CimbarSpec.gridCells);
@@ -19,6 +22,9 @@ class DriftField {
 /// Hamming), widens to the ±2 ring when the best Hamming exceeds
 /// [wideThreshold], and clamps to ±[clampPx]. Seed cells (no decided
 /// neighbours) always evaluate the ±2 ring as well, since they have no prior.
+///
+/// Seed cells (nn == 0) always search the ±2 ring but are not counted in
+/// [DriftField.widened], which counts poor-match widenings only.
 class DriftSolver {
   final CellSampler sampler;
   final CellClassifier classifier;

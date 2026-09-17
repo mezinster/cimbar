@@ -72,14 +72,17 @@ class DecodeReport {
             'driftMs': d['driftMs']!,
           })}');
     }
-    out.add('$p stage=cells ${_kv({
-          'hammingMax': d['hammingMax']!,
-          'hammingMean': d['hammingMean']!,
-          'hammingHist': d['hammingHist']!,
-          'colorMarginMin': d['colorMarginMin']!,
-          'sampleMs': d['sampleMs']!,
-        })}');
-    out.add('$p stage=rs ${_kv({'blocks': d['rsBlocks']!, 'ok': d['rsOk']!, 'failed': d['rsFailed']!, 'rsMs': d['rsMs']!})}');
+    // nothing was sampled (e.g. notLocated / unsupportedGrid before cells ran)
+    if (r.diag.rsBlocks > 0 || r.cells != null) {
+      out.add('$p stage=cells ${_kv({
+            'hammingMax': d['hammingMax']!,
+            'hammingMean': d['hammingMean']!,
+            'hammingHist': d['hammingHist']!,
+            'colorMarginMin': d['colorMarginMin']!,
+            'sampleMs': d['sampleMs']!,
+          })}');
+      out.add('$p stage=rs ${_kv({'blocks': d['rsBlocks']!, 'ok': d['rsOk']!, 'failed': d['rsFailed']!, 'rsMs': d['rsMs']!})}');
+    }
     final h = r.header;
     if (h != null && r.diag.headerReason.isEmpty && r.status != DecodeStatus.rsFailed) {
       out.add('$p stage=header ${_kv({

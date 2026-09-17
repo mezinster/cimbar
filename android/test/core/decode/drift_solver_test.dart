@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cimbar_scanner/core/decode/cell_classifier.dart';
 import 'package:cimbar_scanner/core/decode/cell_sampler.dart';
@@ -89,6 +87,8 @@ void main() {
     final r = FrameDecoder().decode(scene.image);
     // Visible with --verbose in the JSON reporter; kept as a data point for Plan 4.
     expect(r.diag.toMap()['driftMs'], isNotNull);
-    expect(Uint8List(0), isEmpty);
+    expect(r.status, DecodeStatus.ok);
+    expect(r.diag.driftMs, greaterThanOrEqualTo(0));
+    expect(r.diag.driftUsed, isTrue);
   });
 }

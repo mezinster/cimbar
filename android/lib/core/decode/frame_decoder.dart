@@ -25,12 +25,14 @@ class FrameDecoder {
   final CellClassifier _classifier = CellClassifier();
   final FinderLocator locator;
 
-  static const int gridTolerance = 6;
+  // no supported grid size lies within ±10 of 64
+  static const int gridTolerance = 10;
 
   FrameDecoder({this.locator = const FinderLocator()});
 
-  FrameResult decode(RgbBuffer image, {GridModel? grid, bool useDrift = true}) {
-    if (grid != null) return decodeWithGrid(image, grid, useDrift: useDrift);
+  FrameResult decode(RgbBuffer image, {GridModel? grid, bool? useDrift}) {
+    final drift = useDrift ?? (grid == null);
+    if (grid != null) return decodeWithGrid(image, grid, useDrift: drift);
     final diag = Diagnostics()..locateRan = true;
     final sw = Stopwatch()..start();
     final luma = LumaPlane.fromRgb(image);
@@ -54,7 +56,9 @@ class FrameDecoder {
       diag.locateFail = 'homography singular';
       return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = diag.locateFail);
     }
-    final side = (_dist(tl, tr) + _dist(tl, bl)) / 2;
+    // keystone compresses opposite sides oppositely; averaging all four
+    // sides cancels it to first order
+    final side = (_dist(tl, tr) + _dist(bl, br) + _dist(tl, bl) + _dist(tr, br)) / 4;
     final estimate = (side / loc.module).round() + CimbarSpec.finderCells;
     diag.gridEstimate = estimate;
     if ((estimate - CimbarSpec.gridCells).abs() > gridTolerance) {
@@ -62,7 +66,7 @@ class FrameDecoder {
     }
     final wp = WhitePoint.fromFinders(image, gm);
     diag.whitePoint = wp;
-    return decodeWithGrid(image, gm, whitePoint: wp, useDrift: useDrift, luma: luma, diag: diag);
+    return decodeWithGrid(image, gm, whitePoint: wp, useDrift: drift, luma: luma, diag: diag);
   }
 
   static double _dist(Finder a, Finder b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
