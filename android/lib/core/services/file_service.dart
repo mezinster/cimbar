@@ -28,11 +28,11 @@ class FileService {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/${safeBasename(result.filename)}');
     await file.writeAsBytes(result.data);
-    await Share.shareXFiles([XFile(file.path)]);
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
   /// Share an existing file by path.
   static Future<void> shareFile(String filePath) async {
-    await Share.shareXFiles([XFile(filePath)]);
+    await SharePlus.instance.share(ShareParams(files: [XFile(filePath)]));
   }
 }

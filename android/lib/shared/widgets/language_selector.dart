@@ -20,32 +20,33 @@ class LanguageSelector extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final currentLocale = ref.watch(localeProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            l10n.language,
-            style: Theme.of(context).textTheme.titleMedium,
+    return RadioGroup<Locale?>(
+      groupValue: currentLocale,
+      onChanged: (v) => ref.read(localeProvider.notifier).setLocale(v),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              l10n.language,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
-        ),
-        RadioListTile<Locale?>(
-          title: Text(l10n.systemDefault),
-          value: null,
-          groupValue: currentLocale,
-          onChanged: (v) => ref.read(localeProvider.notifier).setLocale(v),
-        ),
-        ...AppLocalizations.supportedLocales.map((locale) {
-          final name = _localeNames[locale.languageCode] ?? locale.languageCode;
-          return RadioListTile<Locale?>(
-            title: Text(name),
-            value: locale,
-            groupValue: currentLocale,
-            onChanged: (v) => ref.read(localeProvider.notifier).setLocale(v),
-          );
-        }),
-      ],
+          RadioListTile<Locale?>(
+            title: Text(l10n.systemDefault),
+            value: null,
+          ),
+          ...AppLocalizations.supportedLocales.map((locale) {
+            final name =
+                _localeNames[locale.languageCode] ?? locale.languageCode;
+            return RadioListTile<Locale?>(
+              title: Text(name),
+              value: locale,
+            );
+          }),
+        ],
+      ),
     );
   }
 }
