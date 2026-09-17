@@ -9,6 +9,7 @@ import '../services/reed_solomon.dart';
 import 'cell_classifier.dart';
 import 'cell_sampler.dart';
 import 'diagnostics.dart';
+import 'drift_solver.dart';
 import 'finder_locator.dart';
 import 'grid_model.dart';
 import 'homography.dart';
@@ -93,10 +94,27 @@ class FrameDecoder {
     final positions = CimbarSpec.usableCellPositions;
     final cells = Uint8List(positions.length);
     var hammingSum = 0;
-    d.driftUsed = false; // Task 6 wires the drift solver here
+    DriftField? drift;
+    if (useDrift) {
+      final lp = luma ?? LumaPlane.fromRgb(image);
+      final dsw = Stopwatch()..start();
+      drift = DriftSolver(CellSampler(image, grid, luma: lp), _classifier).solve();
+      d.driftUsed = true;
+      d.driftMs = dsw.elapsedMilliseconds;
+      d.driftMeanAbs = drift.meanAbs;
+      d.driftMaxAbs = drift.maxAbs;
+      d.driftWidened = drift.widened;
+    } else {
+      d.driftUsed = false;
+    }
     for (var k = 0; k < positions.length; k++) {
       final pos = positions[k];
-      sampler.sample(pos.col, pos.row, patch);
+      if (drift != null) {
+        final idx = pos.row * CimbarSpec.gridCells + pos.col;
+        sampler.sample(pos.col, pos.row, patch, dx: drift.dx[idx], dy: drift.dy[idx]);
+      } else {
+        sampler.sample(pos.col, pos.row, patch);
+      }
       final c = _classifier.classify(patch, whitePoint: whitePoint);
       cells[k] = BitPacking.cellValue(c.symbol, c.color);
       hammingSum += c.hamming;
