@@ -36,13 +36,13 @@ android/lib/
 │   ├── import/                 — GIF import: ImportScreen + ImportController
 │   ├── camera/                 — Camera: CameraScreen, CameraController, LiveScanScreen, LiveScanController, PhotoCaptureScreen
 │   ├── files/                  — File explorer: FilesScreen + FilesController
-│   └── settings/               — SettingsScreen (Developer debug switch, language, about)
+│   └── settings/               — SettingsScreen — the "About" tab (Developer debug switch, language, about/links)
 ├── shared/
 │   ├── theme/app_theme.dart    — Material 3, forest green seed, light + dark
 │   └── widgets/                — AppShell, PassphraseField, FilePickerZone, ProgressCard, ResultCard, LanguageSelector, LanguageSwitcherButton, CornersOverlayPainter
 └── l10n/
-    ├── app_en.arb … app_ka.arb — 5 language ARB files
-    └── generated/app_localizations.dart — Stub (replaced by flutter gen-l10n)
+    ├── app_en.arb … app_ka.arb — 5 language ARB files (en, ru, uk, tr, ka)
+    └── generated/                — Committed `flutter gen-l10n` output: app_localizations.dart + one file per locale
 ```
 
 ## Decoding Pipelines
@@ -76,7 +76,8 @@ Pure-Dart, no Flutter/UI dependencies — matches the web-app JS `format.js`/`ci
 - `format/frame_header.dart` — `FrameHeader`: the 8-byte `[ver][flags][fileId][seq][total]` header; `FrameHeader.decode` returns `HeaderDecode{header, reason, valid}`
 - `format/rs_framing.dart` — `RsFraming.encodeFrame`/`decodeFrame`: RS(255,191) block partition + byte-stride interleave for one frame, returning `RsFrameResult{data, blocksOk, blocksFailed}`
 - `format/file_container.dart` — `FileContainer`: the v1-compatible file container (`parsePayload`, `stripLengthPrefix`, `isEncrypted`)
-- `decode/rgb_buffer.dart` — `RgbBuffer`: flat 8-bit RGB buffer with bilinear sampling (`RgbBuffer.fromImage`)
+- `decode/yuv_frame.dart` — `YuvFrame`: a camera frame in Android YUV_420_888 layout (Y/U/V planes, `yRowStride`, `uvRowStride`, `uvPixelStride`: 1 = planar, 2 = semi-planar) — the input type `FrameDecoder.decodeYuv420` takes
+- `decode/rgb_buffer.dart` — `RgbBuffer`: flat 8-bit RGB buffer with bilinear sampling (`RgbBuffer.fromImage`, `RgbBuffer.fromYuv420`)
 - `decode/grid_model.dart` — `GridModel.toSource(cx, cy) -> (double, double)`; `ExactGridModel` for GIF-exact pixel positions
 - `decode/luma_plane.dart` — `LumaPlane`: `fromRgb` (BT.601 integer weights 77/150/29), `at`, `downscale2` (area-average 2x2, odd trailing row/column dropped), `bilinear`, `mean3x3` — the locator's and drift solver's luma source
 - `decode/homography.dart` — `Homography`: 3x3 projective `map(x, y)`, `solve` (DLT from four point correspondences, null if singular); `HomographyGridModel.fromFinders(tl:, tr:, bl:, br:)` fits a `GridModel` to four located finder centers
@@ -202,7 +203,7 @@ GoRouter(
 );
 ```
 
-`NoTransitionPage` for instant tab switching. `LiveScanScreen` is pushed **outside the shell** via `Navigator.of(context).push(MaterialPageRoute(...))` as a full-screen modal (no bottom nav).
+`NoTransitionPage` for instant tab switching. The two full-screen routes, `LiveScanScreen` and `PhotoCaptureScreen`, are pushed **on the root navigator** — `Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(...))` from `CameraScreen` — so they sit above the shell instead of inside its nested navigator. Pushed on the nested navigator they float over go_router's pages: tapping a bottom tab then moves the tab highlight and switches the route underneath while the scanner keeps covering it, leaving the tab bar apparently dead. `test/features/camera_navigation_test.dart` is the regression guard.
 
 ## Camera Implementation
 
@@ -253,7 +254,7 @@ Per-frame diagnostics (`Diagnostics.toMap()`, stage keys like `locateMs`, `rsBlo
 
 ## Localization
 
-5 languages via ARB files (`lib/l10n/app_*.arb`). Run `flutter gen-l10n` to regenerate. Manual stub at `lib/l10n/generated/app_localizations.dart` allows compilation before generation. Access via `AppLocalizations.of(context)!.keyName`. Locale preference persisted in `SharedPreferences` via `LocaleProvider`.
+5 languages (en, ru, uk, tr, ka) via ARB files (`lib/l10n/app_*.arb`). English (`app_en.arb`) is the template: add a key there first, then to the other four. Run `flutter gen-l10n` after any ARB change — the output under `lib/l10n/generated/` (`app_localizations.dart` plus one file per locale) is committed, so regenerate and commit it together with the ARB edit or the build uses stale strings. CI runs `flutter gen-l10n` before analyze and test. Access via `AppLocalizations.of(context)!.keyName`. Locale preference persisted in `SharedPreferences` via `LocaleProvider`. The web app keeps its own parallel five-language tables in `web-app/i18n.js`, guarded by `web-app/tests/test_i18n.js`.
 
 ## Android Manifest
 
@@ -293,7 +294,7 @@ Per-frame diagnostics (`Diagnostics.toMap()`, stage keys like `locateMs`, `rsBlo
 
 `test/core/decode/benchmark_test.dart` renders a 1920×1080 synthetic camera scene (barcode ~790 px wide via scale 1.3, 15° rotation, 0.05 keystone; the rotated extent ≈967 px still fits the 1080 px canvas), decodes it through **`FrameDecoder.decodeYuv420`** — the entry point the live-scan isolate actually calls, so the Y-plane locate and the ROI-only RGB conversion are both inside the measurement — and prints `benchmark totalMs=… locateMs=… roiMs=… sampleMs=… driftMs=… rsMs=…` to stdout and `build/benchmark.txt` (uploaded by CI as the `decode-reports` artifact, alongside `build/corpus_report.txt`). It only asserts a loose desktop-JIT bound (`total < 1500`ms) to catch order-of-magnitude regressions, not a real performance target. Last measured on the dev machine: `benchmark totalMs=187 locateMs=35 roiMs=7 sampleMs=141 driftMs=125 rsMs=2`.
 
-The spec target is **≤150 ms per 1080p frame on a mid-range 2022 phone** — this is **not yet measured on-device**. To measure it: enable Settings → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the overlay/logcat, and read the `ms=` field of the `[cimbar_scan]` lines in `adb logcat | grep cimbar_scan` (or the on-screen overlay log) for real camera frames.
+The spec target is **≤150 ms per 1080p frame on a mid-range 2022 phone** — this is **not yet measured on-device**. To measure it: enable the About tab → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the overlay/logcat, and read the `ms=` field of the `[cimbar_scan]` lines in `adb logcat | grep cimbar_scan` (or the on-screen overlay log) for real camera frames.
 
 ## Tests
 
@@ -332,6 +333,7 @@ Run: `sh tests/run_all.sh` from `android/` (never bare `flutter test`; see Build
 | `decode/benchmark_test.dart` | Renders a 1920×1080 camera-like scene and times `FrameDecoder.decodeYuv420` (see Performance); writes `build/benchmark.txt`; a loose `< 1500 ms` desktop-JIT bound. |
 | `decode/corpus_benchmark_test.dart` | Decodes every case in `test/fixtures/corpus/` (see its `README.md`), asserts each case's `expect` block, writes `build/corpus_report.txt`. |
 | `shared/corners_overlay_painter_test.dart` | `CornersOverlayPainter.mapPoint`: a 1280×720 landscape frame on a 720×1280 portrait canvas maps its corners as expected for `sensorOrientation` 90 (frame origin → preview top-right) and 270 (the point-symmetric mirror); orientation 0 is identity with contain letterboxing; `isRotated` agrees with the mapping. |
+| `features/camera_navigation_test.dart` | Live Scan and Photo Capture are pushed on the **root** navigator, not the shell's nested one, so the bottom tab bar keeps working after a scan. |
 | `features/live_scan_controller_test.dart` | `LiveScanController` without a camera or isolate (`onOutcomeForTest`/`onIsolateErrorForTest`): an `ok` outcome carrying a golden frame fills its slot and completes; a `notLocated` outcome clears the corners and reports no hint; three consecutive isolate errors surface `decoder_failed:` and the next outcome clears the panel; `'DecodeIsolate disposed'` errors are ignored; the first located outcome asks for a focus/exposure lock exactly once (`consumeLockAction` resets it). |
 
 ### Known Subtleties (Android)
