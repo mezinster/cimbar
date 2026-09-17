@@ -91,7 +91,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                     onPressed: state.isDecoding
                         ? null
                         : () async {
-                            final bytes = await Navigator.of(context).push<Uint8List>(
+                            final bytes = await Navigator.of(context, rootNavigator: true).push<Uint8List>(
                               MaterialPageRoute(builder: (_) => const PhotoCaptureScreen()),
                             );
                             if (bytes != null) controller.setPhoto(bytes);
@@ -115,7 +115,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: !state.isDecoding
-                  ? () => Navigator.of(context).push(
+                  ? () => Navigator.of(context, rootNavigator: true).push(
                         MaterialPageRoute(
                           builder: (_) => LiveScanScreen(
                             passphrase: _passphraseController.text,
