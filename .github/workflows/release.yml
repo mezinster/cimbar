@@ -27,7 +27,7 @@ on:
         default: false
 
 env:
-  FLUTTER_VERSION: '3.24.0'
+  FLUTTER_VERSION: '3.44.x'
 
 jobs:
   version:
@@ -97,7 +97,7 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test
+        run: sh tests/run_all.sh
 
   build-android:
     name: Build Android
