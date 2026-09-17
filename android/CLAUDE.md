@@ -45,10 +45,65 @@ android/lib/
 ## Decoding Pipelines (Dart ports of the web-app JS modules)
 
 ```
-GIF import:    GIF → parse frames (image pkg) → decode pixels (cimbar_decoder) → RS decode (reed_solomon) → [auto-detect: decrypt (crypto_service)] → File
+GIF import:    GIF → parse frames (image pkg) → FrameDecoder.decodeExact (core/decode) → FrameAssembler → length prefix → [decrypt] → File
 Camera photo:  Photo → locate barcode (frame_locator) → white balance + try frame sizes → RS decode → [auto-detect: decrypt] → File
 Live scan:     Camera stream → YUV→RGB (yuv_converter) → locate + white balance + decode per-frame (live_scanner) → adjacency-chain assembly → [auto-detect: decrypt] → File
 ```
+
+Camera photo and live scan are still on the v1 decoder until Plans 3–4.
+
+## v2 Format and Decode Layer (`lib/core/format/`, `lib/core/decode/`)
+
+Pure-Dart, no Flutter/UI dependencies — matches the web-app JS `format.js`/`cimbar.js` split. Files:
+
+- `format/cimbar_spec.dart` — `CimbarSpec`: grid/finder/palette/tile/RS/header/capacity constants, mirroring `spec/cimbar-v2.json`. `usableCellPositions` (3840 cells, row-major, skipping the four finder corners)
+- `format/tiles.dart` — `Tiles`: the 16 symbol tiles as 64-entry 0/1 arrays plus `bits`/`hamming` helpers
+- `format/bit_packing.dart` — `BitPacking`: 6-bit cell values (`cellValue`/`cellSymbol`/`cellColor`) <-> the frame's raw MSB-first byte stream (`packCells`/`unpackCells`)
+- `format/frame_header.dart` — `FrameHeader`: the 8-byte `[ver][flags][fileId][seq][total]` header; `FrameHeader.decode` returns `HeaderDecode{header, reason, valid}`
+- `format/rs_framing.dart` — `RsFraming.encodeFrame`/`decodeFrame`: RS(255,191) block partition + byte-stride interleave for one frame, returning `RsFrameResult{data, blocksOk, blocksFailed}`
+- `format/file_container.dart` — `FileContainer`: the v1-compatible file container (`parsePayload`, `stripLengthPrefix`, `isEncrypted`)
+- `decode/rgb_buffer.dart` — `RgbBuffer`: flat 8-bit RGB buffer with bilinear sampling (`RgbBuffer.fromImage`)
+- `decode/grid_model.dart` — `GridModel.toSource(cx, cy) -> (double, double)`; `ExactGridModel` for GIF-exact pixel positions (camera's located grid model lands in Plan 3)
+- `decode/cell_sampler.dart` — `CellSampler.sample`: reads a cell's 8×8 tile into a `CellPatch{luma, rgb}` through a `GridModel`
+- `decode/cell_classifier.dart` — `CellClassifier.classify -> CellClassification{symbol, hamming, color, colorMargin}`: symbol via average-hash Hamming distance to the 16 tiles, color via nearest palette entry
+- `decode/diagnostics.dart` — `DecodeStatus` enum (`ok, notLocated, unsupportedGrid, rsFailed, badHeader`) and `Diagnostics`/`FrameResult{status, cells, raw, data, header, diag}`
+- `decode/frame_decoder.dart` — `FrameDecoder`: `decode(image, {grid})` (camera path; `notLocated` until Plan 3's locator lands), `decodeExact(image)` (GIF path: exact 608×608 only, else `unsupportedGrid`), `decodeWithGrid(image, grid, {whitePoint})` (shared implementation)
+- `decode/frame_assembler.dart` — `FrameAssembler.add(data, {blocksFailed}) -> AddResult{accepted, reason, header}`: sequence-slot assembly across frames, dedup/total/fileId-reset rules matching web-app's `FrameAssembler`
+- `decode/golden_sidecar.dart` — `GoldenSidecar.load`/`GoldenSidecar.gifPathFor`: loader for `test-data/goldens/<name>.json` ground truth, shared by Dart and JS test suites
+- `decode/decode_report.dart` — `DecodeReport.compare` (`Uint8List` cells vs. truth -> `TruthComparison{symbolAccuracy, colorAccuracy, cellAccuracy, wrongCellIndices}`), `DecodeReport.lines` (structured `frame=N stage=… key=value` diagnostic lines), `DecodeReport.heatmap` (PNG marking wrong cells)
+
+No Flutter imports under these directories; `tool/decode_image.dart` runs with `dart run`.
+
+## CLI decoder
+
+Offline decoder, no Flutter/emulator needed:
+
+```bash
+cd android
+dart run tool/decode_image.dart <image.png|jpg|gif> [--frame N] [--golden name.json] [--heatmap out.png] [--mode exact|camera]
+```
+
+Example:
+
+```bash
+dart run tool/decode_image.dart ../test-data/goldens/hello.gif --golden ../test-data/goldens/hello.json --heatmap /tmp/hm.png
+```
+
+```
+frame=0 stage=input path=../test-data/goldens/hello.gif width=608 height=608 frames=1 mode=exact
+frame=0 stage=cells hammingMax=0 hammingMean=0.00 hammingHist=3840/0/0/0 colorMarginMin=1.414 sampleMs=34
+frame=0 stage=rs blocks=12 ok=12 failed=0 rsMs=3
+frame=0 stage=header valid=true version=2 fileId=0x1001 seq=0 total=1 encrypted=false
+frame=0 stage=result status=ok
+frame=0 stage=truth symbolAcc=1.000 colorAcc=1.000 cellAcc=1.000 wrongCells=0
+frame=0 stage=heatmap path=/tmp/hm.png
+```
+
+Exit 0 iff the frame decodes (`status=ok`); non-GIF images default to `--mode camera`, which currently always reports `notLocated` (Plan 3's locator not yet implemented).
+
+## Corpus benchmark
+
+Real-capture regression scaffold: see `test/fixtures/corpus/README.md` for the case format and capture checklist. `test/core/decode/corpus_benchmark_test.dart` decodes every case under `test/fixtures/corpus/`, asserts each case's `expect` block, and writes one table row per case to `build/corpus_report.txt` (`case | status | symbolAcc | colorAcc | rsOk/blocks | hammingMean | ms`), echoed by `tests/run_all.sh` after the test summary.
 
 ## Core Services (`lib/core/services/`)
 
@@ -294,12 +349,22 @@ Run: `flutter test` from `android/` directory.
 | `cimbar_decoder_test.dart` | 128-combo draw+detect round-trips, white balance, relative color, camera-exposure symbol detection, hash detection (distinctness, drift, blur robustness), two-pass decode, center-cross noise absorption, LAB color matching, adaptive threshold preprocessing (binary hashes, clean/dimmed frames), RS block interleaving + error spreading. |
 | `image_preprocessing_test.dart` | Grayscale conversion, sharpening kernel, adaptive threshold (uniform, checkerboard, gradient, blockSize=7), full `preprocessSymbolGrid` pipeline with/without sharpening. |
 | `crypto_service_test.dart` | AES-256-GCM round-trip, wrong passphrase rejection, bad magic, strength scoring. |
-| `decode_pipeline_test.dart` | RS frame encode→draw→read→decode round-trip with length prefix. Three payload cases. |
 | `frame_locator_test.dart` | Centered/offset/full-image barcode, dark image, noisy background, finder center validation, fallback behavior, rotation-invariant classification (0°/90°/180°/270°), diagnostic fields populated, false positive parallelogram rejection. |
 | `yuv_converter_test.dart` | YUV420→RGB: white/black, UV subsampling, stride configs, semi-planar UV. |
 | `perspective_transform_test.dart` | 2-point and 4-point corner derivation (axis-aligned + rotated), identity warp, rotated barcode warp, RS decode round-trips, fallback path. 9 tests. |
 | `live_scanner_test.dart` | Single/multi-frame scanning, duplicate handling, out-of-order adjacency chains, frame 0 detection, dark image, reset. |
 | `camera_decode_integration_test.dart` | WB sampling on padded crop images (3 real camera fixtures), whitePoint override, color distribution balance, hamming distance diagnostics, RS quality gate status, synthetic padded barcode WB ground-truth, full-frame camera decode pipeline (2 raw 1280x720 fixtures through locate→warp→WB→decode→RS with structured diagnostic output). Uses PNG fixtures in `test/fixtures/`. |
+| `format/cimbar_spec_test.dart` | `CimbarSpec` constants match `spec/cimbar-v2.json` (grid, finder, palette, tiles, RS, header, capacity, gif); reserved-cell geometry; `usableCellPositions` (3840, row-major, first (8,0), last (55,63)); cell origins; derived RS block sizes; `Tiles` hex round trip and pairwise Hamming ≥ 24. |
+| `format/bit_packing_test.dart` | `cellValue`/`cellSymbol`/`cellColor`; `packCells`/`unpackCells` MSB-first round trip. |
+| `format/frame_header_test.dart` | Encode layout; decode round trip; rejections with JS-compatible reasons; decode reads only the first 8 bytes of a longer buffer. |
+| `format/rs_framing_test.dart` | `encodeFrame` reproduces the golden raw bytes (interleave cross-check with JS); `decodeFrame` recovers golden data with 12 ok blocks; corrects 30 spread errors; reports failed blocks and zero-fills them; tail block positions follow stride-skip-short. |
+| `format/file_container_test.dart` | `parsePayload` (valid + bad name length); `stripLengthPrefix` (strips zero padding, validates); `isEncrypted` via the `CB 42` magic. |
+| `decode/cell_sampler_test.dart` | `RgbBuffer.fromImage` copies pixels and clamps at edges; bilinear exact-at-center and halfway blend; `ExactGridModel` cell-unit mapping; `CellSampler` reads an exact tile. |
+| `decode/cell_classifier_test.dart` | All 64 symbol/color combinations classify exactly; dimmed cells still classify (brightness-normalized chroma); white point rescales channels before chroma; a flipped-bit patch still finds the nearest tile with hamming > 0. |
+| `decode/frame_assembler_test.dart` | Accepts frames in any order, dedups, completes, assembles; rejects RS-failed frames before the header; rejects invalid headers with the header reason; a different `total` for the same `fileId` is rejected; a new `fileId` resets the collection. |
+| `decode/decode_report_test.dart` | `compare` counts symbol/color/cell correctness; `lines` contain the stage keys and truth accuracy; `heatmap` is 608×608 and marks wrong cells. |
+| `decode/frame_decoder_golden_test.dart` | At least five goldens present; `decodeExact` matches each golden sidecar byte-for-byte; non-608 images report `unsupportedGrid` (v1 GIF); `decode` without a grid is `notLocated` until Plan 3; corrupted cells report `rsFailed` with block counts. |
+| `decode/corpus_benchmark_test.dart` | Decodes every case in `test/fixtures/corpus/` (see its `README.md`), asserts each case's `expect` block, writes `build/corpus_report.txt`. |
 
 ### Known Subtleties (Android)
 

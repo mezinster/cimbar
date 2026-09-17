@@ -11,8 +11,6 @@
 #
 # Exit code: 0 if all pass, 1 if any fail.
 
-set -e
-
 VERBOSE=0
 if [ "$1" = "--verbose" ] || [ "$1" = "-v" ]; then
   VERBOSE=1
@@ -20,6 +18,7 @@ fi
 
 echo "=== Flutter Test Suite ==="
 echo ""
+rm -f build/corpus_report.txt
 
 flutter test --reporter json 2>/dev/null | python3 -c "
 import sys, json
@@ -92,3 +91,10 @@ else:
 
 sys.exit(1 if (failed + errors) > 0 else 0)
 "
+STATUS=$?
+if [ -f build/corpus_report.txt ]; then
+  echo ""
+  echo "=== Corpus benchmark ==="
+  cat build/corpus_report.txt
+fi
+exit $STATUS

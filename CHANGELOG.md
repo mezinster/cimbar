@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app encodes/decodes v2; Android GIF import decodes v2. v1 GIFs must be re-encoded.
+- Web app: frame-size menu removed, present-mode full-screen display added.
+
+### Added
+- Golden GIFs with ground-truth sidecars (`test-data/goldens/`) shared by the JS and Dart test suites.
+- Offline Dart CLI decoder `android/tool/decode_image.dart` and a real-capture corpus benchmark scaffold.
+
 ## [0.8.5] — 2026-02-23
 
 ### Added
