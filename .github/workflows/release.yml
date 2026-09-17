@@ -269,16 +269,31 @@ jobs:
           git push origin "$RELEASE_TAG" --force
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          name: CimBar Scanner v${{ needs.version.outputs.version }}
-          body_path: release-notes.md
-          draft: false
-          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
-          files: |
-            release-artifacts/*.apk
-            release-artifacts/*.aab
-            release-artifacts/checksums-sha256.txt
+        # `gh release` instead of softprops/action-gh-release: the action
+        # uploads all assets concurrently with no timeout and hung on the
+        # 57 MB AAB for v0.9.1 (APK and checksums done, job stuck for 12+
+        # minutes). gh uploads sequentially with retries, and --verify-tag
+        # avoids the action's "not yet discoverable by tag" race.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ github.event.inputs.prerelease == 'true' }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release $RELEASE_TAG exists; updating notes and assets"
+            gh release edit "$RELEASE_TAG" --title "CimBar Scanner v${RELEASE_VERSION}" --notes-file release-notes.md
+          else
+            flags=(--verify-tag --title "CimBar Scanner v${RELEASE_VERSION}" --notes-file release-notes.md)
+            if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); else flags+=(--latest); fi
+            gh release create "$RELEASE_TAG" "${flags[@]}"
+          fi
+          # One asset at a time; gh retries transient failures. --clobber makes
+          # a re-run after a partial upload idempotent.
+          for f in release-artifacts/*.apk release-artifacts/*.aab release-artifacts/checksums-sha256.txt; do
+            echo "uploading $f"
+            timeout 600 gh release upload "$RELEASE_TAG" "$f" --clobber
+          done
+          echo "assets on $RELEASE_TAG:"
+          gh release view "$RELEASE_TAG" --json assets -q '.assets[] | "  \(.name) \(.size)"'
