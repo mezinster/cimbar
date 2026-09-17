@@ -55,6 +55,13 @@
   "cameraPermissionDenied": "Для живого сканування потрібен дозвіл камери",
   "noCameraAvailable": "На цьому пристрої немає доступної камери",
   "liveScanFramesAnalyzed": "{count} кадрів проаналізовано",
+  "liveScanAim": "Fit the barcode inside the square",
+  "hintMoveCloser": "Move closer",
+  "hintMoveBack": "Move back",
+  "hintHoldStill": "Hold still",
+  "hintAdjustAngle": "Adjust angle or lighting",
+  "liveScanIncomplete": "Missing frames: {missing}",
+  "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
 
   "tabFiles": "Файли",
   "filesTitle": "Декодовані файли",

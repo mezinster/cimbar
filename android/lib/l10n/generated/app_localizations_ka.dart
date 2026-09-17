@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -97,7 +99,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get errorGeneric => 'მოხდა შეცდომა';
 
   @override
-  String get errorDecryption => 'გაშიფვრა ვერ მოხერხდა — არასწორი პაროლი ან დაზიანებული მონაცემები';
+  String get errorDecryption =>
+      'გაშიფვრა ვერ მოხერხდა — არასწორი პაროლი ან დაზიანებული მონაცემები';
 
   @override
   String get errorInvalidGif => 'არასწორი ან მხარდაუჭერელი GIF ფაილი';
@@ -109,7 +112,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get errorFileTooLarge => 'ფაილი ძალიან დიდია დასამუშავებლად';
 
   @override
-  String get cameraScanInstruction => 'გადაუღეთ ფოტო CimBar შტრიხკოდს დეკოდირებისთვის';
+  String get cameraScanInstruction =>
+      'გადაუღეთ ფოტო CimBar შტრიხკოდს დეკოდირებისთვის';
 
   @override
   String get cameraTakePhoto => 'ფოტოს გადაღება';
@@ -130,7 +134,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get errorBarcodeNotFound => 'ფოტოში შტრიხკოდი ვერ მოიძებნა';
 
   @override
-  String get errorNoFrameSizeMatch => 'შტრიხკოდის დეკოდირება ვერ მოხერხდა არცერთ მხარდაჭერილ კადრის ზომაზე';
+  String get errorNoFrameSizeMatch =>
+      'შტრიხკოდის დეკოდირება ვერ მოხერხდა არცერთ მხარდაჭერილ კადრის ზომაზე';
 
   @override
   String get language => 'ენა';
@@ -142,7 +147,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get about => 'შესახებ';
 
   @override
-  String get aboutDescription => 'CimBar სკანერი დეკოდირებს ფერადი ხატულების მატრიცულ შტრიხკოდებს. თავსებადია CimBar ვებ-კოდირებასთან: nfcarchiver.com/cimbar.';
+  String get aboutDescription =>
+      'CimBar სკანერი დეკოდირებს ფერადი ხატულების მატრიცულ შტრიხკოდებს. თავსებადია CimBar ვებ-კოდირებასთან: nfcarchiver.com/cimbar.';
 
   @override
   String get webAppLabel => 'ვებ-აპლიკაცია';
@@ -173,7 +179,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get liveScanError => 'სკანირება ვერ მოხერხდა';
 
   @override
-  String get cameraPermissionDenied => 'პირდაპირი სკანირებისთვის საჭიროა კამერის ნებართვა';
+  String get cameraPermissionDenied =>
+      'პირდაპირი სკანირებისთვის საჭიროა კამერის ნებართვა';
 
   @override
   String get noCameraAvailable => 'ამ მოწყობილობაზე კამერა მიუწვდომელია';
@@ -181,6 +188,31 @@ class AppLocalizationsKa extends AppLocalizations {
   @override
   String liveScanFramesAnalyzed(int count) {
     return '$count კადრი გაანალიზებულია';
+  }
+
+  @override
+  String get liveScanAim => 'Fit the barcode inside the square';
+
+  @override
+  String get hintMoveCloser => 'Move closer';
+
+  @override
+  String get hintMoveBack => 'Move back';
+
+  @override
+  String get hintHoldStill => 'Hold still';
+
+  @override
+  String get hintAdjustAngle => 'Adjust angle or lighting';
+
+  @override
+  String liveScanIncomplete(String missing) {
+    return 'Missing frames: $missing';
+  }
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
   }
 
   @override
@@ -213,7 +245,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get symbolSensitivity => 'Symbol Sensitivity';
 
   @override
-  String get symbolSensitivityDesc => 'Higher = stricter dot detection (corners must be brighter to read as 1)';
+  String get symbolSensitivityDesc =>
+      'Higher = stricter dot detection (corners must be brighter to read as 1)';
 
   @override
   String get whiteBalanceLabel => 'White Balance Correction';
@@ -225,7 +258,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get quadrantOffsetLabel => 'Quadrant Sample Offset';
 
   @override
-  String get quadrantOffsetDesc => 'Corner sample position as fraction of cell size';
+  String get quadrantOffsetDesc =>
+      'Corner sample position as fraction of cell size';
 
   @override
   String get hashDetectionLabel => 'Hash Symbol Detection';
@@ -243,7 +277,8 @@ class AppLocalizationsKa extends AppLocalizations {
   String get debugModeLabel => 'გამართვის რეჟიმი';
 
   @override
-  String get debugModeDescription => 'გამართვის ჟურნალის და კადრების გადაღების ჩართვა';
+  String get debugModeDescription =>
+      'გამართვის ჟურნალის და კადრების გადაღების ჩართვა';
 
   @override
   String get privacyPolicy => 'კონფიდენციალურობის პოლიტიკა';

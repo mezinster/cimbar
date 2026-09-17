@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -97,7 +99,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get errorGeneric => 'Произошла ошибка';
 
   @override
-  String get errorDecryption => 'Ошибка расшифровки — неверный пароль или повреждённые данные';
+  String get errorDecryption =>
+      'Ошибка расшифровки — неверный пароль или повреждённые данные';
 
   @override
   String get errorInvalidGif => 'Недопустимый или неподдерживаемый GIF файл';
@@ -109,7 +112,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get errorFileTooLarge => 'Файл слишком большой для обработки';
 
   @override
-  String get cameraScanInstruction => 'Сфотографируйте штрих-код CimBar для декодирования';
+  String get cameraScanInstruction =>
+      'Сфотографируйте штрих-код CimBar для декодирования';
 
   @override
   String get cameraTakePhoto => 'Сделать фото';
@@ -130,7 +134,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get errorBarcodeNotFound => 'Штрих-код не найден на фото';
 
   @override
-  String get errorNoFrameSizeMatch => 'Не удалось декодировать штрих-код ни при одном поддерживаемом размере кадра';
+  String get errorNoFrameSizeMatch =>
+      'Не удалось декодировать штрих-код ни при одном поддерживаемом размере кадра';
 
   @override
   String get language => 'Язык';
@@ -142,7 +147,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get about => 'О приложении';
 
   @override
-  String get aboutDescription => 'CimBar Сканер декодирует цветные матричные штрих-коды. Совместим с веб-кодировщиком CimBar на nfcarchiver.com/cimbar.';
+  String get aboutDescription =>
+      'CimBar Сканер декодирует цветные матричные штрих-коды. Совместим с веб-кодировщиком CimBar на nfcarchiver.com/cimbar.';
 
   @override
   String get webAppLabel => 'Веб-приложение';
@@ -173,7 +179,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get liveScanError => 'Сканирование не удалось';
 
   @override
-  String get cameraPermissionDenied => 'Для живого сканирования требуется разрешение камеры';
+  String get cameraPermissionDenied =>
+      'Для живого сканирования требуется разрешение камеры';
 
   @override
   String get noCameraAvailable => 'На этом устройстве нет доступной камеры';
@@ -181,6 +188,31 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String liveScanFramesAnalyzed(int count) {
     return '$count кадров проанализировано';
+  }
+
+  @override
+  String get liveScanAim => 'Fit the barcode inside the square';
+
+  @override
+  String get hintMoveCloser => 'Move closer';
+
+  @override
+  String get hintMoveBack => 'Move back';
+
+  @override
+  String get hintHoldStill => 'Hold still';
+
+  @override
+  String get hintAdjustAngle => 'Adjust angle or lighting';
+
+  @override
+  String liveScanIncomplete(String missing) {
+    return 'Missing frames: $missing';
+  }
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
   }
 
   @override
@@ -213,7 +245,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get symbolSensitivity => 'Чувствительность символов';
 
   @override
-  String get symbolSensitivityDesc => 'Выше = строже определение точек (углы должны быть ярче для чтения как 1)';
+  String get symbolSensitivityDesc =>
+      'Выше = строже определение точек (углы должны быть ярче для чтения как 1)';
 
   @override
   String get whiteBalanceLabel => 'Коррекция баланса белого';
@@ -225,7 +258,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get quadrantOffsetLabel => 'Смещение квадранта';
 
   @override
-  String get quadrantOffsetDesc => 'Позиция углового образца как доля размера ячейки';
+  String get quadrantOffsetDesc =>
+      'Позиция углового образца как доля размера ячейки';
 
   @override
   String get hashDetectionLabel => 'Хеш-определение символов';

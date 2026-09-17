@@ -154,6 +154,30 @@
       "count": { "type": "int" }
     }
   },
+  "liveScanAim": "Fit the barcode inside the square",
+  "@liveScanAim": { "description": "Instruction shown before a barcode has been located in the frame" },
+  "hintMoveCloser": "Move closer",
+  "@hintMoveCloser": { "description": "Hint shown when the barcode is too small in the frame" },
+  "hintMoveBack": "Move back",
+  "@hintMoveBack": { "description": "Hint shown when the barcode is too large in the frame" },
+  "hintHoldStill": "Hold still",
+  "@hintHoldStill": { "description": "Hint shown when camera motion is degrading the scan" },
+  "hintAdjustAngle": "Adjust angle or lighting",
+  "@hintAdjustAngle": { "description": "Hint shown when the barcode is located but frames keep failing to decode" },
+  "liveScanIncomplete": "Missing frames: {missing}",
+  "@liveScanIncomplete": {
+    "description": "Lists the frame sequence numbers still missing from the scan",
+    "placeholders": {
+      "missing": { "type": "String" }
+    }
+  },
+  "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
+  "@errorMultiFrameNeedsLive": {
+    "description": "Error shown when a single photo cannot contain a multi-frame CimBar file",
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
 
   "tabFiles": "Files",
   "@tabFiles": { "description": "Bottom navigation tab for file explorer" },

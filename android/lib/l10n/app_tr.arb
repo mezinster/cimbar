@@ -55,6 +55,13 @@
   "cameraPermissionDenied": "Canlı tarama için kamera izni gerekli",
   "noCameraAvailable": "Bu cihazda kamera yok",
   "liveScanFramesAnalyzed": "{count} kare analiz edildi",
+  "liveScanAim": "Fit the barcode inside the square",
+  "hintMoveCloser": "Move closer",
+  "hintMoveBack": "Move back",
+  "hintHoldStill": "Hold still",
+  "hintAdjustAngle": "Adjust angle or lighting",
+  "liveScanIncomplete": "Missing frames: {missing}",
+  "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
 
   "tabFiles": "Dosyalar",
   "filesTitle": "Dosyalar",

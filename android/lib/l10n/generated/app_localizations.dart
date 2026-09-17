@@ -65,7 +65,8 @@ import 'app_localizations_uk.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -73,7 +74,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -85,7 +87,8 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
     delegate,
     GlobalMaterialLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
@@ -431,6 +434,48 @@ abstract class AppLocalizations {
   /// **'{count} frames analyzed'**
   String liveScanFramesAnalyzed(int count);
 
+  /// Instruction shown before a barcode has been located in the frame
+  ///
+  /// In en, this message translates to:
+  /// **'Fit the barcode inside the square'**
+  String get liveScanAim;
+
+  /// Hint shown when the barcode is too small in the frame
+  ///
+  /// In en, this message translates to:
+  /// **'Move closer'**
+  String get hintMoveCloser;
+
+  /// Hint shown when the barcode is too large in the frame
+  ///
+  /// In en, this message translates to:
+  /// **'Move back'**
+  String get hintMoveBack;
+
+  /// Hint shown when camera motion is degrading the scan
+  ///
+  /// In en, this message translates to:
+  /// **'Hold still'**
+  String get hintHoldStill;
+
+  /// Hint shown when the barcode is located but frames keep failing to decode
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust angle or lighting'**
+  String get hintAdjustAngle;
+
+  /// Lists the frame sequence numbers still missing from the scan
+  ///
+  /// In en, this message translates to:
+  /// **'Missing frames: {missing}'**
+  String liveScanIncomplete(String missing);
+
+  /// Error shown when a single photo cannot contain a multi-frame CimBar file
+  ///
+  /// In en, this message translates to:
+  /// **'This file spans {total} frames — use Live Scan'**
+  String errorMultiFrameNeedsLive(int total);
+
   /// Bottom navigation tab for file explorer
   ///
   /// In en, this message translates to:
@@ -570,7 +615,8 @@ abstract class AppLocalizations {
   String get sourceCode;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -579,28 +625,31 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) => <String>['en', 'ka', 'ru', 'tr', 'uk'].contains(locale.languageCode);
+  bool isSupported(Locale locale) =>
+      <String>['en', 'ka', 'ru', 'tr', 'uk'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en': return AppLocalizationsEn();
-    case 'ka': return AppLocalizationsKa();
-    case 'ru': return AppLocalizationsRu();
-    case 'tr': return AppLocalizationsTr();
-    case 'uk': return AppLocalizationsUk();
+    case 'en':
+      return AppLocalizationsEn();
+    case 'ka':
+      return AppLocalizationsKa();
+    case 'ru':
+      return AppLocalizationsRu();
+    case 'tr':
+      return AppLocalizationsTr();
+    case 'uk':
+      return AppLocalizationsUk();
   }
 
   throw FlutterError(
-    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-    'an issue with the localizations generation tool. Please file an issue '
-    'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.'
-  );
+      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+      'an issue with the localizations generation tool. Please file an issue '
+      'on GitHub with a reproducible sample app and the gen-l10n configuration '
+      'that was used.');
 }

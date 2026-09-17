@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -97,7 +99,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get errorGeneric => 'Bir hata oluştu';
 
   @override
-  String get errorDecryption => 'Şifre çözme başarısız — yanlış parola veya bozuk veri';
+  String get errorDecryption =>
+      'Şifre çözme başarısız — yanlış parola veya bozuk veri';
 
   @override
   String get errorInvalidGif => 'Geçersiz veya desteklenmeyen GIF dosyası';
@@ -109,7 +112,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get errorFileTooLarge => 'Dosya işlemek için çok büyük';
 
   @override
-  String get cameraScanInstruction => 'Çözümlemek için bir CimBar barkodunun fotoğrafını çekin';
+  String get cameraScanInstruction =>
+      'Çözümlemek için bir CimBar barkodunun fotoğrafını çekin';
 
   @override
   String get cameraTakePhoto => 'Fotoğraf Çek';
@@ -130,7 +134,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get errorBarcodeNotFound => 'Fotoğrafta barkod bulunamadı';
 
   @override
-  String get errorNoFrameSizeMatch => 'Desteklenen hiçbir kare boyutunda barkod çözümlenemedi';
+  String get errorNoFrameSizeMatch =>
+      'Desteklenen hiçbir kare boyutunda barkod çözümlenemedi';
 
   @override
   String get language => 'Dil';
@@ -142,7 +147,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get about => 'Hakkında';
 
   @override
-  String get aboutDescription => 'CimBar Tarayıcı, Renkli Simge Matris Barkodlarını çözümler. nfcarchiver.com/cimbar adresindeki CimBar web kodlayıcı ile uyumludur.';
+  String get aboutDescription =>
+      'CimBar Tarayıcı, Renkli Simge Matris Barkodlarını çözümler. nfcarchiver.com/cimbar adresindeki CimBar web kodlayıcı ile uyumludur.';
 
   @override
   String get webAppLabel => 'Web Uygulaması';
@@ -184,6 +190,31 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get liveScanAim => 'Fit the barcode inside the square';
+
+  @override
+  String get hintMoveCloser => 'Move closer';
+
+  @override
+  String get hintMoveBack => 'Move back';
+
+  @override
+  String get hintHoldStill => 'Hold still';
+
+  @override
+  String get hintAdjustAngle => 'Adjust angle or lighting';
+
+  @override
+  String liveScanIncomplete(String missing) {
+    return 'Missing frames: $missing';
+  }
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
+  }
+
+  @override
   String get tabFiles => 'Dosyalar';
 
   @override
@@ -213,7 +244,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get symbolSensitivity => 'Symbol Sensitivity';
 
   @override
-  String get symbolSensitivityDesc => 'Higher = stricter dot detection (corners must be brighter to read as 1)';
+  String get symbolSensitivityDesc =>
+      'Higher = stricter dot detection (corners must be brighter to read as 1)';
 
   @override
   String get whiteBalanceLabel => 'White Balance Correction';
@@ -225,7 +257,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get quadrantOffsetLabel => 'Quadrant Sample Offset';
 
   @override
-  String get quadrantOffsetDesc => 'Corner sample position as fraction of cell size';
+  String get quadrantOffsetDesc =>
+      'Corner sample position as fraction of cell size';
 
   @override
   String get hashDetectionLabel => 'Hash Symbol Detection';
@@ -243,7 +276,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get debugModeLabel => 'Hata Ayıklama Modu';
 
   @override
-  String get debugModeDescription => 'Hata ayıklama günlüğü ve kare yakalamayı etkinleştir';
+  String get debugModeDescription =>
+      'Hata ayıklama günlüğü ve kare yakalamayı etkinleştir';
 
   @override
   String get privacyPolicy => 'Gizlilik Politikası';
