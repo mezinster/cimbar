@@ -522,6 +522,11 @@ footer {
   .two-col { grid-template-columns: 1fr; }
   .stats   { grid-template-columns: 1fr; }
 }
+
+/* language picker */
+.lang-picker { display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:13px; color:var(--text3); }
+.lang-picker select { background:transparent; color:var(--text2); border:1px solid var(--border, #333); border-radius:8px; padding:4px 8px; font:inherit; cursor:pointer; }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -530,19 +535,29 @@ footer {
 
   <header>
     <div class="logo">Cim<em>Bar</em></div>
-    <div class="tagline">Encode any file into an animated image. Optionally encrypt it first.</div>
+    <div class="tagline" data-i18n="tagline">Encode any file into an animated image. Optionally encrypt it first.</div>
     <div class="badge-row">
       <span class="badge">AES-256-GCM</span>
       <span class="badge">Reed-Solomon ECC</span>
-      <span class="badge">100% client-side</span>
-      <span class="badge">no upload, no tracking</span>
+      <span class="badge" data-i18n="badgeClientSide">100% client-side</span>
+      <span class="badge" data-i18n="badgeNoUpload">no upload, no tracking</span>
     </div>
+    <label class="lang-picker" for="langSelect"><span aria-hidden="true">🌐</span>
+      <span class="sr-only" data-i18n="language">Language</span>
+      <select id="langSelect" onchange="CimbarI18n.setLang(this.value)">
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+        <option value="uk">Українська</option>
+        <option value="tr">Türkçe</option>
+        <option value="ka">ქართული</option>
+      </select>
+    </label>
   </header>
 
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(event,'encode')">Encode</button>
-    <button class="tab-btn" onclick="switchTab(event,'decode')">Decode GIF</button>
-    <button class="tab-btn" onclick="switchTab(event,'about')">About</button>
+    <button class="tab-btn active" onclick="switchTab(event,'encode')" data-i18n="tabEncode">Encode</button>
+    <button class="tab-btn" onclick="switchTab(event,'decode')" data-i18n="tabDecode">Decode GIF</button>
+    <button class="tab-btn" onclick="switchTab(event,'about')" data-i18n="tabAbout">About</button>
   </div>
 
   <!-- ═══════════════════ ENCODE ═══════════════════ -->
@@ -550,12 +565,12 @@ footer {
     <div class="card">
 
       <div class="field">
-        <label>File to encode</label>
+        <label data-i18n="fileToEncode">File to encode</label>
         <div class="drop-zone" id="dropEnc">
           <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
           <div class="drop-icon">📄</div>
-          <div class="drop-text">Drop a file here, or <strong>click to browse</strong></div>
-          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)">
+          <div class="drop-text" data-i18n-html="dropFileHtml">Drop a file here, or <strong>click to browse</strong></div>
+          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)" data-i18n="dropHint">
             Recommended max ≈ 80 KB for fast GIF output
           </div>
         </div>
@@ -565,31 +580,31 @@ footer {
       </div>
 
       <div class="field">
-        <label>Passphrase</label>
-        <input type="password" id="passEnc" placeholder="Enter a passphrase (optional)…" oninput="updateStrength(this.value,'strengthFillEnc')">
+        <label data-i18n="passphrase">Passphrase</label>
+        <input type="password" id="passEnc" placeholder="Enter a passphrase (optional)…" data-i18n-placeholder="passEncPlaceholder" oninput="updateStrength(this.value,'strengthFillEnc')">
         <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
-        <div class="field-hint">Optional — leave empty for no encryption. AES-256-GCM via PBKDF2 (150 000 iterations)</div>
+        <div class="field-hint" data-i18n="passEncHint">Optional — leave empty for no encryption. AES-256-GCM via PBKDF2 (150 000 iterations)</div>
       </div>
 
       <div class="two-col">
         <div class="field">
-          <label>Frame delay</label>
+          <label data-i18n="frameDelay">Frame delay</label>
           <select id="frameDelay">
-            <option value="10">100 ms (fast)</option>
-            <option value="20" selected>200 ms</option>
-            <option value="40">400 ms (slow)</option>
+            <option value="10" data-i18n="delayFast">100 ms (fast)</option>
+            <option value="20" selected data-i18n="delayNormal">200 ms</option>
+            <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
           </select>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="encBtn" onclick="startEncode()">
+      <button class="btn btn-primary" id="encBtn" onclick="startEncode()" data-i18n="encodeBtn">
         Encode to GIF
       </button>
 
       <!-- Progress -->
       <div class="progress-section" id="progEnc">
         <div class="progress-header">
-          <span id="progEncLabel">Processing…</span>
+          <span id="progEncLabel" data-i18n="processing">Processing…</span>
           <span id="progEncPct">0%</span>
         </div>
         <div class="progress-track">
@@ -601,15 +616,15 @@ footer {
       <!-- Output -->
       <div class="output-section" id="outEnc">
         <div class="stats" id="statsEnc">
-          <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl">Frames</div></div>
-          <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl">Encoded bytes</div></div>
-          <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl">Bytes / frame</div></div>
+          <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl" data-i18n="statFrames">Frames</div></div>
+          <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl" data-i18n="statBytes">Encoded bytes</div></div>
+          <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl" data-i18n="statPerFrame">Bytes / frame</div></div>
         </div>
         <div class="preview-frame" style="margin-top:16px;">
           <img id="gifOut" alt="Encoded GIF">
         </div>
-        <button class="btn btn-primary" onclick="downloadGif()">Download GIF</button>
-        <button class="btn" onclick="openPresent()">Present full screen</button>
+        <button class="btn btn-primary" onclick="downloadGif()" data-i18n="downloadGif">Download GIF</button>
+        <button class="btn" onclick="openPresent()" data-i18n="presentFullScreen">Present full screen</button>
       </div>
 
     </div>
@@ -620,11 +635,11 @@ footer {
     <div class="card">
 
       <div class="field">
-        <label>Encoded GIF</label>
+        <label data-i18n="encodedGif">Encoded GIF</label>
         <div class="drop-zone" id="dropDec">
           <input type="file" id="fileDec" accept="image/gif,.gif" onchange="onFileSelect(this,'dec')">
           <div class="drop-icon">🎞️</div>
-          <div class="drop-text">Drop your <strong>.gif</strong> here, or click to browse</div>
+          <div class="drop-text" data-i18n-html="dropGifHtml">Drop your <strong>.gif</strong> here, or click to browse</div>
         </div>
         <div class="file-pill" id="pillDec">
           <span>✓</span><span id="pillDecText"></span>
@@ -632,17 +647,17 @@ footer {
       </div>
 
       <div class="field">
-        <label>Passphrase</label>
-        <input type="password" id="passDec" placeholder="Enter passphrase (leave empty if not encrypted)…">
+        <label data-i18n="passphrase">Passphrase</label>
+        <input type="password" id="passDec" placeholder="Enter passphrase (leave empty if not encrypted)…" data-i18n-placeholder="passDecPlaceholder">
       </div>
 
-      <button class="btn btn-danger" id="decBtn" onclick="startDecode()">
+      <button class="btn btn-danger" id="decBtn" onclick="startDecode()" data-i18n="decodeBtn">
         Decode GIF
       </button>
 
       <div class="progress-section" id="progDec">
         <div class="progress-header">
-          <span id="progDecLabel">Decoding…</span>
+          <span id="progDecLabel" data-i18n="decoding">Decoding…</span>
           <span id="progDecPct">0%</span>
         </div>
         <div class="progress-track">
@@ -651,7 +666,7 @@ footer {
         <div class="log" id="logDec"></div>
       </div>
 
-      <div class="callout callout-info" style="margin-top:20px;">
+      <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
         <strong>How decoding works:</strong> The GIF is parsed frame-by-frame in your browser,
         pixels are decoded back to bytes via color + symbol detection,
         Reed-Solomon error correction is applied per block. If the data was encrypted,
@@ -664,7 +679,7 @@ footer {
   <!-- ═══════════════════ ABOUT ═══════════════════ -->
   <div class="tab-panel" id="tab-about">
     <div class="card">
-      <p style="font-size:14px;line-height:1.8;color:var(--text2)">
+      <p style="font-size:14px;line-height:1.8;color:var(--text2)" data-i18n-html="aboutIntroHtml">
         <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
         of colored geometric symbols. This tool uses a simplified variant:
         each cell encodes <strong style="color:var(--accent)">6 bits</strong> —
@@ -679,39 +694,39 @@ footer {
       <div class="about-grid">
         <div class="about-card">
           <div class="about-num">01</div>
-          <div class="about-title">Encrypt</div>
-          <div class="about-text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
+          <div class="about-title" data-i18n="about1Title">Encrypt</div>
+          <div class="about-text" data-i18n="about1Text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
         </div>
         <div class="about-card">
           <div class="about-num">02</div>
-          <div class="about-title">ECC</div>
-          <div class="about-text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
+          <div class="about-title" data-i18n="about2Title">ECC</div>
+          <div class="about-text" data-i18n="about2Text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
         </div>
         <div class="about-card">
           <div class="about-num">03</div>
-          <div class="about-title">Map</div>
-          <div class="about-text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
+          <div class="about-title" data-i18n="about3Title">Map</div>
+          <div class="about-text" data-i18n="about3Text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
         </div>
         <div class="about-card">
           <div class="about-num">04</div>
-          <div class="about-title">Animate</div>
-          <div class="about-text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder.</div>
+          <div class="about-title" data-i18n="about4Title">Animate</div>
+          <div class="about-text" data-i18n="about4Text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder.</div>
         </div>
         <div class="about-card">
           <div class="about-num">05</div>
-          <div class="about-title">Transmit</div>
-          <div class="about-text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
+          <div class="about-title" data-i18n="about5Title">Transmit</div>
+          <div class="about-text" data-i18n="about5Text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
         </div>
         <div class="about-card">
           <div class="about-num">06</div>
-          <div class="about-title">Private</div>
-          <div class="about-text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
+          <div class="about-title" data-i18n="about6Title">Private</div>
+          <div class="about-text" data-i18n="about6Text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
         </div>
       </div>
 
       <hr class="divider">
 
-      <div style="font-size:13px;color:var(--text2);line-height:1.8;">
+      <div style="font-size:13px;color:var(--text2);line-height:1.8;" data-i18n-html="capacityHtml">
         <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
         One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
         3 840 usable cells × 6 bits = 2 880 raw bytes.
@@ -719,14 +734,14 @@ footer {
         A 50 KB file needs ≈ 25 frames.
       </div>
 
-      <div class="callout callout-warn" style="margin-top:16px;">
+      <div class="callout callout-warn" style="margin-top:16px;" data-i18n-html="paletteHtml">
         <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
         so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
       </div>
     </div>
   </div>
 
-  <footer>
+  <footer data-i18n="footer">
     CimBar Encoder · Client-side only · AES-256-GCM + Reed-Solomon ECC
   </footer>
 </div>
@@ -734,7 +749,7 @@ footer {
 <!-- Hidden canvas for rendering frames -->
 <canvas id="workCanvas" class="hidden"></canvas>
 
-<div id="present" onclick="closePresent()" title="Click or press Esc to exit"><img id="presentImg" alt="CimBar"></div>
+<div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><img id="presentImg" alt="CimBar"></div>
 
 <script src="rs.js"></script>
 <script src="format-data.js"></script>
@@ -743,8 +758,12 @@ footer {
 <script src="crypto.js"></script>
 <script src="gif-encoder.js"></script>
 <script src="gif-decoder.js"></script>
+<script src="i18n.js"></script>
 
 <script>
+const t = (key, params) => CimbarI18n.t(key, params);
+CimbarI18n.apply();
+
 // ── Tab switching ─────────────────────────────────────────
 function switchTab(evt, name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -819,7 +838,7 @@ function setProgress(pct, label, fillId, pctId, labelId) {
 let outputBlob = null;
 
 async function startEncode() {
-  if (!encFile) { alert('Please select a file first.'); return; }
+  if (!encFile) { alert(t('selectFileFirst')); return; }
   const pass = document.getElementById('passEnc').value.trim();
   const isEncrypted = pass.length > 0;
 
@@ -827,7 +846,7 @@ async function startEncode() {
 
   const btn = document.getElementById('encBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Processing…';
+  btn.innerHTML = '<span class="spinner"></span> ' + t('processing');
 
   document.getElementById('progEnc').style.display = 'block';
   document.getElementById('outEnc').style.display  = 'none';
@@ -836,23 +855,23 @@ async function startEncode() {
 
   try {
     // 1. Read file and build payload
-    log('Reading file…', 'info', 'logEnc');
-    setProgress(5, 'Reading file', 'progEncFill', 'progEncPct', 'progEncLabel');
+    log(t('readingFile'), 'info', 'logEnc');
+    setProgress(5, t('reading'), 'progEncFill', 'progEncPct', 'progEncLabel');
     const raw = new Uint8Array(await encFile.arrayBuffer());
     const payload = Cimbar.buildPayload(encFile.name, raw);
-    log(`File: ${encFile.name} (${fmtBytes(raw.length)})`, 'ok', 'logEnc');
+    log(t('fileInfo', { name: encFile.name, size: fmtBytes(raw.length) }), 'ok', 'logEnc');
 
     // 2. Encrypt (optional)
     let framedPayload;
     if (isEncrypted) {
-      log('Encrypting with AES-256-GCM…', 'info', 'logEnc');
-      setProgress(15, 'Encrypting', 'progEncFill', 'progEncPct', 'progEncLabel');
+      log(t('encrypting'), 'info', 'logEnc');
+      setProgress(15, t('encryptingShort'), 'progEncFill', 'progEncPct', 'progEncLabel');
       framedPayload = await CimbarCrypto.encryptBytes(payload, pass);
-      log(`Encrypted: ${fmtBytes(framedPayload.length)}`, 'ok', 'logEnc');
+      log(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
     } else {
-      setProgress(15, 'Encoding', 'progEncFill', 'progEncPct', 'progEncLabel');
+      setProgress(15, t('encoding'), 'progEncFill', 'progEncPct', 'progEncLabel');
       framedPayload = payload;
-      log(`Payload: ${fmtBytes(payload.length)} (no encryption)`, 'ok', 'logEnc');
+      log(t('payloadNoEnc', { size: fmtBytes(payload.length) }), 'ok', 'logEnc');
     }
     const framedData = Cimbar.withLengthPrefix(framedPayload);
 
@@ -860,7 +879,7 @@ async function startEncode() {
     const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
     const frames = Cimbar.splitIntoFrames(framedData, fileId, isEncrypted);
     const perFrame = CimbarFormat.fileBytesPerFrame();
-    log(`${frames.length} frame(s), ${perFrame} file bytes per frame, file id ${fileId.toString(16)}`, 'info', 'logEnc');
+    log(t('framesInfo', { n: frames.length, per: perFrame, id: fileId.toString(16) }), 'info', 'logEnc');
     document.getElementById('sFrames').textContent = frames.length;
     document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
     document.getElementById('sPerFrame').textContent = perFrame;
@@ -874,14 +893,14 @@ async function startEncode() {
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
     const gif = new GifEncoder(size, size, frameDelay);
     for (let f = 0; f < frames.length; f++) {
-      setProgress(25 + (f / frames.length) * 65, `Encoding frame ${f + 1} / ${frames.length}`, 'progEncFill', 'progEncPct', 'progEncLabel');
+      setProgress(25 + (f / frames.length) * 65, t('encodingFrame', { i: f + 1, n: frames.length }), 'progEncFill', 'progEncPct', 'progEncLabel');
       Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(frames[f], rs));
       gif.addFrame(canvas);
       if (f % 4 === 0) await sleep(0);
     }
 
-    log('Compiling GIF…', 'info', 'logEnc');
-    setProgress(93, 'Compiling GIF', 'progEncFill', 'progEncPct', 'progEncLabel');
+    log(t('compilingGif'), 'info', 'logEnc');
+    setProgress(93, t('compiling'), 'progEncFill', 'progEncPct', 'progEncLabel');
     await sleep(10); // let progress render
 
     outputBlob = gif.finish();
@@ -889,16 +908,16 @@ async function startEncode() {
     document.getElementById('gifOut').src = url;
     document.getElementById('outEnc').style.display = 'block';
 
-    setProgress(100, 'Done', 'progEncFill', 'progEncPct', 'progEncLabel');
-    log(`GIF ready: ${fmtBytes(outputBlob.size)}`, 'ok', 'logEnc');
+    setProgress(100, t('done'), 'progEncFill', 'progEncPct', 'progEncLabel');
+    log(t('gifReady', { size: fmtBytes(outputBlob.size) }), 'ok', 'logEnc');
 
   } catch (err) {
-    log('Error: ' + err.message, 'err', 'logEnc');
+    log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
     console.error(err);
   }
 
   btn.disabled = false;
-  btn.innerHTML = 'Encode to GIF';
+  btn.innerHTML = t('encodeBtn');
 }
 
 function downloadGif() {
@@ -948,46 +967,46 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePrese
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
-  if (!decFile) { alert('Please select a GIF file.'); return; }
+  if (!decFile) { alert(t('selectGifFirst')); return; }
   const pass = document.getElementById('passDec').value.trim();
 
   const btn = document.getElementById('decBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Decoding…';
+  btn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
 
   document.getElementById('progDec').style.display = 'block';
   document.getElementById('logDec').innerHTML = '';
 
   try {
-    log('Loading GIF…', 'info', 'logDec');
-    setProgress(5, 'Loading', 'progDecFill', 'progDecPct', 'progDecLabel');
+    log(t('loadingGif'), 'info', 'logDec');
+    setProgress(5, t('loading'), 'progDecFill', 'progDecPct', 'progDecLabel');
 
     const gifBytes = new Uint8Array(await decFile.arrayBuffer());
     const decoder  = new GifDecoder(gifBytes);
 
-    log('Parsing frames…', 'info', 'logDec');
-    setProgress(15, 'Parsing frames', 'progDecFill', 'progDecPct', 'progDecLabel');
+    log(t('parsingFrames'), 'info', 'logDec');
+    setProgress(15, t('parsingFramesShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
 
     const frames = decoder.decode();
-    if (!frames.length) throw new Error('No frames found in GIF');
-    log(`Found ${frames.length} frame(s), size ${frames[0].width}×${frames[0].height}`, 'ok', 'logDec');
+    if (!frames.length) throw new Error(t('noFrames'));
+    log(t('foundFrames', { n: frames.length, w: frames[0].width, h: frames[0].height }), 'ok', 'logDec');
 
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
     const asm = new Cimbar.FrameAssembler();
     let rejected = 0;
     for (let f = 0; f < frames.length; f++) {
-      setProgress(20 + (f / frames.length) * 55, `Decoding frame ${f + 1} / ${frames.length}`, 'progDecFill', 'progDecPct', 'progDecLabel');
+      setProgress(20 + (f / frames.length) * 55, t('decodingFrame', { i: f + 1, n: frames.length }), 'progDecFill', 'progDecPct', 'progDecLabel');
       const cellsResult = Cimbar.decodeFrameExact(frames[f].imageData);
       const rsResult = Cimbar.decodeRSFrame(cellsResult.raw, rs);
       const added = asm.add(rsResult.data, rsResult.blocksFailed);
       if (!added.accepted) {
         rejected++;
-        log(`Frame ${f + 1}: rejected (${added.reason}, RS failed blocks ${rsResult.blocksFailed})`, 'err', 'logDec');
+        log(t('frameRejected', { i: f + 1, reason: added.reason, failed: rsResult.blocksFailed }), 'err', 'logDec');
       }
       if (f % 4 === 0) await sleep(0);
     }
-    if (!asm.isComplete()) throw new Error(`Incomplete: ${asm.filled} of ${asm.total} frames decoded (${rejected} rejected)`);
-    log(`Assembled ${asm.total} frame(s)`, 'ok', 'logDec');
+    if (!asm.isComplete()) throw new Error(t('incomplete', { filled: asm.filled, total: asm.total, rejected }));
+    log(t('assembled', { n: asm.total }), 'ok', 'logDec');
     const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
 
     // Auto-detect encryption: CimBar encrypted format starts with magic CB 42
@@ -995,20 +1014,20 @@ async function startDecode() {
 
     let decrypted;
     if (isEncrypted) {
-      if (!pass) { alert('This GIF is encrypted. Please enter a passphrase.'); throw new Error('Passphrase required for encrypted GIF'); }
-      log('Decrypting…', 'info', 'logDec');
-      setProgress(80, 'Decrypting', 'progDecFill', 'progDecPct', 'progDecLabel');
+      if (!pass) { alert(t('encryptedNeedPass')); throw new Error(t('passRequired')); }
+      log(t('decrypting'), 'info', 'logDec');
+      setProgress(80, t('decryptingShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
       decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
     } else {
-      log('Unencrypted payload detected', 'info', 'logDec');
-      setProgress(80, 'Parsing', 'progDecFill', 'progDecPct', 'progDecLabel');
+      log(t('unencrypted'), 'info', 'logDec');
+      setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
       decrypted = payloadBytes;
     }
 
     const { fileName: filename, fileBytes: fileData } = Cimbar.parsePayload(decrypted);
 
-    log(`Decrypted: ${filename} (${fmtBytes(fileData.length)})`, 'ok', 'logDec');
-    setProgress(100, 'Done', 'progDecFill', 'progDecPct', 'progDecLabel');
+    log(t('decryptedFile', { name: filename, size: fmtBytes(fileData.length) }), 'ok', 'logDec');
+    setProgress(100, t('done'), 'progDecFill', 'progDecPct', 'progDecLabel');
 
     // Download the file
     const blob = new Blob([fileData]);
@@ -1016,15 +1035,15 @@ async function startDecode() {
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     a.click();
-    log('File saved to Downloads ✓', 'ok', 'logDec');
+    log(t('savedDownloads'), 'ok', 'logDec');
 
   } catch (err) {
-    log('Error: ' + err.message, 'err', 'logDec');
+    log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
     console.error(err);
   }
 
   btn.disabled = false;
-  btn.innerHTML = 'Decode GIF';
+  btn.innerHTML = t('decodeBtn');
 }
 
 // ── Utilities ─────────────────────────────────────────────

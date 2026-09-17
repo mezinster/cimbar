@@ -43,11 +43,12 @@ function loadLikeABrowser() {
   return window;
 }
 
-test('index.html lists the seven local scripts in dependency order', () => {
-  assert(scripts.length === 7, `expected 7 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
+test('index.html lists the eight local scripts in dependency order', () => {
+  assert(scripts.length === 8, `expected 8 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
   assert(scripts.indexOf('format-data.js') < scripts.indexOf('format.js'), 'format-data.js must precede format.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('cimbar.js'), 'format.js must precede cimbar.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('gif-encoder.js'), 'format.js must precede gif-encoder.js');
+  assert(scripts[scripts.length - 1] === 'i18n.js', 'i18n.js is loaded last, right before the page script');
 });
 
 test('every script loads as a classic <script> sharing one global scope', () => {
@@ -56,7 +57,7 @@ test('every script loads as a classic <script> sharing one global scope', () => 
 
 test('the globals the inline page script uses are all defined', () => {
   const w = loadLikeABrowser();
-  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'Cimbar', 'CimbarCrypto', 'GifEncoder', 'GifDecoder']) {
+  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'Cimbar', 'CimbarCrypto', 'GifEncoder', 'GifDecoder', 'CimbarI18n']) {
     assert(w[g] !== undefined, `window.${g} is not defined after loading the page scripts`);
   }
   for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'FrameAssembler', 'buildPayload', 'parsePayload']) {
