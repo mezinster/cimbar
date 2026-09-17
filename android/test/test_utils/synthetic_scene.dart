@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/decode/golden_sidecar.dart';
 import 'package:cimbar_scanner/core/decode/homography.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
+import 'package:cimbar_scanner/core/decode/yuv_frame.dart';
 import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/core/services/gif_parser.dart';
 
@@ -149,4 +150,54 @@ RgbBuffer brightnessNoise(RgbBuffer src, double brightness, double noiseSigma, i
     out[i] = v.round().clamp(0, 255);
   }
   return RgbBuffer(src.width, src.height, out);
+}
+
+/// Forward BT.601 conversion to YUV_420_888 planes (chroma = 2x2 average).
+/// [semiPlanar] interleaves U/V (uvPixelStride 2) as CameraX exposes NV21-like
+/// buffers; [yPad] adds row padding so yRowStride > width.
+YuvFrame rgbToYuv420(RgbBuffer src, {bool semiPlanar = false, int yPad = 0}) {
+  final w = src.width, h = src.height, stride = w + yPad;
+  final y = Uint8List(stride * h);
+  final cw = (w + 1) ~/ 2, ch = (h + 1) ~/ 2;
+  final uvStride = semiPlanar ? cw * 2 : cw;
+  final u = Uint8List(uvStride * ch), v = Uint8List(uvStride * ch);
+  for (var yy = 0; yy < h; yy++) {
+    for (var x = 0; x < w; x++) {
+      final i = (yy * w + x) * 3;
+      final r = src.rgb[i], g = src.rgb[i + 1], b = src.rgb[i + 2];
+      y[yy * stride + x] = ((77 * r + 150 * g + 29 * b) >> 8).clamp(0, 255);
+    }
+  }
+  for (var cy = 0; cy < ch; cy++) {
+    for (var cx = 0; cx < cw; cx++) {
+      var rs = 0, gs = 0, bs = 0, n = 0;
+      for (var dy = 0; dy < 2; dy++) {
+        for (var dx = 0; dx < 2; dx++) {
+          final px = cx * 2 + dx, py = cy * 2 + dy;
+          if (px >= w || py >= h) continue;
+          final i = (py * w + px) * 3;
+          rs += src.rgb[i];
+          gs += src.rgb[i + 1];
+          bs += src.rgb[i + 2];
+          n++;
+        }
+      }
+      final r = rs / n, g = gs / n, b = bs / n;
+      final uu = (128 - 0.168736 * r - 0.331264 * g + 0.5 * b).round().clamp(0, 255);
+      final vv = (128 + 0.5 * r - 0.418688 * g - 0.081312 * b).round().clamp(0, 255);
+      final idx = cy * uvStride + cx * (semiPlanar ? 2 : 1);
+      u[idx] = uu;
+      v[idx] = vv;
+    }
+  }
+  return YuvFrame(
+    yPlane: y,
+    uPlane: u,
+    vPlane: v,
+    width: w,
+    height: h,
+    yRowStride: stride,
+    uvRowStride: uvStride,
+    uvPixelStride: semiPlanar ? 2 : 1,
+  );
 }

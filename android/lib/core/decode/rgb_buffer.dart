@@ -2,17 +2,50 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-/// Flat 8-bit RGB buffer with bilinear sampling.
-/// Continuous coordinates: pixel k covers [k, k+1), center at k + 0.5.
+import 'yuv_frame.dart';
+
+/// Flat 8-bit RGB buffer with bilinear sampling. May cover only a region of a
+/// larger source frame: [originX]/[originY] are the buffer's absolute position,
+/// and [bilinear] takes ABSOLUTE source coordinates (pixel k covers [k, k+1),
+/// center at k + 0.5). [r]/[g]/[b] index the buffer itself (local coordinates).
 class RgbBuffer {
   final int width;
   final int height;
   final Uint8List rgb; // width * height * 3
+  final int originX;
+  final int originY;
 
-  RgbBuffer(this.width, this.height, this.rgb) {
+  RgbBuffer(this.width, this.height, this.rgb, {this.originX = 0, this.originY = 0}) {
     if (rgb.length != width * height * 3) {
       throw ArgumentError('rgb length ${rgb.length} != $width*$height*3');
     }
+  }
+
+  /// Convert a region of a YUV_420_888 frame (BT.601, integer math). The
+  /// region is clamped to the frame; the result records its origin.
+  factory RgbBuffer.fromYuv420(YuvFrame f, {int x0 = 0, int y0 = 0, int? w, int? h}) {
+    final rx0 = x0.clamp(0, f.width - 1), ry0 = y0.clamp(0, f.height - 1);
+    final rx1 = (x0 + (w ?? f.width)).clamp(rx0 + 1, f.width);
+    final ry1 = (y0 + (h ?? f.height)).clamp(ry0 + 1, f.height);
+    final rw = rx1 - rx0, rh = ry1 - ry0;
+    final out = Uint8List(rw * rh * 3);
+    var o = 0;
+    for (var y = ry0; y < ry1; y++) {
+      final yRow = y * f.yRowStride;
+      final uvRow = (y >> 1) * f.uvRowStride;
+      for (var x = rx0; x < rx1; x++) {
+        final yv = f.yPlane[yRow + x];
+        final uvIdx = uvRow + (x >> 1) * f.uvPixelStride;
+        final u = f.uPlane[uvIdx] - 128, v = f.vPlane[uvIdx] - 128;
+        final r = yv + ((359 * v) >> 8);
+        final g = yv - ((88 * u + 183 * v) >> 8);
+        final b = yv + ((454 * u) >> 8);
+        out[o++] = r < 0 ? 0 : (r > 255 ? 255 : r);
+        out[o++] = g < 0 ? 0 : (g > 255 ? 255 : g);
+        out[o++] = b < 0 ? 0 : (b > 255 ? 255 : b);
+      }
+    }
+    return RgbBuffer(rw, rh, out, originX: rx0, originY: ry0);
   }
 
   factory RgbBuffer.fromImage(img.Image image) {
@@ -48,7 +81,7 @@ class RgbBuffer {
 
   /// Bilinear sample at continuous (x, y); writes r,g,b to out[outOff..outOff+2].
   void bilinear(double x, double y, Float32List out, int outOff) {
-    final fx = x - 0.5, fy = y - 0.5;
+    final fx = x - originX - 0.5, fy = y - originY - 0.5;
     var x0 = fx.floor(), y0 = fy.floor();
     final tx = fx - x0, ty = fy - y0;
     var x1 = x0 + 1, y1 = y0 + 1;

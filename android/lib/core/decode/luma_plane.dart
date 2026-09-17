@@ -8,11 +8,37 @@ class LumaPlane {
   final int width;
   final int height;
   final Uint8List luma;
+  final int originX;
+  final int originY;
 
-  LumaPlane(this.width, this.height, this.luma) {
+  LumaPlane(this.width, this.height, this.luma, {this.originX = 0, this.originY = 0}) {
     if (luma.length != width * height) {
       throw ArgumentError('luma length ${luma.length} != $width*$height');
     }
+  }
+
+  /// Copy a Y plane whose rows may be padded ([rowStride] >= [width]).
+  /// When rowStride == width the returned plane's [luma] is a view over
+  /// [y] itself (no copy) — the caller's buffer must outlive the plane.
+  factory LumaPlane.fromYPlane(Uint8List y, {required int width, required int height, required int rowStride}) {
+    if (rowStride == width) return LumaPlane(width, height, Uint8List.sublistView(y, 0, width * height));
+    final out = Uint8List(width * height);
+    for (var r = 0; r < height; r++) {
+      out.setRange(r * width, (r + 1) * width, y, r * rowStride);
+    }
+    return LumaPlane(width, height, out);
+  }
+
+  /// Sub-plane (clamped) whose origin is the absolute offset of its (0,0).
+  LumaPlane crop(int x0, int y0, int w, int h) {
+    final cx0 = x0.clamp(0, width - 1), cy0 = y0.clamp(0, height - 1);
+    final cx1 = (x0 + w).clamp(cx0 + 1, width), cy1 = (y0 + h).clamp(cy0 + 1, height);
+    final cw = cx1 - cx0, ch = cy1 - cy0;
+    final out = Uint8List(cw * ch);
+    for (var r = 0; r < ch; r++) {
+      out.setRange(r * cw, (r + 1) * cw, luma, (cy0 + r) * width + cx0);
+    }
+    return LumaPlane(cw, ch, out, originX: originX + cx0, originY: originY + cy0);
   }
 
   /// BT.601 with integer weights (77, 150, 29) / 256.
@@ -27,9 +53,12 @@ class LumaPlane {
     return LumaPlane(rgb.width, rgb.height, out);
   }
 
+  /// Buffer-local pixel lookup (not offset by origin).
   int at(int x, int y) => luma[y * width + x];
 
-  /// Area-average 2x downscale (odd trailing row/column dropped).
+  /// Area-average 2x downscale (odd trailing row/column dropped). Always
+  /// returns origin (0, 0): the locator only ever downscales a plane it then
+  /// treats locally, regardless of that plane's own origin.
   LumaPlane downscale2() {
     final w = width ~/ 2, h = height ~/ 2;
     final out = Uint8List(w * h);
@@ -43,8 +72,11 @@ class LumaPlane {
     return LumaPlane(w, h, out);
   }
 
+  /// Bilinear sample at ABSOLUTE (x, y) — subtracts [originX]/[originY] before
+  /// sampling, so a cropped/offset plane can be read through the same grid
+  /// model as the full frame.
   double bilinear(double x, double y) {
-    final fx = x - 0.5, fy = y - 0.5;
+    final fx = x - originX - 0.5, fy = y - originY - 0.5;
     var x0 = fx.floor(), y0 = fy.floor();
     final tx = fx - x0, ty = fy - y0;
     var x1 = x0 + 1, y1 = y0 + 1;
