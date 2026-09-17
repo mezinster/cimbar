@@ -32,6 +32,8 @@ class Diagnostics {
   String locateFail = '';
   int gridEstimate = 0;
   List<double>? whitePoint;
+  int roiMs = 0;
+  List<int>? roi; // x,y,w,h (full-frame pixels)
   // drift
   bool driftUsed = false;
   int driftMs = 0;
@@ -70,6 +72,8 @@ class Diagnostics {
           if (locateFail.isNotEmpty) 'locateFail': locateFail,
           'gridEstimate': '$gridEstimate',
           'wb': whitePoint == null ? '-' : whitePoint!.map((v) => _f(v, 0)).join(','),
+          'roiMs': '$roiMs',
+          'roi': roi == null ? '-' : roi!.join(','),
         },
         if (driftUsed) ...{
           'driftMs': '$driftMs',

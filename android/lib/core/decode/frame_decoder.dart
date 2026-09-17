@@ -16,6 +16,7 @@ import 'homography.dart';
 import 'luma_plane.dart';
 import 'rgb_buffer.dart';
 import 'white_point.dart';
+import 'yuv_frame.dart';
 
 /// The single v2 frame decoder (spec §6.1). GIF paths call [decodeExact];
 /// camera paths call [decode], which locates the finders, fits a homography
@@ -34,9 +35,37 @@ class FrameDecoder {
     final drift = useDrift ?? (grid == null);
     if (grid != null) return decodeWithGrid(image, grid, useDrift: drift);
     final diag = Diagnostics()..locateRan = true;
-    final sw = Stopwatch()..start();
     final luma = LumaPlane.fromRgb(image);
-    final loc = locator.locate(luma);
+    final loc = _locate(luma, null, diag);
+    if (loc == null) return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = diag.locateFail);
+    return _decodeLocated(loc, luma, diag, drift, (_) => image);
+  }
+
+  FrameResult decodeYuv420(YuvFrame f, {bool useDrift = true, RoiHint? hint}) {
+    final diag = Diagnostics()..locateRan = true;
+    final luma = LumaPlane.fromYPlane(f.yPlane, width: f.width, height: f.height, rowStride: f.yRowStride);
+    final loc = _locate(luma, hint, diag);
+    if (loc == null) return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = diag.locateFail);
+    return _decodeLocated(loc, luma, diag, useDrift, (roi) {
+      final sw = Stopwatch()..start();
+      final buf = RgbBuffer.fromYuv420(f, x0: roi[0], y0: roi[1], w: roi[2], h: roi[3]);
+      diag.roiMs = sw.elapsedMilliseconds;
+      return buf;
+    });
+  }
+
+  /// Locate on [luma]; with a [hint], try the expanded hint region first.
+  LocateResult? _locate(LumaPlane luma, RoiHint? hint, Diagnostics diag) {
+    final sw = Stopwatch()..start();
+    LocateResult loc;
+    if (hint != null) {
+      final ex = (hint.w * 0.25).round(), ey = (hint.h * 0.25).round();
+      final sub = luma.crop(hint.x - ex, hint.y - ey, hint.w + 2 * ex, hint.h + 2 * ey);
+      loc = locator.locate(sub);
+      if (!loc.ok) loc = locator.locate(luma);
+    } else {
+      loc = locator.locate(luma);
+    }
     diag.locateMs = sw.elapsedMilliseconds;
     diag.candidates = loc.candidates;
     diag.clusters = loc.clusters;
@@ -45,12 +74,15 @@ class FrameDecoder {
     diag.secondLuma = loc.secondLuma;
     if (!loc.ok) {
       diag.locateFail = loc.failReason;
-      return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = loc.failReason);
+      return null;
     }
+    return loc;
+  }
+
+  FrameResult _decodeLocated(LocateResult loc, LumaPlane luma, Diagnostics diag, bool useDrift, RgbBuffer Function(List<int> roi) rgbFor) {
     final tl = loc.tl!, tr = loc.tr!, bl = loc.bl!, br = loc.br!;
     diag.corners = Float64List.fromList([tl.x, tl.y, tr.x, tr.y, bl.x, bl.y, br.x, br.y]);
     diag.module = loc.module;
-
     final gm = HomographyGridModel.fromFinders(tl: (tl.x, tl.y), tr: (tr.x, tr.y), bl: (bl.x, bl.y), br: (br.x, br.y));
     if (gm == null) {
       diag.locateFail = 'homography singular';
@@ -62,11 +94,21 @@ class FrameDecoder {
     final estimate = (side / loc.module).round() + CimbarSpec.finderCells;
     diag.gridEstimate = estimate;
     if ((estimate - CimbarSpec.gridCells).abs() > gridTolerance) {
-      return FrameResult(status: DecodeStatus.unsupportedGrid, diag: diag..note = 'grid estimate $estimate cells (supported: ${CimbarSpec.gridCells})');
+      return FrameResult(status: DecodeStatus.unsupportedGrid, diag: diag..note = 'grid estimate $estimate cells (supported: ${CimbarSpec.gridCells} ± $gridTolerance)');
     }
+    // ROI: finder bbox + margin. The finders sit 3.5 cells inside the grid edge,
+    // so the ROI must extend at least 3.5 modules beyond the outermost finder
+    // centers to include all cells; 4.5 modules gives one module of safety.
+    final margin = (loc.module * 4.5).ceil();
+    final xs = [tl.x, tr.x, bl.x, br.x], ys = [tl.y, tr.y, bl.y, br.y];
+    final x0 = xs.reduce(math.min).floor() - margin, y0 = ys.reduce(math.min).floor() - margin;
+    final x1 = xs.reduce(math.max).ceil() + margin, y1 = ys.reduce(math.max).ceil() + margin;
+    final roi = <int>[math.max(0, x0), math.max(0, y0), math.min(luma.width, x1) - math.max(0, x0), math.min(luma.height, y1) - math.max(0, y0)];
+    diag.roi = roi;
+    final image = rgbFor(roi);
     final wp = WhitePoint.fromFinders(image, gm);
     diag.whitePoint = wp;
-    return decodeWithGrid(image, gm, whitePoint: wp, useDrift: drift, luma: luma, diag: diag);
+    return decodeWithGrid(image, gm, whitePoint: wp, useDrift: useDrift, luma: luma, diag: diag);
   }
 
   static double _dist(Finder a, Finder b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
