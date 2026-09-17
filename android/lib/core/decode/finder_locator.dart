@@ -79,10 +79,19 @@ class FinderLocator {
         final (total, m) = match;
         if (m < 1.5) continue;
         final cx = runs[i].start + total / 2;
-        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
-        if (vy == null) continue;
+        // tr/bl/br cores carry a 1-module black orientation dot dead center
+        // (spec §3.2), so a single column probe near the center is unsafe.
+        // Probe one module to either side (both inside the 3-module core,
+        // both clear of the dot) and require both to confirm; for a finder
+        // rotated by theta the two probes' y-estimates are biased by
+        // roughly ∓m*tan(theta), so their mean cancels the bias.
+        final left = _confirmVertical(bin, w, h, (cx - m).floor(), y, m);
+        if (left == null) continue;
+        final right = _confirmVertical(bin, w, h, (cx + m).floor(), y, m);
+        if (right == null) continue;
+        final cy = (left.$1 + right.$1) / 2;
+        final mv = (left.$2 + right.$2) / 2;
         candidates++;
-        final (cy, mv) = vy;
         final mod = (m + mv) / 2;
         _Cluster? best;
         var bestD = double.infinity;
@@ -246,32 +255,24 @@ class FinderLocator {
   }
 
   static const List<double> _p5 = [1, 1, 3, 1, 1];
-  static const List<double> _p7 = [1, 1, 1, 1, 1, 1, 1]; // core split by the tr/bl/br dot
 
   /// Match a finder cross-section starting at light run [i]: the 5-run
-  /// 1:1:3:1:1 pattern (solid core) or the 7-run 1:1:1:1:1:1:1 pattern (core
-  /// split by the dot). Runs alternate, so a dark run precedes i (i >= 1) and
+  /// 1:1:3:1:1 pattern. Runs alternate, so a dark run precedes i (i >= 1) and
   /// follows the window when i + n < runs.length. Returns (total, module).
   static (int, double)? _matchPattern(List<_Run> runs, int i) {
-    for (final pat in [_p5, _p7]) {
-      final n = pat.length;
-      if (i + n >= runs.length) continue;
-      var total = 0;
-      for (var k = 0; k < n; k++) {
-        total += runs[i + k].length;
-      }
-      final m = total / 7;
-      var ok = true;
-      for (var k = 0; k < n; k++) {
-        final e = pat[k] * m;
-        if ((runs[i + k].length - e).abs() > 0.5 * e) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) return (total, m);
+    const pat = _p5;
+    final n = pat.length;
+    if (i + n >= runs.length) return null;
+    var total = 0;
+    for (var k = 0; k < n; k++) {
+      total += runs[i + k].length;
     }
-    return null;
+    final m = total / 7;
+    for (var k = 0; k < n; k++) {
+      final e = pat[k] * m;
+      if ((runs[i + k].length - e).abs() > 0.5 * e) return null;
+    }
+    return (total, m);
   }
 
   /// Vertical confirmation at column x around row y: returns (centerY, module) or null.
