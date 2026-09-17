@@ -1066,7 +1066,14 @@ class FinderLocator {
         if (m < 1.5) continue;
         if (!_ratiosOk(runs, i, m)) continue;
         final cx = runs[i].start + total / 2;
-        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
+        // TR/BL/BR carry a 1-module dot at the core center, so the exact
+        // center column never shows 1:1:3:1:1 — also try one module to either
+        // side (still inside the 3-module core, outside the dot).
+        (double, double)? vy;
+        for (final off in [0.0, -m, m]) {
+          vy = _confirmVertical(bin, w, h, (cx + off).floor(), y, m);
+          if (vy != null) break;
+        }
         if (vy == null) continue;
         candidates++;
         final (cy, mv) = vy;
