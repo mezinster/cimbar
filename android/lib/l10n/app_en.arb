@@ -154,6 +154,38 @@
       "count": { "type": "int" }
     }
   },
+  "liveScanAim": "Fit the barcode inside the square",
+  "@liveScanAim": { "description": "Instruction shown before a barcode has been located in the frame" },
+  "hintMoveCloser": "Move closer",
+  "@hintMoveCloser": { "description": "Hint shown when the barcode is too small in the frame" },
+  "hintMoveBack": "Move back",
+  "@hintMoveBack": { "description": "Hint shown when the barcode is too large in the frame" },
+  "hintHoldStill": "Hold still",
+  "@hintHoldStill": { "description": "Hint shown when camera motion is degrading the scan" },
+  "hintAdjustAngle": "Adjust angle or lighting",
+  "@hintAdjustAngle": { "description": "Hint shown when the barcode is located but frames keep failing to decode" },
+  "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
+  "@errorMultiFrameNeedsLive": {
+    "description": "Error shown when a single photo cannot contain a multi-frame CimBar file",
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+  "captureSaved": "Frame captured to app documents",
+  "@captureSaved": { "description": "Snackbar shown after a debug frame capture is saved" },
+  "captureFailed": "Capture failed",
+  "@captureFailed": { "description": "Snackbar shown when a debug frame capture fails to save" },
+  "errorPassphraseRequired": "This file is encrypted: a passphrase is required",
+  "@errorPassphraseRequired": { "description": "Error shown when a live-scanned file is encrypted but no passphrase was given" },
+  "errorDecoderFailed": "Decoder failed: {detail}",
+  "@errorDecoderFailed": {
+    "description": "Error shown when the frame decoder repeatedly fails or a completed scan cannot be parsed",
+    "placeholders": {
+      "detail": { "type": "String" }
+    }
+  },
+  "errorNoBarcodeFound": "No CimBar barcode found in the photo",
+  "@errorNoBarcodeFound": { "description": "Error shown when a still photo contains no locatable CimBar barcode" },
 
   "tabFiles": "Files",
   "@tabFiles": { "description": "Bottom navigation tab for file explorer" },
@@ -174,27 +206,6 @@
   },
   "fileDeleted": "File deleted",
   "@fileDeleted": { "description": "Snackbar message after file deletion" },
-
-  "decodeTuning": "Decode Tuning",
-  "@decodeTuning": { "description": "Section title for camera decode tuning settings" },
-  "symbolSensitivity": "Symbol Sensitivity",
-  "@symbolSensitivity": { "description": "Label for symbol detection threshold slider" },
-  "symbolSensitivityDesc": "Higher = stricter dot detection (corners must be brighter to read as 1)",
-  "@symbolSensitivityDesc": { "description": "Description for symbol sensitivity slider" },
-  "whiteBalanceLabel": "White Balance Correction",
-  "@whiteBalanceLabel": { "description": "Label for white balance toggle" },
-  "relativeColorLabel": "Relative Color Matching",
-  "@relativeColorLabel": { "description": "Label for relative color matching toggle" },
-  "quadrantOffsetLabel": "Quadrant Sample Offset",
-  "@quadrantOffsetLabel": { "description": "Label for quadrant offset slider" },
-  "quadrantOffsetDesc": "Corner sample position as fraction of cell size",
-  "@quadrantOffsetDesc": { "description": "Description for quadrant offset slider" },
-  "hashDetectionLabel": "Hash Symbol Detection",
-  "@hashDetectionLabel": { "description": "Label for hash-based symbol detection toggle" },
-  "adaptiveThresholdLabel": "Adaptive Threshold",
-  "@adaptiveThresholdLabel": { "description": "Label for adaptive threshold preprocessing toggle" },
-  "resetDefaults": "Reset to Defaults",
-  "@resetDefaults": { "description": "Button to reset tuning to default values" },
 
   "developerSection": "Developer",
   "@developerSection": { "description": "Section title for developer settings" },

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
 import '../../core/services/decode_pipeline.dart';
+import '../../core/services/file_service.dart';
 
 final importControllerProvider =
     StateNotifierProvider<ImportController, ImportState>((ref) {
@@ -53,14 +54,14 @@ class ImportController extends StateNotifier<ImportState> {
   final _pipeline = DecodePipeline();
 
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['gif'],
     );
 
-    if (result != null && result.files.isNotEmpty) {
-      final file = result.files.first;
-      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+    if (result.isNotEmpty) {
+      final file = result.first;
+      final bytes = await file.readAsBytes();
       state = ImportState(
         selectedFileName: file.name,
         selectedFileBytes: bytes,
@@ -98,7 +99,7 @@ class ImportController extends StateNotifier<ImportState> {
   Future<String?> _autoSave(DecodeResult result) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${result.filename}');
+      final file = File('${dir.path}/${FileService.safeBasename(result.filename)}');
       await file.writeAsBytes(result.data);
       return file.path;
     } catch (_) {

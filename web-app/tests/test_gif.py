@@ -4,7 +4,7 @@ test_gif.py — Verify GIF structure, dimensions, and palette for a CimBar outpu
 
 Usage:
     python tests/test_gif.py path/to/output.gif [expected_size]
-    expected_size defaults to 256.
+    expected_size defaults to 608.
 
 Requires: pip install pillow   (optional but enables frame/palette checks)
 """
@@ -12,7 +12,7 @@ import sys
 import struct
 
 
-def test_gif(path, expected_size=256):
+def test_gif(path, expected_size=608):
     with open(path, 'rb') as f:
         data = f.read()
 
@@ -48,31 +48,24 @@ def test_gif(path, expected_size=256):
         assert frames > 0, 'No frames found'
         print(f'  frames: {frames} ✓')
 
-        # Palette must have ≥ 8 entries (one per CimBar color)
+        # Palette slots 0-3 are the v2 spec palette, 4 black, 5 white
+        import json, os
+        spec_path = os.path.join(os.path.dirname(__file__), '..', '..', 'spec', 'cimbar-v2.json')
+        with open(spec_path) as sf:
+            spec = json.load(sf)
         img.seek(0)
         pal = img.getpalette()
         assert pal is not None, 'No palette'
         n_entries = len(pal) // 3
-        assert n_entries >= 8, f'Palette too small: {n_entries} entries'
+        assert n_entries >= 6, f'Palette too small: {n_entries} entries'
         print(f'  palette: {n_entries} entries ✓')
-
-        # Verify palette slots 0-7 match the 8 CimBar base colors
-        EXPECTED = [
-            (  0, 200, 200),
-            (220,  40,  40),
-            ( 30, 100, 220),
-            (255, 130,  20),
-            (200,  40, 200),
-            ( 40, 200,  60),
-            (230, 220,  40),
-            (100,  20, 200),
-        ]
+        EXPECTED = [tuple(c) for c in spec['palette']] + [(0, 0, 0), (255, 255, 255)]
         for i, (er, eg, eb) in enumerate(EXPECTED):
             r, g, b = pal[i*3], pal[i*3+1], pal[i*3+2]
             assert (r, g, b) == (er, eg, eb), (
                 f'Palette slot {i}: got ({r},{g},{b}), expected ({er},{eg},{eb})'
             )
-        print('  CimBar base palette entries ✓')
+        print('  v2 palette entries ✓')
 
     except ImportError:
         print('  (Pillow not installed — skipping frame/palette checks)')
@@ -86,7 +79,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     path = sys.argv[1]
-    size = int(sys.argv[2]) if len(sys.argv) > 2 else 256
+    size = int(sys.argv[2]) if len(sys.argv) > 2 else 608
 
     try:
         test_gif(path, size)

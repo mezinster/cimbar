@@ -43,53 +43,50 @@ class LanguageSwitcherButton extends ConsumerWidget {
       context: context,
       builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  l10n.language,
-                  style: Theme.of(sheetContext).textTheme.titleMedium,
+          child: RadioGroup<Locale?>(
+            groupValue: currentLocale,
+            onChanged: (v) {
+              ref.read(localeProvider.notifier).setLocale(v);
+              Navigator.of(sheetContext).pop();
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    l10n.language,
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-              RadioListTile<Locale?>(
-                title: Row(
-                  children: [
-                    const Icon(Icons.phone_android, size: 20),
-                    const SizedBox(width: 8),
-                    Text(l10n.systemDefault),
-                  ],
-                ),
-                value: null,
-                groupValue: currentLocale,
-                onChanged: (v) {
-                  ref.read(localeProvider.notifier).setLocale(v);
-                  Navigator.of(sheetContext).pop();
-                },
-              ),
-              ...AppLocalizations.supportedLocales.map((locale) {
-                final code = locale.languageCode;
-                final flag = _flags[code] ?? '';
-                final name = _localeNames[code] ?? code;
-                return RadioListTile<Locale?>(
+                RadioListTile<Locale?>(
                   title: Row(
                     children: [
-                      Text(flag, style: const TextStyle(fontSize: 20)),
+                      const Icon(Icons.phone_android, size: 20),
                       const SizedBox(width: 8),
-                      Text(name),
+                      Text(l10n.systemDefault),
                     ],
                   ),
-                  value: locale,
-                  groupValue: currentLocale,
-                  onChanged: (v) {
-                    ref.read(localeProvider.notifier).setLocale(v);
-                    Navigator.of(sheetContext).pop();
-                  },
-                );
-              }),
-              const SizedBox(height: 8),
-            ],
+                  value: null,
+                ),
+                ...AppLocalizations.supportedLocales.map((locale) {
+                  final code = locale.languageCode;
+                  final flag = _flags[code] ?? '';
+                  final name = _localeNames[code] ?? code;
+                  return RadioListTile<Locale?>(
+                    title: Row(
+                      children: [
+                        Text(flag, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 8),
+                        Text(name),
+                      ],
+                    ),
+                    value: locale,
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },

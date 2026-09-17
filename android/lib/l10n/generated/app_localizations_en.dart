@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -97,7 +99,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorGeneric => 'An error occurred';
 
   @override
-  String get errorDecryption => 'Decryption failed — wrong passphrase or corrupted data';
+  String get errorDecryption =>
+      'Decryption failed — wrong passphrase or corrupted data';
 
   @override
   String get errorInvalidGif => 'Invalid or unsupported GIF file';
@@ -109,7 +112,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorFileTooLarge => 'File is too large to process';
 
   @override
-  String get cameraScanInstruction => 'Take a photo of a CimBar barcode to decode it';
+  String get cameraScanInstruction =>
+      'Take a photo of a CimBar barcode to decode it';
 
   @override
   String get cameraTakePhoto => 'Take Photo';
@@ -130,7 +134,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorBarcodeNotFound => 'No barcode found in photo';
 
   @override
-  String get errorNoFrameSizeMatch => 'Could not decode barcode at any supported frame size';
+  String get errorNoFrameSizeMatch =>
+      'Could not decode barcode at any supported frame size';
 
   @override
   String get language => 'Language';
@@ -142,7 +147,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get about => 'About';
 
   @override
-  String get aboutDescription => 'CimBar Scanner decodes Color Icon Matrix Barcodes. Compatible with the CimBar web encoder at nfcarchiver.com/cimbar.';
+  String get aboutDescription =>
+      'CimBar Scanner decodes Color Icon Matrix Barcodes. Compatible with the CimBar web encoder at nfcarchiver.com/cimbar.';
 
   @override
   String get webAppLabel => 'Web App';
@@ -173,7 +179,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get liveScanError => 'Scan failed';
 
   @override
-  String get cameraPermissionDenied => 'Camera permission is required for live scanning';
+  String get cameraPermissionDenied =>
+      'Camera permission is required for live scanning';
 
   @override
   String get noCameraAvailable => 'No camera available on this device';
@@ -182,6 +189,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String liveScanFramesAnalyzed(int count) {
     return '$count frames analyzed';
   }
+
+  @override
+  String get liveScanAim => 'Fit the barcode inside the square';
+
+  @override
+  String get hintMoveCloser => 'Move closer';
+
+  @override
+  String get hintMoveBack => 'Move back';
+
+  @override
+  String get hintHoldStill => 'Hold still';
+
+  @override
+  String get hintAdjustAngle => 'Adjust angle or lighting';
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
+  }
+
+  @override
+  String get captureSaved => 'Frame captured to app documents';
+
+  @override
+  String get captureFailed => 'Capture failed';
+
+  @override
+  String get errorPassphraseRequired =>
+      'This file is encrypted: a passphrase is required';
+
+  @override
+  String errorDecoderFailed(String detail) {
+    return 'Decoder failed: $detail';
+  }
+
+  @override
+  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
 
   @override
   String get tabFiles => 'Files';
@@ -205,36 +250,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fileDeleted => 'File deleted';
-
-  @override
-  String get decodeTuning => 'Decode Tuning';
-
-  @override
-  String get symbolSensitivity => 'Symbol Sensitivity';
-
-  @override
-  String get symbolSensitivityDesc => 'Higher = stricter dot detection (corners must be brighter to read as 1)';
-
-  @override
-  String get whiteBalanceLabel => 'White Balance Correction';
-
-  @override
-  String get relativeColorLabel => 'Relative Color Matching';
-
-  @override
-  String get quadrantOffsetLabel => 'Quadrant Sample Offset';
-
-  @override
-  String get quadrantOffsetDesc => 'Corner sample position as fraction of cell size';
-
-  @override
-  String get hashDetectionLabel => 'Hash Symbol Detection';
-
-  @override
-  String get adaptiveThresholdLabel => 'Adaptive Threshold';
-
-  @override
-  String get resetDefaults => 'Reset to Defaults';
 
   @override
   String get developerSection => 'Developer';

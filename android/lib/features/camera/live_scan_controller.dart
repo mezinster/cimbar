@@ -1,45 +1,37 @@
-import 'dart:convert';
-import 'dart:isolate';
+import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 
-import '../../core/constants/cimbar_constants.dart';
-import '../../core/models/barcode_rect.dart';
+import '../../core/decode/diagnostics.dart';
+import '../../core/decode/frame_assembler.dart';
+import '../../core/decode/yuv_frame.dart';
 import '../../core/models/decode_result.dart';
-import '../../core/models/decode_tuning_config.dart';
-import '../../core/services/crypto_service.dart';
-import '../../core/services/frame_decode_isolate.dart';
-import '../../core/services/live_scanner.dart';
-import '../../core/utils/byte_utils.dart';
-
-/// Top-level function to run isolate decode — must be top-level so the
-/// closure doesn't capture LiveScanController's `this` (which holds
-/// Riverpod's SynchronousFuture, an unsendable object).
-/// See: https://github.com/dart-lang/sdk/issues/52661
-Future<IsolateFrameResult> _runIsolate(IsolateFrameInput input) {
-  return Isolate.run(() => decodeFrameInIsolate(input));
-}
+import '../../core/services/capture_policy.dart';
+import '../../core/services/decode_isolate.dart';
+import '../../core/services/file_service.dart';
+import '../../core/services/payload_decoder.dart';
 
 final liveScanControllerProvider =
-    StateNotifierProvider<LiveScanController, LiveScanState>((ref) {
-  return LiveScanController();
-});
+    StateNotifierProvider<LiveScanController, LiveScanState>((ref) => LiveScanController());
 
+/// [errorMessage] is a code the screen maps to a localized string:
+/// 'passphrase_required' or 'decoder_failed:<detail>'.
 class LiveScanState {
   final bool isScanning;
   final int framesAnalyzed;
-  final int uniqueFrames;
-  final int totalFrames;
-  final int? detectedFrameSize;
+  final int filled;
+  final int total;
+  final ScanHint hint;
+  final Float64List? corners;
+  final int? imageWidth;
+  final int? imageHeight;
+  final LockAction pendingLock;
   final bool isDecrypting;
   final DecodeResult? result;
   final String? errorMessage;
-  final BarcodeRect? barcodeRect;
-  final int? sourceImageWidth;
-  final int? sourceImageHeight;
   final bool debugEnabled;
   final List<String> debugLog;
   final String? captureStatus;
@@ -47,403 +39,270 @@ class LiveScanState {
   const LiveScanState({
     this.isScanning = false,
     this.framesAnalyzed = 0,
-    this.uniqueFrames = 0,
-    this.totalFrames = 0,
-    this.detectedFrameSize,
+    this.filled = 0,
+    this.total = 0,
+    this.hint = ScanHint.none,
+    this.corners,
+    this.imageWidth,
+    this.imageHeight,
+    this.pendingLock = LockAction.none,
     this.isDecrypting = false,
     this.result,
     this.errorMessage,
-    this.barcodeRect,
-    this.sourceImageWidth,
-    this.sourceImageHeight,
     this.debugEnabled = false,
     this.debugLog = const [],
     this.captureStatus,
   });
 
+  bool get isComplete => total > 0 && filled >= total;
+
   LiveScanState copyWith({
     bool? isScanning,
     int? framesAnalyzed,
-    int? uniqueFrames,
-    int? totalFrames,
-    int? detectedFrameSize,
+    int? filled,
+    int? total,
+    ScanHint? hint,
+    Float64List? corners,
+    bool clearCorners = false,
+    int? imageWidth,
+    int? imageHeight,
+    LockAction? pendingLock,
     bool? isDecrypting,
     DecodeResult? result,
     String? errorMessage,
-    BarcodeRect? barcodeRect,
-    int? sourceImageWidth,
-    int? sourceImageHeight,
     bool? debugEnabled,
     List<String>? debugLog,
     String? captureStatus,
+    bool clearCaptureStatus = false,
     bool clearResult = false,
     bool clearError = false,
-    bool clearBarcodeRect = false,
-    bool clearCaptureStatus = false,
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
       framesAnalyzed: framesAnalyzed ?? this.framesAnalyzed,
-      uniqueFrames: uniqueFrames ?? this.uniqueFrames,
-      totalFrames: totalFrames ?? this.totalFrames,
-      detectedFrameSize: detectedFrameSize ?? this.detectedFrameSize,
+      filled: filled ?? this.filled,
+      total: total ?? this.total,
+      hint: hint ?? this.hint,
+      corners: clearCorners ? null : (corners ?? this.corners),
+      imageWidth: imageWidth ?? this.imageWidth,
+      imageHeight: imageHeight ?? this.imageHeight,
+      pendingLock: pendingLock ?? this.pendingLock,
       isDecrypting: isDecrypting ?? this.isDecrypting,
       result: clearResult ? null : (result ?? this.result),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      barcodeRect: clearBarcodeRect ? null : (barcodeRect ?? this.barcodeRect),
-      sourceImageWidth: sourceImageWidth ?? this.sourceImageWidth,
-      sourceImageHeight: sourceImageHeight ?? this.sourceImageHeight,
       debugEnabled: debugEnabled ?? this.debugEnabled,
       debugLog: debugLog ?? this.debugLog,
-      captureStatus: clearCaptureStatus
-          ? null
-          : (captureStatus ?? this.captureStatus),
+      captureStatus: clearCaptureStatus ? null : (captureStatus ?? this.captureStatus),
     );
   }
-
-  bool get isComplete =>
-      totalFrames > 0 && uniqueFrames >= totalFrames && !isDecrypting;
 }
 
 class LiveScanController extends StateNotifier<LiveScanState> {
   LiveScanController() : super(const LiveScanState());
 
-  final LiveScanner _scanner = LiveScanner();
-
-  /// Minimum interval between frame processing (throttle to ~4fps).
-  static const _throttleMs = 250;
-  int _lastProcessedMs = 0;
-  bool _processing = false;
-
-  static const _maxDebugEntries = 50;
+  final FrameAssembler _assembler = FrameAssembler();
+  final CapturePolicy _policy = CapturePolicy();
+  DecodeIsolate? _isolate;
+  Future<DecodeIsolate>? _spawning;
+  RoiHint? _hint;
   bool _debugMode = false;
+  bool _captureNext = false;
+  int _frameNum = 0;
+  int _gen = 0;
+  int _consecutiveErrors = 0;
+  static const _maxDebugEntries = 50;
 
-  DecodeTuningConfig _tuningConfig = const DecodeTuningConfig();
+  void updateDebugMode(bool enabled) => _debugMode = enabled;
 
-  void updateTuningConfig(DecodeTuningConfig config) {
-    _tuningConfig = config;
-    _scanner.tuningConfig = config;
-  }
+  /// True when a frame can be processed right now (no copy should be made otherwise).
+  bool get wantsFrame => state.isScanning && _isolate != null && !_isolate!.busy;
 
-  void updateDebugMode(bool enabled) {
-    _debugMode = enabled;
-    _scanner.onDebug = _debugMode ? _onDebug : null;
-    _scanner.collectStats = _debugMode;
-  }
-
-  void startScan() {
-    _scanner.reset();
-    _scanner.onDebug = _debugMode ? _onDebug : null;
-    _lastProcessedMs = 0;
-    _processing = false;
+  Future<void> startScan() async {
+    _assembler.reset();
+    _policy.reset();
+    _hint = null;
+    _frameNum = 0;
+    _consecutiveErrors = 0;
     state = LiveScanState(isScanning: true, debugEnabled: state.debugEnabled);
+    await _spawnIsolate();
   }
 
-  void _onDebug(ScanDebugInfo info) {
-    _logAdb(info.toString());
-    _logOverlay(info.toString());
+  Future<void> _spawnIsolate() async {
+    final gen = _gen;
+    _spawning ??= DecodeIsolate.spawn();
+    final isolate = await _spawning!;
+    if (gen != _gen) {
+      // disposeIsolate() ran while we were awaiting spawn: discard this isolate.
+      isolate.dispose();
+      return;
+    }
+    _isolate ??= isolate;
   }
 
-  /// Verbose logging for ADB logcat — always prints when debug mode is on.
-  /// Multi-line messages are split into separate debugPrint calls.
-  void _logAdb(String msg) {
+  void disposeIsolate() {
+    _gen++;
+    _isolate?.dispose();
+    _isolate = null;
+    _spawning = null;
+  }
+
+  @override
+  void dispose() {
+    disposeIsolate();
+    super.dispose();
+  }
+
+  void toggleDebug() {
+    if (!_debugMode) return;
+    state = state.copyWith(debugEnabled: !state.debugEnabled);
+  }
+
+  void captureDebugFrame() => _captureNext = true;
+  void clearCaptureStatus() => state = state.copyWith(clearCaptureStatus: true);
+  void consumeLockAction() => state = state.copyWith(pendingLock: LockAction.none);
+
+  void onCameraFrame(YuvFrame frame) {
+    if (!wantsFrame) return;
+    if (_isolate!.isDead) {
+      _onIsolateDeath();
+      return;
+    }
+    final capture = _captureNext;
+    _captureNext = false;
+    final job = FrameJob(frame: frame, useDrift: true, hint: _hint, capture: capture);
+    final n = ++_frameNum;
+    _isolate!.decode(job).then(
+          (o) => _onOutcome(n, o, capture),
+          onError: (e) => _onIsolateError(n, e),
+        );
+  }
+
+  /// Drive one decoded frame through the controller without an isolate or a
+  /// camera: the device-free path the widget-layer tests use.
+  @visibleForTesting
+  void onOutcomeForTest(FrameOutcome outcome) => _onOutcome(++_frameNum, outcome, false);
+
+  /// Drive one isolate failure through the controller (3 in a row surface
+  /// `decoder_failed:`).
+  @visibleForTesting
+  void onIsolateErrorForTest(Object error) => _onIsolateError(++_frameNum, error);
+
+  void _onOutcome(int n, FrameOutcome o, bool captureRequested) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final (hint, lock) = _policy.update(o, now);
+    _hint = o.roi == null ? null : RoiHint(o.roi![0], o.roi![1], o.roi![2], o.roi![3]);
+    var rejected = '';
+    if (o.status == DecodeStatus.ok && o.data != null) {
+      final added = _assembler.add(o.data!, blocksFailed: o.blocksFailed);
+      if (!added.accepted) rejected = added.reason;
+    }
+    _consecutiveErrors = 0;
+    if (_debugMode) {
+      final d = o.diag.entries.map((e) => '${e.key}=${e.value}').join(' ');
+      _log('frame=$n status=${o.status.name} ms=${o.totalMs} filled=${_assembler.filled}/${_assembler.total}${rejected.isEmpty ? '' : ' rejected=$rejected'} $d');
+      _overlay('#$n ${o.status.name} ${o.totalMs}ms f=${_assembler.filled}/${_assembler.total}');
+    }
+    if (captureRequested) {
+      if (o.capturePng != null) {
+        _saveCapture(o);
+      } else if (mounted) {
+        state = state.copyWith(captureStatus: 'failed');
+      }
+    }
+    if (!mounted) return;
+    state = state.copyWith(
+      framesAnalyzed: n,
+      filled: _assembler.filled,
+      total: _assembler.total,
+      hint: hint,
+      corners: o.corners,
+      clearCorners: o.corners == null,
+      imageWidth: o.width,
+      imageHeight: o.height,
+      pendingLock: lock == LockAction.none ? state.pendingLock : lock,
+      // A frame came back, so the "decoder failed" panel is stale: fall back
+      // to the progress bar / hints until three more errors pile up.
+      clearError: true,
+    );
+  }
+
+  /// The worker isolate exited or crashed. Drop the dead wrapper, count the
+  /// death towards the 3-consecutive-errors rule and bring a fresh worker up;
+  /// frames are dropped (`wantsFrame` is false) until it is ready.
+  void _onIsolateDeath() {
+    disposeIsolate();
+    _onIsolateError(_frameNum, StateError('decode isolate died'));
+    unawaited(_spawnIsolate());
+  }
+
+  /// Isolate call rejected (worker crash, or dispose racing an in-flight decode).
+  void _onIsolateError(int n, Object error) {
+    final msg = '$error';
+    if (msg.contains('DecodeIsolate disposed')) return; // normal teardown, ignore silently
+    _consecutiveErrors++;
+    _log('frame=$n isolate error: $msg');
+    if (!mounted) return;
+    state = state.copyWith(framesAnalyzed: n);
+    if (_consecutiveErrors >= 3) {
+      state = state.copyWith(errorMessage: 'decoder_failed:$msg');
+    }
+  }
+
+  void _log(String msg) {
     if (!_debugMode) return;
     for (final line in msg.split('\n')) {
       if (line.isNotEmpty) debugPrint('[cimbar_scan] $line');
     }
   }
 
-  /// Short one-liner for the AR debug overlay.
-  void _logOverlay(String msg) {
-    if (!_debugMode) return;
-    Future.microtask(() {
-      final log = [...state.debugLog, msg];
-      if (log.length > _maxDebugEntries) {
-        log.removeRange(0, log.length - _maxDebugEntries);
-      }
-      state = state.copyWith(debugLog: log);
-    });
+  void _overlay(String msg) {
+    if (!mounted) return;
+    final log = [...state.debugLog, msg];
+    if (log.length > _maxDebugEntries) log.removeRange(0, log.length - _maxDebugEntries);
+    state = state.copyWith(debugLog: log);
   }
 
-  void toggleDebug() {
-    // Only allow overlay toggle when master debug mode is enabled in Settings
-    if (!_debugMode) return;
-    state = state.copyWith(debugEnabled: !state.debugEnabled);
-  }
-
-  void clearCaptureStatus() {
-    state = state.copyWith(clearCaptureStatus: true);
-  }
-
-  void stopScan() {
-    state = state.copyWith(isScanning: false);
-  }
-
-  bool _captureNextFrame = false;
-
-  /// Request debug frame capture on the next processed frame.
-  void captureDebugFrame() {
-    _captureNextFrame = true;
-    _logAdb('capture requested (waiting for next frame)');
-    _logOverlay('capture requested');
-  }
-
-  /// Process a camera frame. Called from the image stream callback.
-  ///
-  /// Accepts raw YUV plane data to decouple from CameraImage.
-  /// Heavy computation (YUV→RGB, locate, warp, decode) runs in a background
-  /// isolate. Stateful frame tracking (adjacency, dedup) stays on main isolate.
-  void onCameraFrame({
-    required int width,
-    required int height,
-    required Uint8List yPlane,
-    required Uint8List uPlane,
-    required Uint8List vPlane,
-    required int yRowStride,
-    required int uvRowStride,
-    required int uvPixelStride,
-  }) {
-    if (!state.isScanning || _processing) return;
-
-    // Throttle: skip if too soon since last frame
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastProcessedMs < _throttleMs) return;
-    _lastProcessedMs = now;
-    _processing = true;
-
-    final capture = _captureNextFrame;
-    _captureNextFrame = false;
-
-    _processFrameAsync(
-      width: width,
-      height: height,
-      yPlane: yPlane,
-      uPlane: uPlane,
-      vPlane: vPlane,
-      yRowStride: yRowStride,
-      uvRowStride: uvRowStride,
-      uvPixelStride: uvPixelStride,
-      captureFrame: capture,
-    );
-  }
-
-  Future<void> _processFrameAsync({
-    required int width,
-    required int height,
-    required Uint8List yPlane,
-    required Uint8List uPlane,
-    required Uint8List vPlane,
-    required int yRowStride,
-    required int uvRowStride,
-    required int uvPixelStride,
-    required bool captureFrame,
-  }) async {
-    final frameNum = _scanner.framesAnalyzed + 1;
-    try {
-      final input = IsolateFrameInput(
-        width: width,
-        height: height,
-        yPlane: yPlane,
-        uPlane: uPlane,
-        vPlane: vPlane,
-        yRowStride: yRowStride,
-        uvRowStride: uvRowStride,
-        uvPixelStride: uvPixelStride,
-        tuningConfig: _tuningConfig,
-        lockedFrameSize: _scanner.detectedFrameSize,
-        collectStats: _debugMode,
-        captureFrame: captureFrame,
-      );
-
-      final result = await _runIsolate(input);
-
-      // Verbose ADB log from isolate diagnostics
-      if (result.debugInfo != null) {
-        _logAdb('--- frame #$frameNum ---\n${result.debugInfo}');
-      }
-      // Short overlay line
-      if (result.overlayLine != null) {
-        _logOverlay('#$frameNum ${result.overlayLine}');
-      }
-
-      // Process stateful tracking on main isolate
-      if (result.dataBytes != null && result.frameSize != null) {
-        final progress = _scanner.processDecodedData(
-            result.dataBytes!, result.frameSize!);
-
-        if (_debugMode) {
-          _logAdb('  tracking: unique=${progress.uniqueFrames}/${progress.totalFrames} '
-              'locked=${progress.detectedFrameSize}');
-        }
-
-        Future.microtask(() {
-          state = state.copyWith(
-            framesAnalyzed: _scanner.framesAnalyzed + 1,
-            uniqueFrames: progress.uniqueFrames,
-            totalFrames: progress.totalFrames,
-            detectedFrameSize: progress.detectedFrameSize,
-            barcodeRect: result.barcodeRect,
-            sourceImageWidth: result.sourceImageWidth,
-            sourceImageHeight: result.sourceImageHeight,
-            clearBarcodeRect: result.barcodeRect == null,
-          );
-          _processing = false;
-        });
-      } else {
-        // Decode failed — still update UI with barcode rect if available
-        _scanner.incrementFramesAnalyzed();
-        Future.microtask(() {
-          state = state.copyWith(
-            framesAnalyzed: _scanner.framesAnalyzed,
-            barcodeRect: result.barcodeRect,
-            sourceImageWidth: result.sourceImageWidth,
-            sourceImageHeight: result.sourceImageHeight,
-            clearBarcodeRect: result.barcodeRect == null,
-          );
-          _processing = false;
-        });
-      }
-
-      // Save debug captures if present
-      if (result.rawFramePng != null || result.croppedFramePng != null) {
-        _saveDebugCaptures(result.rawFramePng, result.croppedFramePng);
-      } else if (captureFrame) {
-        _logAdb('capture flag was set but isolate returned no PNGs');
-        state = state.copyWith(captureStatus: 'failed');
-      }
-    } catch (e) {
-      _logAdb('frame #$frameNum isolate error: $e');
-      _logOverlay('#$frameNum ERR ${e.runtimeType}');
-      _scanner.incrementFramesAnalyzed();
-      _processing = false;
-      if (captureFrame) {
-        state = state.copyWith(captureStatus: 'failed');
-      }
-    }
-  }
-
-  Future<void> _saveDebugCaptures(
-      Uint8List? rawPng, Uint8List? croppedPng) async {
+  Future<void> _saveCapture(FrameOutcome o) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
-      var saved = 0;
-      if (rawPng != null) {
-        await File('${dir.path}/cimbar_debug_raw_$ts.png')
-            .writeAsBytes(rawPng);
-        saved++;
-      }
-      if (croppedPng != null) {
-        await File('${dir.path}/cimbar_debug_crop_$ts.png')
-            .writeAsBytes(croppedPng);
-        saved++;
-      }
-      if (saved > 0) {
-        _logAdb('captured $saved debug image(s) to ${dir.path}');
-        _logOverlay('captured $saved image(s)');
-        state = state.copyWith(captureStatus: 'saved');
-      }
-    } catch (e) {
-      _logAdb('capture save failed: $e');
-      _logOverlay('capture FAILED');
-      state = state.copyWith(captureStatus: 'failed');
+      await File('${dir.path}/capture_$ts.png').writeAsBytes(o.capturePng!);
+      final idLines = [
+        if (o.fileId != null) 'fileId=${o.fileId}',
+        if (o.seq != null) 'seq=${o.seq}',
+        if (o.total != null) 'total=${o.total}',
+      ].map((l) => '$l\n').join();
+      final diagLines = o.diag.entries.map((e) => '${e.key}=${e.value}').join('\n');
+      await File('${dir.path}/capture_$ts.txt').writeAsString('status=${o.status.name}\n$idLines$diagLines\n');
+      if (mounted) state = state.copyWith(captureStatus: 'saved');
+    } catch (_) {
+      if (mounted) state = state.copyWith(captureStatus: 'failed');
     }
   }
 
-  /// Check if scanning is complete (called by UI via ref.listen).
-  bool get scanComplete => _scanner.uniqueFrameCount > 0 &&
-      _scanner.totalFrames > 0 &&
-      _scanner.uniqueFrameCount >= _scanner.totalFrames;
-
-  /// Assemble frames and decrypt.
-  Future<void> decrypt(String passphrase) async {
-    state = state.copyWith(
-      isScanning: false,
-      isDecrypting: true,
-      clearError: true,
-    );
-
+  /// Assemble, strip the length prefix, decrypt if needed, parse the file.
+  Future<void> finish(String passphrase) async {
+    if (!_assembler.isComplete) return;
+    state = state.copyWith(isScanning: false, isDecrypting: true);
     try {
-      final scanResult = _scanner.assemble();
-      if (scanResult == null) {
-        state = state.copyWith(
-          isDecrypting: false,
-          errorMessage: 'Could not assemble frames — incomplete adjacency chain',
-        );
-        return;
-      }
-
-      // Extract payload using 4-byte length prefix
-      final payloadLength = readUint32BE(scanResult.data);
-      if (payloadLength + 4 > scanResult.data.length) {
-        state = state.copyWith(
-          isDecrypting: false,
-          errorMessage: 'Invalid payload length in assembled data',
-        );
-        return;
-      }
-      final payloadBytes = scanResult.data.sublist(4, 4 + payloadLength);
-
-      // Auto-detect encryption via magic bytes
-      final isEncrypted = payloadBytes.length >= 2 &&
-          payloadBytes[0] == CimbarConstants.magic[0] &&
-          payloadBytes[1] == CimbarConstants.magic[1];
-
-      final Uint8List fileHeaderBytes;
-      if (isEncrypted) {
-        try {
-          fileHeaderBytes = CryptoService.decrypt(payloadBytes, passphrase);
-        } catch (e) {
-          state = state.copyWith(
-            isDecrypting: false,
-            errorMessage: 'Decryption failed: $e',
-          );
-          return;
-        }
-      } else {
-        fileHeaderBytes = payloadBytes;
-      }
-
-      // Parse file header: [4-byte nameLen][nameBytes][fileData]
-      if (fileHeaderBytes.length < 4) {
-        state = state.copyWith(
-          isDecrypting: false,
-          errorMessage: 'Data too short for file header',
-        );
-        return;
-      }
-
-      final nameLen = readUint32BE(fileHeaderBytes);
-      if (nameLen > fileHeaderBytes.length - 4) {
-        state = state.copyWith(
-          isDecrypting: false,
-          errorMessage: 'Invalid filename length',
-        );
-        return;
-      }
-
-      final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
-      final fileData = fileHeaderBytes.sublist(4 + nameLen);
-
-      final result = DecodeResult(filename: filename, data: fileData);
-      state = state.copyWith(
-        isDecrypting: false,
-        result: result,
-      );
-      // Auto-save to app documents so file appears in Files tab
+      final file = decodeFramedPayload(_assembler.framedData(), passphrase);
+      final result = DecodeResult(filename: file.fileName, data: file.fileBytes);
       await _autoSave(result);
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, result: result);
+    } on PassphraseRequiredException {
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, errorMessage: 'passphrase_required');
     } catch (e) {
-      state = state.copyWith(
-        isDecrypting: false,
-        errorMessage: 'Error: $e',
-      );
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, errorMessage: 'decoder_failed:$e');
     }
   }
 
   Future<String?> _autoSave(DecodeResult result) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/${result.filename}');
+      final file = File('${dir.path}/${FileService.safeBasename(result.filename)}');
       await file.writeAsBytes(result.data);
       return file.path;
     } catch (_) {
@@ -452,8 +311,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   }
 
   Future<String?> saveResult() async {
-    final result = state.result;
-    if (result == null) return null;
-    return _autoSave(result);
+    final r = state.result;
+    return r == null ? null : _autoSave(r);
   }
 }

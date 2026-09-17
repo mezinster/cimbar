@@ -1,467 +1,315 @@
 /**
- * cimbar.js â€” CimBar frame encoding and decoding
+ * cimbar.js — CimBar v2 frame rendering, exact decoding, RS framing and
+ * frame assembly. All constants come from format.js (spec/cimbar-v2.json).
  *
- * Encoding per cell:
- *   - 3 bits â†’ color index (8 colors)
- *   - 4 bits â†’ symbol index (16 shapes)
- *   = 7 bits per cell
- *
- * Reed-Solomon is applied per chunk before frame layout.
- * Each "block" is RS(255, ECC_BYTES) over GF(256):
- *   dataBytes = 255 - ECC_BYTES, eccBytes = ECC_BYTES
- *
- * Frame payload capacity:
- *   cells = floor(frameSize/CELL_SIZE)^2
- *   raw bits = cells * 7
- *   raw bytes = floor(raw bits / 8)
- *   data bytes per frame = raw bytes * (1 - ECC_RATIO)
+ * Frame layout: 64x64 cells, 8 px tiles with 1 px gaps, four 7x7-cell finders,
+ * 6 bits per cell (4 symbol + 2 color), 2880 raw bytes per frame, RS(255,191).
  */
-
 'use strict';
 
-const CELL_SIZE = 8;   // pixels per cell side
-const ECC_BYTES = 64;  // RS check bytes per block
-const BLOCK_TOTAL = 255; // max RS codeword length in GF(256)
-const BLOCK_DATA = BLOCK_TOTAL - ECC_BYTES; // 191 data bytes per block
+const Fmt = (typeof module !== 'undefined' && module.exports)
+  ? require('./format.js')
+  : window.CimbarFormat;
+const SPEC = Fmt.SPEC;
 
-// 8 perceptually distinct colors, chosen to survive GIF palette quantization
-const COLORS = [
-  [  0, 200, 200],  // 0 cyan
-  [220,  40,  40],  // 1 red
-  [ 30, 100, 220],  // 2 blue
-  [255, 130,  20],  // 3 orange
-  [200,  40, 200],  // 4 magenta
-  [ 40, 200,  60],  // 5 green
-  [230, 220,  40],  // 6 yellow
-  [100,  20, 200],  // 7 indigo
-];
+// ── Rendering ────────────────────────────────────────────────────────────
 
-// Pre-parse hexâ†’RGB for fast nearest-color lookup
-const COLORS_HEX = COLORS.map(
-  ([r,g,b]) => '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('')
-);
+function rgbStr(c) { return `rgb(${c[0]},${c[1]},${c[2]})`; }
 
-/**
- * Draw one of 16 symbols on a 2D canvas context.
- * ox,oy = top-left corner of cell, size = cell pixel size
- */
-function drawSymbol(ctx, symIdx, colorRGB, ox, oy, size) {
-  const [cr, cg, cb] = colorRGB;
-  const color = `rgb(${cr},${cg},${cb})`;
-
-  // Quadrant sample offsets — must match detectSymbol's q computation exactly
-  const q = Math.max(1, Math.floor(size * 0.28));
-  const h = Math.max(1, Math.floor(q * 0.75));
-
-  // Fill entire cell with the foreground color.
-  // The center pixel (size/2, size/2) is never covered by a quadrant block,
-  // so it stays as the foreground color and is used by nearestColorIdx for
-  // color detection.
-  ctx.fillStyle = color;
-  ctx.fillRect(ox, oy, size, size);
-
-  // For each 0-bit, paint a black 2h×2h block centered on the detector's
-  // sample point.  A foreground-colored region reads as 1; black reads as 0.
-  ctx.fillStyle = '#000000';
-  if (!((symIdx >> 3) & 1)) ctx.fillRect(ox + q - h,        oy + q - h,        2*h, 2*h); // b3: TL
-  if (!((symIdx >> 2) & 1)) ctx.fillRect(ox + size - q - h, oy + q - h,        2*h, 2*h); // b2: TR
-  if (!((symIdx >> 1) & 1)) ctx.fillRect(ox + q - h,        oy + size - q - h, 2*h, 2*h); // b1: BL
-  if (!((symIdx >> 0) & 1)) ctx.fillRect(ox + size - q - h, oy + size - q - h, 2*h, 2*h); // b0: BR
-}
-
-/**
- * Render a finder pattern (3Ã—3 cells) at corner ox,oy.
- * Used to orient/detect frames.
- */
-function drawFinder(ctx, ox, oy, size, drawDot = true) {
-  const s = size * 3;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(ox, oy, s, s);
-  ctx.fillStyle = '#333333';
-  ctx.fillRect(ox+size, oy+size, size, size);
-  if (drawDot) {
-    ctx.fillStyle = '#ffffff';
-    const inner = size * 0.4;
-    ctx.fillRect(ox+size+(size-inner)/2, oy+size+(size-inner)/2, inner, inner);
-  }
-}
-
-/**
- * Encode a single frame onto a canvas.
- * data: full encrypted byte array
- * byteOffset: start byte for this frame's RS-encoded block
- * capacity: bytes this frame holds (post-RS)
- */
-function encodeFrame(canvas, ctx, rsData, byteOffset, frameCapacity, isEncrypted) {
-  const size = canvas.width;
-  const cs = CELL_SIZE;
-  const cols = Math.floor(size / cs);
-  const rows = Math.floor(size / cs);
-
-  // Black background
-  ctx.fillStyle = '#111111';
-  ctx.fillRect(0, 0, size, size);
-
-  let cellIdx = 0;
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // Skip finder pattern cells (four 3x3 corner blocks)
-      const inTL = row < 3 && col < 3;
-      const inTR = row < 3 && col >= cols - 3;
-      const inBL = row >= rows - 3 && col < 3;
-      const inBR = row >= rows-3 && col >= cols-3;
-      if (inTL || inTR || inBL || inBR) continue;
-
-      // Skip metadata block cells (center 3x3 block)
-      if (isMetadataCell(col, row, cols)) continue;
-
-      const globalBit = cellIdx * 7;
-      const bytePos   = Math.floor(globalBit / 8);
-      const bitShift  = globalBit % 8;
-
-      // Read 7 bits (may span two bytes)
-      let bits = 0;
-      const absPos = byteOffset + bytePos;
-      for (let b = 0; b < 7; b++) {
-        const absBit = (byteOffset + bytePos) * 8 + bitShift + b;
-        const aB = Math.floor(absBit / 8);
-        const aBit = 7 - (absBit % 8);
-        const dataBit = (aB < rsData.length) ? ((rsData[aB] >> aBit) & 1) : 0;
-        bits = (bits << 1) | dataBit;
+function drawTile(ctx, sym, colorIdx, ox, oy) {
+  const t = Fmt.tileBits(sym);
+  ctx.fillStyle = rgbStr(SPEC.palette[colorIdx]);
+  for (let y = 0; y < 8; y++) {
+    let x = 0;
+    while (x < 8) {
+      if (t[y * 8 + x]) {
+        let x2 = x;
+        while (x2 < 8 && t[y * 8 + x2]) x2++;
+        ctx.fillRect(ox + x, oy + y, x2 - x, 1);
+        x = x2;
+      } else {
+        x++;
       }
-
-      const colorIdx = (bits >> 4) & 0x7;
-      const symIdx   = bits & 0xF;
-
-      const ox = col * cs;
-      const oy = row * cs;
-
-      ctx.beginPath();
-      drawSymbol(ctx, symIdx, COLORS[colorIdx], ox, oy, cs);
-
-      cellIdx++;
     }
   }
-
-  // Draw finder patterns (four corners) — TL has no inner dot (asymmetric)
-  drawFinder(ctx, 0, 0, cs, false);
-  drawFinder(ctx, (cols-3)*cs, 0, cs);
-  drawFinder(ctx, 0, (rows-3)*cs, cs);
-  drawFinder(ctx, (cols-3)*cs, (rows-3)*cs, cs);
-
-  // Draw center metadata block
-  drawMetadataBlock(ctx, cols, size, isEncrypted !== undefined ? isEncrypted : false);
 }
+
+function finderOrigin(corner) {
+  const [cx, cy] = SPEC.finder.centers[corner];
+  const half = SPEC.finder.outerPx / 2;
+  return [
+    Math.round(SPEC.grid.quietPx + cx * SPEC.grid.pitchPx - half),
+    Math.round(SPEC.grid.quietPx + cy * SPEC.grid.pitchPx - half),
+  ];
+}
+
+function drawFinder(ctx, corner) {
+  const F = SPEC.finder;
+  const [ox, oy] = finderOrigin(corner);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ox, oy, F.outerPx, F.outerPx);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(ox + F.ringInsetPx, oy + F.ringInsetPx, F.outerPx - 2 * F.ringInsetPx, F.outerPx - 2 * F.ringInsetPx);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ox + F.coreInsetPx, oy + F.coreInsetPx, F.corePx, F.corePx);
+  if (F.dotOn.indexOf(corner) >= 0) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(ox + F.dotInsetPx, oy + F.dotInsetPx, F.dotPx, F.dotPx);
+  }
+}
+
+/** Draw one full 608x608 frame from 2880 raw (RS-encoded, interleaved) bytes. */
+function renderFrame(ctx, raw) {
+  const size = SPEC.grid.framePx;
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, size, size);
+  const cells = Fmt.packCells(raw);
+  const pos = Fmt.usableCellPositions();
+  for (let k = 0; k < pos.length; k++) {
+    const [ox, oy] = Fmt.cellOrigin(pos[k][0], pos[k][1]);
+    drawTile(ctx, Fmt.cellSymbol(cells[k]), Fmt.cellColor(cells[k]), ox, oy);
+  }
+  for (const corner of ['tl', 'tr', 'bl', 'br']) drawFinder(ctx, corner);
+}
+
+// ── Exact decoding (GIF path: pixels are exactly where the encoder put them) ──
+
+function lumaAt(d, i) { return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; }
 
 /**
- * Compute how many usable (non-finder) cells a frame of `frameSize` has.
+ * Decode a frame whose pixels are at exact spec positions (an ImageData of at
+ * least framePx x framePx). Returns raw bytes, cell values and diagnostics.
  */
-function isMetadataCell(col, row, cols) {
-  const cx = Math.floor(cols / 2) - 1;
-  return col >= cx && col <= cx + 2 && row >= cx && row <= cx + 2;
-}
-
-const FRAME_SIZE_TO_BITS = { 128: 0, 192: 1, 256: 2, 384: 3 };
-const BITS_TO_FRAME_SIZE = { 0: 128, 1: 192, 2: 256, 3: 384 };
-
-function drawMetadataBlock(ctx, cols, frameSize, isEncrypted) {
-  const cs = CELL_SIZE;
-  const cx = Math.floor(cols / 2) - 1;
-
-  const sizeBits = FRAME_SIZE_TO_BITS[frameSize] || 0;
-  const d0 = (sizeBits >> 1) & 1;
-  const d1 = sizeBits & 1;
-  const d2 = isEncrypted ? 1 : 0;
-  const d3 = 0;
-  const d4 = 0;
-
-  const cells = [
-    [0, 0, 0],    // TL corner: Black
-    [1, 0, d0],   // top-center: data bit 0 (frame size MSB)
-    [2, 0, 1],    // TR corner: White
-    [0, 1, d1],   // mid-left: data bit 1 (frame size LSB)
-    [1, 1, d2],   // center: data bit 2 (encrypted flag)
-    [2, 1, d3],   // mid-right: data bit 3 (reserved)
-    [0, 2, 1],    // BL corner: White
-    [1, 2, d4],   // bottom-center: data bit 4 (reserved)
-    [2, 2, 0],    // BR corner: Black
-  ];
-
-  for (const [dx, dy, val] of cells) {
-    const ox = (cx + dx) * cs;
-    const oy = (cx + dy) * cs;
-    ctx.fillStyle = val ? '#ffffff' : '#000000';
-    ctx.fillRect(ox, oy, cs, cs);
+function decodeFrameExact(imageData) {
+  const size = SPEC.grid.framePx;
+  if (imageData.width !== size || imageData.height !== size) {
+    throw new Error(`Not a CimBar v2 GIF: frames must be ${size}×${size} px, got ${imageData.width}×${imageData.height}. v1 GIFs must be re-encoded.`);
   }
-}
+  const W = imageData.width, d = imageData.data;
+  const pos = Fmt.usableCellPositions();
+  const cells = new Uint8Array(pos.length);
+  const lum = new Float32Array(64);
+  const rgb = new Float32Array(192);
+  let hammingMax = 0, hammingSum = 0, colorMarginMin = Infinity;
 
-function readMetadataBlock(imageData, cols, frameSize) {
-  const cs = CELL_SIZE;
-  const cx = Math.floor(cols / 2) - 1;
-  const W = imageData.width;
+  for (let k = 0; k < pos.length; k++) {
+    const [ox, oy] = Fmt.cellOrigin(pos[k][0], pos[k][1]);
+    let mean = 0;
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const i = ((oy + y) * W + (ox + x)) * 4;
+        const p = y * 8 + x;
+        lum[p] = lumaAt(d, i);
+        mean += lum[p];
+        rgb[p * 3] = d[i]; rgb[p * 3 + 1] = d[i + 1]; rgb[p * 3 + 2] = d[i + 2];
+      }
+    }
+    mean /= 64;
 
-  function sampleLuma(col, row) {
-    const px = col * cs + Math.floor(cs / 2);
-    const py = row * cs + Math.floor(cs / 2);
-    const i = (py * W + px) * 4;
-    const r = imageData.data[i], g = imageData.data[i+1], b = imageData.data[i+2];
-    return 0.299 * r + 0.587 * g + 0.114 * b;
+    let bestSym = 0, bestDist = 65;
+    for (let s = 0; s < 16; s++) {
+      const t = Fmt.tileBits(s);
+      let dist = 0;
+      for (let p = 0; p < 64; p++) dist += (lum[p] > mean ? 1 : 0) ^ t[p];
+      if (dist < bestDist) { bestDist = dist; bestSym = s; }
+    }
+    hammingSum += bestDist;
+    if (bestDist > hammingMax) hammingMax = bestDist;
+
+    const t = Fmt.tileBits(bestSym);
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let p = 0; p < 64; p++) {
+      if (t[p]) { r += rgb[p * 3]; g += rgb[p * 3 + 1]; b += rgb[p * 3 + 2]; n++; }
+    }
+    r /= n; g /= n; b /= n;
+    let bestC = 0, bestD = Infinity, secondD = Infinity;
+    for (let c = 0; c < SPEC.palette.length; c++) {
+      const pc = SPEC.palette[c];
+      const dd = (r - pc[0]) * (r - pc[0]) + (g - pc[1]) * (g - pc[1]) + (b - pc[2]) * (b - pc[2]);
+      if (dd < bestD) { secondD = bestD; bestD = dd; bestC = c; }
+      else if (dd < secondD) { secondD = dd; }
+    }
+    const margin = Math.sqrt(secondD) - Math.sqrt(bestD);
+    if (margin < colorMarginMin) colorMarginMin = margin;
+
+    cells[k] = Fmt.cellValue(bestSym, bestC);
   }
-
-  const tlLuma = sampleLuma(cx, cx);
-  const trLuma = sampleLuma(cx + 2, cx);
-  const blLuma = sampleLuma(cx, cx + 2);
-  const brLuma = sampleLuma(cx + 2, cx + 2);
-
-  if (!(tlLuma < 128 && trLuma > 128 && blLuma > 128 && brLuma < 128)) {
-    return { valid: false };
-  }
-
-  const d0 = sampleLuma(cx + 1, cx) > 128 ? 1 : 0;
-  const d1 = sampleLuma(cx, cx + 1) > 128 ? 1 : 0;
-  const d2 = sampleLuma(cx + 1, cx + 1) > 128 ? 1 : 0;
-
-  const sizeBits = (d0 << 1) | d1;
-  const detectedSize = BITS_TO_FRAME_SIZE[sizeBits] || frameSize;
 
   return {
-    valid: true,
-    frameSize: detectedSize,
-    isEncrypted: d2 === 1,
+    raw: Fmt.unpackCells(cells),
+    cells,
+    diag: { hammingMax, hammingMean: hammingSum / pos.length, colorMarginMin },
   };
 }
 
-function usableCells(frameSize) {
-  const cs = CELL_SIZE;
-  const cols = Math.floor(frameSize / cs);
-  const rows = Math.floor(frameSize / cs);
-  const total = cols * rows;
-  const finderCells = 9 * 4;
-  const metadataCells = 9; // one 3x3 center block
-  return total - finderCells - metadataCells;
-}
+// ── Reed-Solomon framing ─────────────────────────────────────────────────
 
-/**
- * Raw byte capacity of a frame (before RS overhead).
- */
-function rawBytesPerFrame(frameSize) {
-  return Math.floor((usableCells(frameSize) * 7) / 8);
-}
-
-/**
- * Effective data bytes per frame (after RS overhead).
- * Each block: BLOCK_TOTAL bytes total, BLOCK_DATA data bytes.
- */
-function dataBytesPerFrame(frameSize) {
-  const raw = rawBytesPerFrame(frameSize);
-  const fullBlocks = Math.floor(raw / BLOCK_TOTAL);
-  const remainder  = raw % BLOCK_TOTAL;
-  // remainder < ECC_BYTES â†’ can't fit even ECC; treat as 0
-  const partialData = remainder > ECC_BYTES ? remainder - ECC_BYTES : 0;
-  return fullBlocks * BLOCK_DATA + partialData;
-}
-
-/**
- * Apply RS encoding to a chunk of data bytes to fill one frame's raw capacity.
- * Returns a Uint8Array of length rawBytesPerFrame(frameSize).
- */
-function encodeRSFrame(dataChunk, frameSize, rs) {
-  const raw = rawBytesPerFrame(frameSize);
-
-  // Phase 1: RS-encode each block into a temporary array
-  const blocks = [];
-  let inOff = 0, totalOut = 0;
-  while (totalOut < raw) {
-    const spaceLeft = raw - totalOut;
-    if (spaceLeft <= ECC_BYTES) break;
-    const blockTotal = Math.min(BLOCK_TOTAL, spaceLeft);
-    const blockData  = blockTotal - ECC_BYTES;
-    const chunk = new Uint8Array(blockData);
-    const take  = Math.min(blockData, dataChunk.length - inOff);
-    if (take > 0) chunk.set(dataChunk.slice(inOff, inOff + take));
-    inOff += take;
-    const encoded = rs.encode(chunk);
-    blocks.push(encoded.slice(0, blockTotal));
-    totalOut += blockTotal;
-  }
-
-  // Phase 2: Interleave — byte j of block i → position j * N + i
-  const output = new Uint8Array(raw);
+function interleave(blocks, rawLen) {
+  const out = new Uint8Array(rawLen);
   const N = blocks.length;
-  const maxBlockLen = blocks.reduce((m, b) => Math.max(m, b.length), 0);
+  let maxLen = 0;
+  for (const b of blocks) if (b.length > maxLen) maxLen = b.length;
   let pos = 0;
-  for (let j = 0; j < maxBlockLen; j++) {
+  for (let j = 0; j < maxLen; j++) {
     for (let i = 0; i < N; i++) {
-      if (j < blocks[i].length) {
-        output[pos++] = blocks[i][j];
-      }
+      if (j < blocks[i].length) out[pos++] = blocks[i][j];
     }
   }
-  return output;
+  return out;
 }
 
-/**
- * Decode RS from one frame's raw bytes back to data bytes.
- * Returns Uint8Array of data bytes (length = dataBytesPerFrame).
- */
-function decodeRSFrame(rawBytes, frameSize, rs) {
-  // Use the canonical frame capacity, not rawBytes.length.
-  // decodeFramePixels returns ceil(cells*7/8) bytes, but encodeRSFrame used
-  // floor(cells*7/8) bytes, so the block boundaries must match the encoder.
-  const raw = rawBytesPerFrame(frameSize);
-
-  // Phase 1: Determine block structure
-  const blockSizes = [];
-  let totalOut = 0;
-  while (totalOut < raw) {
-    const spaceLeft = raw - totalOut;
-    if (spaceLeft <= ECC_BYTES) break;
-    const blockTotal = Math.min(BLOCK_TOTAL, spaceLeft);
-    blockSizes.push(blockTotal);
-    totalOut += blockTotal;
+/** RS-encode up to dataBytesPerFrame() bytes into the frame's raw bytes. */
+function encodeRSFrame(data, rs) {
+  const sizes = Fmt.rsBlockSizes();
+  const blocks = [];
+  let off = 0;
+  for (const bt of sizes) {
+    const bd = bt - SPEC.rs.eccBytes;
+    const chunk = new Uint8Array(bd);
+    const take = Math.max(0, Math.min(bd, data.length - off));
+    if (take > 0) chunk.set(data.subarray(off, off + take));
+    off += take;
+    blocks.push(rs.encode(chunk));
   }
-  const N = blockSizes.length;
+  return interleave(blocks, Fmt.rawBytesPerFrame());
+}
 
-  // Phase 2: De-interleave — position j * N + i → byte j of block i
-  const blocks = blockSizes.map(sz => new Uint8Array(sz));
-  const maxBlockLen = Math.max(...blockSizes);
+/** Inverse of encodeRSFrame. Failed blocks are zero-filled and counted. */
+function decodeRSFrame(raw, rs) {
+  const sizes = Fmt.rsBlockSizes();
+  const N = sizes.length;
+  const blocks = sizes.map(s => new Uint8Array(s));
+  let maxLen = 0;
+  for (const s of sizes) if (s > maxLen) maxLen = s;
   let pos = 0;
-  for (let j = 0; j < maxBlockLen; j++) {
+  for (let j = 0; j < maxLen; j++) {
     for (let i = 0; i < N; i++) {
-      if (j < blockSizes[i]) {
-        blocks[i][j] = (pos < rawBytes.length) ? rawBytes[pos] : 0;
-        pos++;
-      }
+      if (j < sizes[i]) { blocks[i][j] = pos < raw.length ? raw[pos] : 0; pos++; }
     }
   }
-
-  // Phase 3: RS-decode each block
-  const result = [];
+  const data = new Uint8Array(Fmt.dataBytesPerFrame());
+  let off = 0, blocksOk = 0, blocksFailed = 0;
   for (let i = 0; i < N; i++) {
-    const blockData = blockSizes[i] - ECC_BYTES;
+    const bd = sizes[i] - SPEC.rs.eccBytes;
     try {
-      const decoded = rs.decode(blocks[i]);
-      for (let k = 0; k < decoded.length; k++) result.push(decoded[k]);
+      const dec = rs.decode(blocks[i]);
+      data.set(dec.subarray(0, bd), off);
+      blocksOk++;
     } catch (e) {
-      // If RS decode fails, push zeros (frame may be unrecoverable)
-      for (let k = 0; k < blockData; k++) result.push(0);
+      blocksFailed++;
     }
+    off += bd;
   }
-  return new Uint8Array(result);
+  return { data, blocksOk, blocksFailed };
 }
 
-/**
- * Sample and decode a frame's canvas pixels back to raw bytes.
- * imageData: ImageData of the frame canvas
- * frameSize: expected frame pixel size
- */
-function decodeFramePixels(imageData, frameSize) {
-  const cs = CELL_SIZE;
-  const cols = Math.floor(frameSize / cs);
-  const rows = Math.floor(frameSize / cs);
-  const W = imageData.width;
+// ── Frame split and assembly ─────────────────────────────────────────────
 
-  const totalBits = usableCells(frameSize) * 7;
-  const totalBytes = Math.ceil(totalBits / 8);
-  const outBytes = new Uint8Array(totalBytes);
+/** Split framed data into per-frame data arrays (header + chunk, zero padded). */
+function splitIntoFrames(framedData, fileId, encrypted) {
+  const per = Fmt.fileBytesPerFrame();
+  const total = Math.max(1, Math.ceil(framedData.length / per));
+  if (total > 65535) throw new Error(`File too large: needs ${total} frames (max 65535)`);
+  const frames = [];
+  for (let seq = 0; seq < total; seq++) {
+    const f = new Uint8Array(Fmt.dataBytesPerFrame());
+    f.set(Fmt.encodeHeader({ encrypted, fileId, seq, total }), 0);
+    const start = seq * per;
+    const end = Math.min(framedData.length, start + per);
+    if (end > start) f.set(framedData.subarray(start, end), Fmt.HEADER_LEN);
+    frames.push(f);
+  }
+  return frames;
+}
 
-  let bitBuf = 0, bitCount = 0, byteIdx = 0;
+class FrameAssembler {
+  constructor() { this.reset(); }
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const inTL = row < 3 && col < 3;
-      const inTR = row < 3 && col >= cols - 3;
-      const inBL = row >= rows - 3 && col < 3;
-      const inBR = row >= rows-3 && col >= cols-3;
-      if (inTL || inTR || inBL || inBR) continue;
+  reset() {
+    this.fileId = null;
+    this.total = 0;
+    this.encrypted = false;
+    this.slots = [];
+    this.filled = 0;
+  }
 
-      // Skip metadata block cells (center 3x3 block)
-      if (isMetadataCell(col, row, cols)) continue;
-
-      const ox = col * cs;
-      const oy = row * cs;
-
-      // Detect color: sample center pixel
-      const sampleX = ox + Math.floor(cs/2);
-      const sampleY = oy + Math.floor(cs/2);
-      const pi = (sampleY * W + sampleX) * 4;
-      const colorIdx = nearestColorIdx(
-        imageData.data[pi], imageData.data[pi+1], imageData.data[pi+2]
-      );
-
-      // Detect symbol: sample 5 points in a quincunx pattern
-      const symIdx = detectSymbol(imageData, ox, oy, cs, W);
-
-      const bits = ((colorIdx & 0x7) << 4) | (symIdx & 0xF);
-
-      bitBuf = (bitBuf << 7) | bits;
-      bitCount += 7;
-
-      while (bitCount >= 8 && byteIdx < totalBytes) {
-        bitCount -= 8;
-        outBytes[byteIdx++] = (bitBuf >> bitCount) & 0xFF;
-      }
+  /**
+   * data: Uint8Array(dataBytesPerFrame) after RS decode; blocksFailed: count
+   * from decodeRSFrame — any failed block rejects the frame (spec §4.2).
+   */
+  add(data, blocksFailed = 0) {
+    if (blocksFailed > 0) return { accepted: false, reason: 'rs', header: null };
+    const h = Fmt.decodeHeader(data);
+    if (!h.valid) return { accepted: false, reason: h.reason, header: h };
+    if (this.fileId !== null && h.fileId !== this.fileId) this.reset();
+    if (this.fileId !== null && h.total !== this.total) return { accepted: false, reason: 'total', header: h };
+    if (this.fileId === null) {
+      this.fileId = h.fileId;
+      this.total = h.total;
+      this.encrypted = h.encrypted;
+      this.slots = new Array(h.total).fill(null);
     }
+    if (this.slots[h.seq]) return { accepted: false, reason: 'duplicate', header: h };
+    this.slots[h.seq] = data.slice(Fmt.HEADER_LEN);
+    this.filled++;
+    return { accepted: true, reason: '', header: h };
   }
 
-  return outBytes;
-}
+  isComplete() { return this.total > 0 && this.filled === this.total; }
 
-function nearestColorIdx(r, g, b) {
-  let best = 0, bestDist = Infinity;
-  for (let i = 0; i < COLORS.length; i++) {
-    const [cr, cg, cb] = COLORS[i];
-    const dr = r-cr, dg = g-cg, db = b-cb;
-    const d = dr*dr*2 + dg*dg*4 + db*db; // weight green more (luminance)
-    if (d < bestDist) { bestDist = d; best = i; }
+  /** Concatenated frame bodies (still carries the u32 length prefix + zero padding). */
+  framedData() {
+    if (!this.isComplete()) throw new Error(`Incomplete: ${this.filled}/${this.total} frames`);
+    const per = Fmt.fileBytesPerFrame();
+    const out = new Uint8Array(per * this.total);
+    for (let i = 0; i < this.total; i++) out.set(this.slots[i], i * per);
+    return out;
   }
-  return best;
 }
 
-function detectSymbol(imageData, ox, oy, cs, W) {
-  // Sample 4 quadrant points and center; build 4-bit code from brightness
-  const q = Math.max(1, Math.floor(cs * 0.28));
+// ── File container helpers ───────────────────────────────────────────────
 
-  function luma(px, py) {
-    const i = (Math.min(py, imageData.height-1) * W + Math.min(px, W-1)) * 4;
-    const r = imageData.data[i], g = imageData.data[i+1], b = imageData.data[i+2];
-    return 0.299*r + 0.587*g + 0.114*b;
-  }
-
-  const c  = luma(ox + Math.floor(cs/2), oy + Math.floor(cs/2));
-  const tl = luma(ox + q, oy + q);
-  const tr = luma(ox + cs - q, oy + q);
-  const bl = luma(ox + q, oy + cs - q);
-  const br = luma(ox + cs - q, oy + cs - q);
-
-  // Use center brightness as threshold
-  const thresh = c * 0.5 + 20;
-
-  return ((tl > thresh ? 1 : 0) << 3) |
-         ((tr > thresh ? 1 : 0) << 2) |
-         ((bl > thresh ? 1 : 0) << 1) |
-          (br > thresh ? 1 : 0);
+function buildPayload(fileName, fileBytes) {
+  const nameBytes = new TextEncoder().encode(fileName);
+  const out = new Uint8Array(4 + nameBytes.length + fileBytes.length);
+  new DataView(out.buffer).setUint32(0, nameBytes.length, false);
+  out.set(nameBytes, 4);
+  out.set(fileBytes, 4 + nameBytes.length);
+  return out;
 }
 
-if (typeof module !== 'undefined') {
-  module.exports = {
-    encodeFrame, decodeFramePixels,
-    encodeRSFrame, decodeRSFrame,
-    rawBytesPerFrame, dataBytesPerFrame, usableCells,
-    drawMetadataBlock, readMetadataBlock, isMetadataCell,
-    CELL_SIZE, ECC_BYTES, BLOCK_DATA, COLORS,
-    FRAME_SIZE_TO_BITS, BITS_TO_FRAME_SIZE,
-    // Exported for unit testing
-    drawSymbol, detectSymbol, nearestColorIdx,
-  };
-} else {
-  window.Cimbar = {
-    encodeFrame, decodeFramePixels,
-    encodeRSFrame, decodeRSFrame,
-    rawBytesPerFrame, dataBytesPerFrame, usableCells,
-    drawMetadataBlock, readMetadataBlock, isMetadataCell,
-    CELL_SIZE, ECC_BYTES, BLOCK_DATA, COLORS,
-    FRAME_SIZE_TO_BITS, BITS_TO_FRAME_SIZE,
+function parsePayload(bytes) {
+  if (bytes.length < 4) throw new Error('Header corrupt: payload too short');
+  const nameLen = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, false);
+  if (nameLen > 512 || 4 + nameLen > bytes.length) throw new Error('Header corrupt: filename length invalid');
+  return {
+    fileName: new TextDecoder().decode(bytes.subarray(4, 4 + nameLen)),
+    fileBytes: bytes.slice(4 + nameLen),
   };
 }
+
+function withLengthPrefix(bytes) {
+  const out = new Uint8Array(4 + bytes.length);
+  new DataView(out.buffer).setUint32(0, bytes.length, false);
+  out.set(bytes, 4);
+  return out;
+}
+
+function stripLengthPrefix(bytes) {
+  if (bytes.length < 4) throw new Error('Header corrupt: missing length prefix');
+  const len = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, false);
+  if (len < 1 || len > bytes.length - 4) throw new Error(`Header corrupt: payload length ${len} is invalid`);
+  return bytes.slice(4, 4 + len);
+}
+
+const API = {
+  renderFrame, decodeFrameExact,
+  encodeRSFrame, decodeRSFrame,
+  splitIntoFrames, FrameAssembler,
+  buildPayload, parsePayload, withLengthPrefix, stripLengthPrefix,
+  // exported for tests
+  drawTile, drawFinder, finderOrigin,
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = API;
+else window.Cimbar = API;

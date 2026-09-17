@@ -26,7 +26,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.x'
+          flutter-version: '3.44.x'
           channel: stable
           cache: true
 
@@ -40,7 +40,34 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test
+        run: sh tests/run_all.sh
+
+      - name: Upload decode reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: decode-reports
+          path: |
+            android/build/corpus_report.txt
+            android/build/benchmark.txt
+          if-no-files-found: warn
+
+  web-tests:
+    name: Web App Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run tests
+        run: sh tests/run_all.sh
 
   build-android:
     name: Build Debug APK
@@ -61,7 +88,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.x'
+          flutter-version: '3.44.x'
           channel: stable
           cache: true
 

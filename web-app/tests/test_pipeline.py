@@ -2,7 +2,7 @@
 """
 test_pipeline.py — Orchestrate all automated CimBar tests.
 
-Run from the project root:
+Run from web-app/:
     python tests/test_pipeline.py
 
 Optional GIF path (skips test_gif.py when omitted):
@@ -20,15 +20,19 @@ def run(cmd, label):
 
 def main():
     gif_path = sys.argv[1] if len(sys.argv) > 1 else None
-    gif_size = sys.argv[2] if len(sys.argv) > 2 else '256'
+    gif_size = sys.argv[2] if len(sys.argv) > 2 else '608'
 
     tests = [
-        (['node', 'tests/test_symbols.js'], 'Symbol round-trip (Node.js)'),
-        (['node', 'tests/test_rs.js'],      'Reed-Solomon (Node.js)'),
+        (['node', 'tests/test_tiles.js'],         'Tile rules and generator (Node.js)'),
+        (['node', 'tests/test_format.js'],        'Format spec, header, packing (Node.js)'),
+        (['node', 'tests/test_frame.js'],         'Frame render/decode, RS framing (Node.js)'),
+        (['node', 'tests/test_rs.js'],            'Reed-Solomon (Node.js)'),
+        (['node', 'tests/test_goldens.js'],       'Golden GIFs (Node.js)'),
+        (['node', 'tests/test_pipeline_node.js'], 'End-to-end pipeline (Node.js)'),
     ]
     if gif_path:
         tests.append(
-            (['python', 'tests/test_gif.py', gif_path, gif_size],
+            ([sys.executable, 'tests/test_gif.py', gif_path, gif_size],
              f'GIF structure check ({gif_path})')
         )
 

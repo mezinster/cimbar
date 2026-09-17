@@ -2,7 +2,7 @@
  * gif-encoder.js â€” Pure JavaScript Animated GIF encoder
  *
  * Produces a standards-compliant GIF89a binary from an array of canvas frames.
- * Uses LZW compression with a fixed global color table derived from CimBar colors.
+ * Uses LZW compression with a fixed global color table derived from the v2 spec palette (format.js must be loaded first).
  *
  * API:
  *   const enc = new GifEncoder(width, height, delayMs);
@@ -11,6 +11,10 @@
  */
 
 'use strict';
+
+const GifFmt = (typeof module !== 'undefined' && module.exports)
+  ? require('./format.js')
+  : window.CimbarFormat;
 
 class GifEncoder {
   constructor(width, height, delayCs = 10) {
@@ -102,70 +106,34 @@ function word(n) {
 }
 
 /**
- * Build a 256-color palette (768 bytes) optimized for CimBar.
- * Slots 0-7: CimBar base colors
- * Slots 8-15: brighter variants
- * Slots 16-255: grayscale ramp + mixed
+ * Build a 256-color palette (768 bytes).
+ * Slots 0-3: the v2 palette, slot 4: black, slot 5: white,
+ * then a grayscale ramp and a 6x6x6 cube so non-barcode pixels quantize sanely.
  */
 function buildPalette() {
-  const CIMBAR_COLORS = [
-    [  0, 200, 200],
-    [220,  40,  40],
-    [ 30, 100, 220],
-    [255, 130,  20],
-    [200,  40, 200],
-    [ 40, 200,  60],
-    [230, 220,  40],
-    [100,  20, 200],  // indigo — must match COLORS[7] in cimbar.js
-  ];
-
   const pal = new Uint8Array(256 * 3);
   let idx = 0;
-
-  // Base colors
-  for (const [r,g,b] of CIMBAR_COLORS) {
-    pal[idx*3]   = r;
-    pal[idx*3+1] = g;
-    pal[idx*3+2] = b;
+  const fixed = GifFmt.SPEC.palette.concat([[0, 0, 0], [255, 255, 255]]);
+  for (const [r, g, b] of fixed) {
+    pal[idx * 3] = r; pal[idx * 3 + 1] = g; pal[idx * 3 + 2] = b;
     idx++;
   }
-
-  // Darker variants (Ã—0.5)
-  for (const [r,g,b] of CIMBAR_COLORS) {
-    pal[idx*3]   = r>>1;
-    pal[idx*3+1] = g>>1;
-    pal[idx*3+2] = b>>1;
+  for (let v = 0; v <= 255 && idx < 256; v += 8) {
+    pal[idx * 3] = pal[idx * 3 + 1] = pal[idx * 3 + 2] = v;
     idx++;
   }
-
-  // Lighter variants (average with white)
-  for (const [r,g,b] of CIMBAR_COLORS) {
-    pal[idx*3]   = (r+255)>>1;
-    pal[idx*3+1] = (g+255)>>1;
-    pal[idx*3+2] = (b+255)>>1;
-    idx++;
-  }
-
-  // Black and white
-  for (let v = 0; v <= 255 && idx < 256; v += 4) {
-    pal[idx*3] = pal[idx*3+1] = pal[idx*3+2] = v;
-    idx++;
-  }
-
-  // 6Ã—6Ã—6 color cube for remaining slots
   for (let r = 0; r < 6 && idx < 256; r++) {
     for (let g = 0; g < 6 && idx < 256; g++) {
       for (let b = 0; b < 6 && idx < 256; b++) {
-        pal[idx*3]   = Math.round(r * 51);
-        pal[idx*3+1] = Math.round(g * 51);
-        pal[idx*3+2] = Math.round(b * 51);
+        pal[idx * 3] = r * 51; pal[idx * 3 + 1] = g * 51; pal[idx * 3 + 2] = b * 51;
         idx++;
       }
     }
   }
-
   return pal;
 }
+
+
 
 /**
  * Map each RGBA pixel to nearest palette index.

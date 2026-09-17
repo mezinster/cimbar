@@ -1,142 +1,103 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-import '../constants/cimbar_constants.dart';
+import '../decode/diagnostics.dart';
+import '../decode/frame_assembler.dart';
+import '../decode/frame_decoder.dart';
+import '../decode/rgb_buffer.dart';
+import '../format/file_container.dart';
 import '../models/decode_result.dart';
-import '../utils/byte_utils.dart';
-import 'cimbar_decoder.dart';
-import 'crypto_service.dart';
 import 'gif_parser.dart';
+import 'payload_decoder.dart';
 
-/// Full decode pipeline: GIF -> frames -> RS decode -> decrypt -> file.
-/// Port of web-app/index.html:1003-1086.
+/// GIF import: GIF -> frames -> FrameDecoder (exact) -> FrameAssembler ->
+/// length prefix -> [decrypt] -> file. Mirrors web-app/index.html startDecode.
 class DecodePipeline {
-  final CimbarDecoder _decoder = CimbarDecoder();
+  final FrameDecoder _decoder = FrameDecoder();
 
-  /// Decode a GIF file with a passphrase.
-  /// Yields progress updates; the final event has state == DecodeState.done
-  /// and contains the result.
   Stream<DecodeProgress> decodeGif(Uint8List gifBytes, String passphrase) async* {
-    // 1. Parse GIF
-    yield const DecodeProgress(
-      state: DecodeState.parsingGif,
-      message: 'Parsing GIF...',
-    );
+    yield const DecodeProgress(state: DecodeState.parsingGif, message: 'Parsing GIF...');
 
     final List<img.Image> frames;
-    final int frameSize;
     try {
       frames = GifParser.parseFrames(gifBytes);
-      if (frames.isEmpty) throw ArgumentError('GIF contains no frames');
-      frameSize = frames.first.width;
     } catch (e) {
-      yield DecodeProgress(
-        state: DecodeState.error,
-        message: 'Failed to parse GIF: $e',
-      );
+      yield DecodeProgress(state: DecodeState.error, message: 'Failed to parse GIF: $e');
       return;
     }
 
-    // 2. Decode frames -> raw bytes -> RS decode
-    yield const DecodeProgress(
-      state: DecodeState.decodingFrames,
-      progress: 0.0,
-      message: 'Decoding frames...',
-    );
+    yield const DecodeProgress(state: DecodeState.decodingFrames, message: 'Decoding frames...');
 
-    final allData = <int>[];
+    final assembler = FrameAssembler();
+    var rejected = 0;
     for (var i = 0; i < frames.length; i++) {
-      final rawBytes = _decoder.decodeFramePixels(frames[i], frameSize);
-      final dataBytes = _decoder.decodeRSFrame(rawBytes, frameSize);
-      allData.addAll(dataBytes);
-
-      yield DecodeProgress(
-        state: DecodeState.decodingFrames,
-        progress: (i + 1) / frames.length,
-        message: 'Decoded frame ${i + 1}/${frames.length}',
-      );
-    }
-
-    final allBytes = Uint8List.fromList(allData);
-
-    // 3. Read 4-byte big-endian length prefix -> extract encrypted payload
-    if (allBytes.length < 4) {
-      yield const DecodeProgress(
-        state: DecodeState.error,
-        message: 'Decoded data too short',
-      );
-      return;
-    }
-
-    final payloadLength = readUint32BE(allBytes);
-    if (payloadLength < 5 || payloadLength > allBytes.length - 4) {
-      yield DecodeProgress(
-        state: DecodeState.error,
-        message: 'Invalid payload length: $payloadLength',
-      );
-      return;
-    }
-
-    final payloadBytes = allBytes.sublist(4, 4 + payloadLength);
-
-    // 4. Auto-detect encryption via magic bytes, then parse file header
-    final Uint8List fileHeaderBytes;
-    final isEncrypted = payloadBytes.length >= 2 &&
-        payloadBytes[0] == CimbarConstants.magic[0] &&
-        payloadBytes[1] == CimbarConstants.magic[1];
-
-    if (isEncrypted) {
-      yield const DecodeProgress(
-        state: DecodeState.decrypting,
-        progress: 0.5,
-        message: 'Decrypting...',
-      );
-
-      try {
-        fileHeaderBytes = CryptoService.decrypt(payloadBytes, passphrase);
-      } catch (e) {
+      final r = _decoder.decodeExact(RgbBuffer.fromImage(frames[i]));
+      if (r.status == DecodeStatus.unsupportedGrid) {
         yield DecodeProgress(
           state: DecodeState.error,
-          message: 'Decryption failed: $e',
+          message: 'Not a CimBar v2 GIF: frames must be 608x608 px (${r.diag.note}). v1 GIFs must be re-encoded.',
         );
         return;
       }
-    } else {
-      fileHeaderBytes = payloadBytes;
-    }
-
-    // 5. Parse file header: [4-byte nameLen][nameBytes][fileData]
-    if (fileHeaderBytes.length < 4) {
-      yield const DecodeProgress(
-        state: DecodeState.error,
-        message: 'Data too short for file header',
+      final data = r.data;
+      if (data == null) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'Frame ${i + 1}: ${r.status.name}${r.diag.note.isEmpty ? '' : ' (${r.diag.note})'}',
+        );
+        return;
+      }
+      final added = assembler.add(data, blocksFailed: r.diag.rsFailed);
+      if (!added.accepted) rejected++;
+      yield DecodeProgress(
+        state: DecodeState.decodingFrames,
+        progress: (i + 1) / frames.length,
+        message: 'Frame ${i + 1}/${frames.length}: ${added.accepted ? 'ok' : 'rejected (${added.reason})'}',
       );
-      return;
     }
 
-    final nameLen = readUint32BE(fileHeaderBytes);
-    if (nameLen > fileHeaderBytes.length - 4) {
+    if (!assembler.isComplete) {
+      if (assembler.total == 0) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'No CimBar v2 frames decoded ($rejected rejected)',
+        );
+        return;
+      }
       yield DecodeProgress(
         state: DecodeState.error,
-        message: 'Invalid filename length: $nameLen',
+        message: 'Incomplete: ${assembler.filled} of ${assembler.total} frames decoded ($rejected rejected)',
       );
       return;
     }
 
-    final filename = utf8.decode(fileHeaderBytes.sublist(4, 4 + nameLen));
-    final fileData = fileHeaderBytes.sublist(4 + nameLen);
+    final ParsedFile file;
+    try {
+      file = decodeFramedPayload(assembler.framedData(), passphrase);
+    } on PassphraseRequiredException {
+      yield const DecodeProgress(state: DecodeState.error, message: 'This GIF is encrypted: a passphrase is required');
+      return;
+    } on FormatException catch (e) {
+      yield DecodeProgress(state: DecodeState.error, message: 'File header corrupt: ${e.message}');
+      return;
+    } on StateError catch (e) {
+      // CryptoService.decrypt throws StateError on a wrong passphrase or a
+      // corrupt auth tag; anything else here is not a decryption problem.
+      yield DecodeProgress(state: DecodeState.error, message: 'Decryption failed: $e');
+      return;
+    } catch (e) {
+      yield DecodeProgress(state: DecodeState.error, message: 'Decode failed: $e');
+      return;
+    }
 
-    // Store result BEFORE yield — async* generators suspend at yield, so
-    // the listener reads lastResult before the line after yield executes.
-    _lastResult = DecodeResult(filename: filename, data: fileData);
-
+    // Store result BEFORE yield — async* generators suspend at yield.
+    _lastResult = DecodeResult(filename: file.fileName, data: file.fileBytes);
     yield DecodeProgress(
       state: DecodeState.done,
       progress: 1.0,
-      message: 'Decoded: $filename (${fileData.length} bytes)',
+      message: 'Decoded: ${file.fileName} (${file.fileBytes.length} bytes)',
     );
   }
 

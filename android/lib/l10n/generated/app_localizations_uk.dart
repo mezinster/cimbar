@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -97,7 +99,8 @@ class AppLocalizationsUk extends AppLocalizations {
   String get errorGeneric => 'Сталася помилка';
 
   @override
-  String get errorDecryption => 'Помилка розшифрування — неправильний пароль або пошкоджені дані';
+  String get errorDecryption =>
+      'Помилка розшифрування — неправильний пароль або пошкоджені дані';
 
   @override
   String get errorInvalidGif => 'Недійсний або непідтримуваний GIF файл';
@@ -109,7 +112,8 @@ class AppLocalizationsUk extends AppLocalizations {
   String get errorFileTooLarge => 'Файл занадто великий для обробки';
 
   @override
-  String get cameraScanInstruction => 'Сфотографуйте штрих-код CimBar для декодування';
+  String get cameraScanInstruction =>
+      'Сфотографуйте штрих-код CimBar для декодування';
 
   @override
   String get cameraTakePhoto => 'Зробити фото';
@@ -130,7 +134,8 @@ class AppLocalizationsUk extends AppLocalizations {
   String get errorBarcodeNotFound => 'Штрих-код не знайдено на фото';
 
   @override
-  String get errorNoFrameSizeMatch => 'Не вдалося декодувати штрих-код при жодному підтримуваному розмірі кадру';
+  String get errorNoFrameSizeMatch =>
+      'Не вдалося декодувати штрих-код при жодному підтримуваному розмірі кадру';
 
   @override
   String get language => 'Мова';
@@ -142,7 +147,8 @@ class AppLocalizationsUk extends AppLocalizations {
   String get about => 'Про додаток';
 
   @override
-  String get aboutDescription => 'CimBar Сканер декодує кольорові матричні штрих-коди. Сумісний з веб-кодувальником CimBar на nfcarchiver.com/cimbar.';
+  String get aboutDescription =>
+      'CimBar Сканер декодує кольорові матричні штрих-коди. Сумісний з веб-кодувальником CimBar на nfcarchiver.com/cimbar.';
 
   @override
   String get webAppLabel => 'Веб-додаток';
@@ -173,7 +179,8 @@ class AppLocalizationsUk extends AppLocalizations {
   String get liveScanError => 'Сканування не вдалося';
 
   @override
-  String get cameraPermissionDenied => 'Для живого сканування потрібен дозвіл камери';
+  String get cameraPermissionDenied =>
+      'Для живого сканування потрібен дозвіл камери';
 
   @override
   String get noCameraAvailable => 'На цьому пристрої немає доступної камери';
@@ -182,6 +189,44 @@ class AppLocalizationsUk extends AppLocalizations {
   String liveScanFramesAnalyzed(int count) {
     return '$count кадрів проаналізовано';
   }
+
+  @override
+  String get liveScanAim => 'Fit the barcode inside the square';
+
+  @override
+  String get hintMoveCloser => 'Move closer';
+
+  @override
+  String get hintMoveBack => 'Move back';
+
+  @override
+  String get hintHoldStill => 'Hold still';
+
+  @override
+  String get hintAdjustAngle => 'Adjust angle or lighting';
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
+  }
+
+  @override
+  String get captureSaved => 'Frame captured to app documents';
+
+  @override
+  String get captureFailed => 'Capture failed';
+
+  @override
+  String get errorPassphraseRequired =>
+      'This file is encrypted: a passphrase is required';
+
+  @override
+  String errorDecoderFailed(String detail) {
+    return 'Decoder failed: $detail';
+  }
+
+  @override
+  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
 
   @override
   String get tabFiles => 'Файли';
@@ -207,43 +252,14 @@ class AppLocalizationsUk extends AppLocalizations {
   String get fileDeleted => 'Файл видалено';
 
   @override
-  String get decodeTuning => 'Decode Tuning';
-
-  @override
-  String get symbolSensitivity => 'Symbol Sensitivity';
-
-  @override
-  String get symbolSensitivityDesc => 'Higher = stricter dot detection (corners must be brighter to read as 1)';
-
-  @override
-  String get whiteBalanceLabel => 'White Balance Correction';
-
-  @override
-  String get relativeColorLabel => 'Relative Color Matching';
-
-  @override
-  String get quadrantOffsetLabel => 'Quadrant Sample Offset';
-
-  @override
-  String get quadrantOffsetDesc => 'Corner sample position as fraction of cell size';
-
-  @override
-  String get hashDetectionLabel => 'Хеш-визначення символів';
-
-  @override
-  String get adaptiveThresholdLabel => 'Адаптивний поріг';
-
-  @override
-  String get resetDefaults => 'Reset to Defaults';
-
-  @override
   String get developerSection => 'Розробник';
 
   @override
   String get debugModeLabel => 'Режим налагодження';
 
   @override
-  String get debugModeDescription => 'Увімкнути журнал налагодження та захоплення кадрів';
+  String get debugModeDescription =>
+      'Увімкнути журнал налагодження та захоплення кадрів';
 
   @override
   String get privacyPolicy => 'Політика конфіденційності';
