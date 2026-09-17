@@ -2097,8 +2097,12 @@ class DriftSolver {
         }
         if (!moved) break;
       }
-      if (bestH > wideThreshold) {
-        field.widened++;
+      // Seed cells (no decided neighbours) always evaluate the ±2 ring as
+      // well: they have no prior and can settle in a shallow local minimum
+      // below the widen threshold.
+      final needWide = bestH > wideThreshold;
+      if (needWide || nn == 0) {
+        if (needWide) field.widened++;
         final cx = bestX, cy = bestY;
         for (final (ox, oy) in _ring2) {
           final tx = cx + ox, ty = cy + oy;
