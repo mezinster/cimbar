@@ -1,0 +1,9 @@
+{
+  "capture": "../../camera_raw_1280x720_b.png",
+  "device": "unknown phone (v1 era)",
+  "display": "Dell monitor, v1 256px barcode",
+  "distanceCm": 0,
+  "golden": null,
+  "frame": 0,
+  "expect": { "status": ["notLocated", "unsupportedGrid"] }
+}
