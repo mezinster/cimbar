@@ -97,9 +97,12 @@ class FinderLocator {
     final w = ds.width, h = ds.height;
 
     // Phases 2–4: row scan, anchored column extent, clustering.
+    // Row stride 2: the finder's core band is >= 3 modules >= 9 downscaled px
+    // tall, so skipping every other row still leaves >= 2 hits per finder for
+    // the hits >= 2 clustering threshold below.
     final clusters = <_Cluster>[];
     var candidates = 0;
-    for (var y = 0; y < h; y++) {
+    for (var y = 0; y < h; y += 2) {
       final runs = _rowRuns(bin, w, y);
       for (var i = 1; i < runs.length; i++) {
         if (runs[i].dark) continue;
@@ -108,7 +111,11 @@ class FinderLocator {
         final (total, m) = match;
         if (m < _minModule) continue;
         final cx = runs[i].start + total / 2;
-        final col = _colRuns(bin, w, cx.floor().clamp(0, w - 1), 0, h);
+        // Bound the column scan to +-7 modules around the row being
+        // confirmed: a finder's full extent is 7 modules, so this always
+        // contains it while avoiding a full-height column scan per hit.
+        final cy0 = math.max(0, (y - 7 * m).floor()), cy1 = math.min(h, (y + 7 * m).ceil());
+        final col = _colRuns(bin, w, cx.floor().clamp(0, w - 1), cy0, cy1);
         final ey = _anchoredExtent(col, y, m);
         if (ey == null) continue;
         final cy = (ey.$1 + ey.$2) / 2;
@@ -230,7 +237,9 @@ class FinderLocator {
     var folded = math.atan2(tr.y - tl.y, tr.x - tl.x) % (math.pi / 2);
     if (folded > math.pi / 4) folded -= math.pi / 2;
     final cosF = math.cos(folded);
-    Finder fix(Finder f) => Finder(f.x, f.y, f.module * cosF);
+    // pts are in the (possibly cropped) plane's local coordinates; the
+    // returned finders must be absolute full-frame pixels.
+    Finder fix(Finder f) => Finder(f.x + full.originX, f.y + full.originY, f.module * cosF);
     return LocateResult(tl: fix(tl), tr: fix(tr), bl: fix(bl), br: fix(br), candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
   }
 
@@ -382,7 +391,10 @@ class FinderLocator {
       final yi = y.floor().clamp(0, h - 1), xi = x.floor().clamp(0, w - 1);
       final ex = _anchoredExtent(_rowRuns(bin, w, yi), xi, mod);
       if (ex == null) return null;
-      final ey = _anchoredExtent(_colRuns(bin, w, xi, 0, h), yi, mod);
+      // Same +-7 module bound as the initial scan, recentered on this
+      // iteration's row.
+      final cy0 = math.max(0, (yi - 7 * mod).floor()), cy1 = math.min(h, (yi + 7 * mod).ceil());
+      final ey = _anchoredExtent(_colRuns(bin, w, xi, cy0, cy1), yi, mod);
       if (ey == null) return null;
       x = (ex.$1 + ex.$2) / 2;
       y = (ey.$1 + ey.$2) / 2;

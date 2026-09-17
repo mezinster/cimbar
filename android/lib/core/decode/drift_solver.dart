@@ -84,7 +84,8 @@ class DriftSolver {
       var bestX = ix, bestY = iy;
       sampler.sampleLuma(col, row, luma, dx: bestX, dy: bestY);
       var bestH = classifier.bestSymbol(luma).$2;
-      for (var iter = 0; iter < 8; iter++) {
+      // max 3 steps; measured drift <= 2.1 px
+      for (var iter = 0; iter < 3; iter++) {
         var moved = false;
         final cx = bestX, cy = bestY;
         for (final (ox, oy) in _near) {
