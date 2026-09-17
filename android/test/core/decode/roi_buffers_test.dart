@@ -18,38 +18,28 @@ void main() {
   final frame = loadGoldenFrame('hello', 0);
   final golden = GoldenSidecar.load(repoPath('test-data/goldens/hello.json'));
 
-  // NOTE ON TOLERANCE: `hello`'s cells are drawn from a genuine 2x2-pixel
-  // "module" (verified: every cell-local 2x2 block in the golden is
-  // internally uniform), and CimbarSpec.quietPx (16, even) + pitchPx (9, odd)
-  // means cell origins alternate parity with column/row — so roughly half of
-  // all 2px modules straddle the ABSOLUTE 4:2:0 chroma-sampling grid (which
-  // always groups (2k, 2k+1) from origin 0, matching real YUV_420_888). A
-  // module split across two chroma groups blends with its neighbour's color
-  // in that group; for adjacent saturated palette colors vs. black this is a
-  // large, unavoidable per-pixel error under ANY box/tent chroma-averaging
-  // 4:2:0 encoder — verified analytically (exact float math reproduces the
-  // same blended RGB as the integer path) and empirically (mean abs error
-  // ~14, max ~169 over the full frame, deterministic for this golden). This
-  // is not recoverable by better rounding or coefficients; it is inherent
-  // information loss from subsampling a pixel-perfect, high-frequency,
-  // phase-misaligned test pattern — real camera captures are optically
-  // low-pass filtered before YUV subsampling and don't hit this case.
-  // Tolerance below reflects that reality (with margin) rather than the
-  // near-lossless bound that would hold for smooth/photographic content;
-  // `frame.r/g(110, 70)` in the next test independently pins the conversion
-  // math itself to ±3 at a module-aligned, unaffected coordinate.
-  test('rgbToYuv420 round-trips within tolerance through fromYuv420 (planar and semi-planar, padded)', () {
+  // NOTE ON INPUT CHOICE: the raw `hello` golden is not used here. Its cells
+  // are drawn from a genuine 2x2-pixel "module" (every cell-local 2x2 block
+  // is internally uniform), and quietPx (16, even) + pitchPx (9, odd) means
+  // module boundaries straddle the absolute 4:2:0 chroma grid for about half
+  // of all cells — an unavoidable, large per-pixel chroma-bleed under ANY
+  // box-average 4:2:0 encoder applied to that pixel-perfect, hard-edged
+  // pattern (real camera captures don't hit this: optics low-pass filter
+  // edges before YUV subsampling). A slowly-varying gradient is what the
+  // round trip is actually meant to certify.
+  final gradient = _gradientImage(256, 256);
+  test('rgbToYuv420 round-trips within ±4 through fromYuv420 (planar and semi-planar, padded)', () {
     for (final semi in [false, true]) {
-      final yuv = rgbToYuv420(frame, semiPlanar: semi, yPad: 16);
-      expect(yuv.yRowStride, frame.width + 16);
+      final yuv = rgbToYuv420(gradient, semiPlanar: semi, yPad: 16);
+      expect(yuv.yRowStride, gradient.width + 16);
       final back = RgbBuffer.fromYuv420(yuv);
-      expect(back.width, frame.width);
+      expect(back.width, gradient.width);
       var maxErr = 0;
       for (var i = 0; i < back.rgb.length; i++) {
-        final e = (back.rgb[i] - frame.rgb[i]).abs();
+        final e = (back.rgb[i] - gradient.rgb[i]).abs();
         if (e > maxErr) maxErr = e;
       }
-      expect(maxErr, lessThanOrEqualTo(200), reason: 'semiPlanar=$semi maxErr=$maxErr');
+      expect(maxErr, lessThanOrEqualTo(4), reason: 'semiPlanar=$semi maxErr=$maxErr');
     }
   });
 
@@ -136,4 +126,20 @@ class HomographyGridModelFromDiag {
   static GridModel? build(Float64List c) => HomographyGridModel.fromFinders(
         tl: (c[0], c[1]), tr: (c[2], c[3]), bl: (c[4], c[5]), br: (c[6], c[7]),
       );
+}
+
+/// A slowly-varying r=x, g=y, b=128 gradient — chroma varies smoothly, so
+/// 4:2:0 box-average subsampling introduces only a few levels of error, unlike
+/// the hard-edged, module-quantized barcode content used elsewhere in this file.
+RgbBuffer _gradientImage(int w, int h) {
+  final rgb = Uint8List(w * h * 3);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final i = (y * w + x) * 3;
+      rgb[i] = x.clamp(0, 255);
+      rgb[i + 1] = y.clamp(0, 255);
+      rgb[i + 2] = 128;
+    }
+  }
+  return RgbBuffer(w, h, rgb);
 }
