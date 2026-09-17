@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers/debug_mode_provider.dart';
@@ -73,11 +74,22 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _openUrl(l10n.webAppUrl),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  l10n.version('0.8.3'),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                // The release workflow rewrites pubspec's version; read it at
+                // runtime instead of hardcoding a string that goes stale.
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snap) {
+                    final info = snap.data;
+                    final label = info == null
+                        ? ''
+                        : '${info.version}+${info.buildNumber}';
+                    return Text(
+                      l10n.version(label),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
