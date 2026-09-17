@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import '../format/cimbar_spec.dart';
 import '../format/tiles.dart';
@@ -14,6 +15,8 @@ class CellClassification {
 
 /// Symbol by average hash + Hamming distance to the 16 tiles; color by
 /// brightness-normalized chroma over the winning tile's lit pixels (spec §6.6–6.7).
+/// Note: colorMargin is in normalized-chroma units (palette entries are ≥1.41
+/// apart), not RGB units like the JS exact path's diagnostic.
 class CellClassifier {
   late final List<List<double>> _paletteChroma;
 
@@ -28,26 +31,30 @@ class CellClassifier {
     return [(r - g) / m, (g - b) / m, (b - r) / m];
   }
 
-  CellClassification classify(CellPatch p, {List<double>? whitePoint}) {
+  /// Symbol-only classification of a 64-entry luma patch: (symbol, hamming).
+  (int, int) bestSymbol(Float32List luma) {
     var mean = 0.0;
     for (var i = 0; i < 64; i++) {
-      mean += p.luma[i];
+      mean += luma[i];
     }
     mean /= 64;
-
     var bestSym = 0, bestDist = 65;
     for (var s = 0; s < 16; s++) {
       final t = Tiles.bits[s];
       var d = 0;
       for (var i = 0; i < 64; i++) {
-        d += ((p.luma[i] > mean) ? 1 : 0) ^ t[i];
+        d += ((luma[i] > mean) ? 1 : 0) ^ t[i];
       }
       if (d < bestDist) {
         bestDist = d;
         bestSym = s;
       }
     }
+    return (bestSym, bestDist);
+  }
 
+  CellClassification classify(CellPatch p, {List<double>? whitePoint}) {
+    final (bestSym, bestDist) = bestSymbol(p.luma);
     final t = Tiles.bits[bestSym];
     var r = 0.0, g = 0.0, b = 0.0, n = 0;
     for (var i = 0; i < 64; i++) {
