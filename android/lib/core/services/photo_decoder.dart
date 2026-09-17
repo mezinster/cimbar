@@ -7,9 +7,8 @@ import '../decode/diagnostics.dart';
 import '../decode/frame_assembler.dart';
 import '../decode/frame_decoder.dart';
 import '../decode/rgb_buffer.dart';
-import '../format/file_container.dart';
 import '../models/decode_result.dart';
-import 'crypto_service.dart';
+import 'payload_decoder.dart';
 
 /// Result of a still-photo v2 decode attempt.
 ///
@@ -72,22 +71,14 @@ PhotoDecodeResult decodePhotoSync(Uint8List imageBytes, String passphrase) {
     return PhotoDecodeResult(error: 'Frame rejected (${added.reason})', errorCode: 'decode_failed', diag: diag);
   }
   try {
-    final payload = FileContainer.stripLengthPrefix(asm.framedData());
-    Uint8List plain;
-    if (FileContainer.isEncrypted(payload)) {
-      if (passphrase.isEmpty) {
-        return PhotoDecodeResult(
-          error: 'This file is encrypted: a passphrase is required',
-          errorCode: 'passphrase_required',
-          diag: diag,
-        );
-      }
-      plain = CryptoService.decrypt(payload, passphrase);
-    } else {
-      plain = payload;
-    }
-    final f = FileContainer.parsePayload(plain);
+    final f = decodeFramedPayload(asm.framedData(), passphrase);
     return PhotoDecodeResult(result: DecodeResult(filename: f.fileName, data: f.fileBytes), diag: diag);
+  } on PassphraseRequiredException {
+    return PhotoDecodeResult(
+      error: 'This file is encrypted: a passphrase is required',
+      errorCode: 'passphrase_required',
+      diag: diag,
+    );
   } catch (e) {
     return PhotoDecodeResult(error: '$e', errorCode: 'decode_failed', diag: diag);
   }

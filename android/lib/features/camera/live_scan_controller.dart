@@ -8,11 +8,10 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/decode/diagnostics.dart';
 import '../../core/decode/frame_assembler.dart';
 import '../../core/decode/yuv_frame.dart';
-import '../../core/format/file_container.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/capture_policy.dart';
-import '../../core/services/crypto_service.dart';
 import '../../core/services/decode_isolate.dart';
+import '../../core/services/payload_decoder.dart';
 
 final liveScanControllerProvider =
     StateNotifierProvider<LiveScanController, LiveScanState>((ref) => LiveScanController());
@@ -252,23 +251,14 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     if (!_assembler.isComplete) return;
     state = state.copyWith(isScanning: false, isDecrypting: true);
     try {
-      final payload = FileContainer.stripLengthPrefix(_assembler.framedData());
-      Uint8List plain;
-      if (FileContainer.isEncrypted(payload)) {
-        if (passphrase.isEmpty) {
-          if (!mounted) return;
-          state = state.copyWith(isDecrypting: false, errorMessage: 'passphrase_required');
-          return;
-        }
-        plain = CryptoService.decrypt(payload, passphrase);
-      } else {
-        plain = payload;
-      }
-      final file = FileContainer.parsePayload(plain);
+      final file = decodeFramedPayload(_assembler.framedData(), passphrase);
       final result = DecodeResult(filename: file.fileName, data: file.fileBytes);
       await _autoSave(result);
       if (!mounted) return;
       state = state.copyWith(isDecrypting: false, result: result);
+    } on PassphraseRequiredException {
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, errorMessage: 'passphrase_required');
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isDecrypting: false, errorMessage: 'decoder_failed:$e');

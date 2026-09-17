@@ -9,8 +9,8 @@ import '../decode/frame_decoder.dart';
 import '../decode/rgb_buffer.dart';
 import '../format/file_container.dart';
 import '../models/decode_result.dart';
-import 'crypto_service.dart';
 import 'gif_parser.dart';
+import 'payload_decoder.dart';
 
 /// GIF import: GIF -> frames -> FrameDecoder (exact) -> FrameAssembler ->
 /// length prefix -> [decrypt] -> file. Mirrors web-app/index.html startDecode.
@@ -73,36 +73,17 @@ class DecodePipeline {
       return;
     }
 
-    final Uint8List payloadBytes;
-    try {
-      payloadBytes = FileContainer.stripLengthPrefix(assembler.framedData());
-    } on FormatException catch (e) {
-      yield DecodeProgress(state: DecodeState.error, message: 'Header corrupt: ${e.message}');
-      return;
-    }
-
-    final Uint8List plain;
-    if (FileContainer.isEncrypted(payloadBytes)) {
-      if (passphrase.isEmpty) {
-        yield const DecodeProgress(state: DecodeState.error, message: 'This GIF is encrypted: a passphrase is required');
-        return;
-      }
-      yield const DecodeProgress(state: DecodeState.decrypting, progress: 0.5, message: 'Decrypting...');
-      try {
-        plain = CryptoService.decrypt(payloadBytes, passphrase);
-      } catch (e) {
-        yield DecodeProgress(state: DecodeState.error, message: 'Decryption failed: $e');
-        return;
-      }
-    } else {
-      plain = payloadBytes;
-    }
-
     final ParsedFile file;
     try {
-      file = FileContainer.parsePayload(plain);
+      file = decodeFramedPayload(assembler.framedData(), passphrase);
+    } on PassphraseRequiredException {
+      yield const DecodeProgress(state: DecodeState.error, message: 'This GIF is encrypted: a passphrase is required');
+      return;
     } on FormatException catch (e) {
       yield DecodeProgress(state: DecodeState.error, message: 'File header corrupt: ${e.message}');
+      return;
+    } catch (e) {
+      yield DecodeProgress(state: DecodeState.error, message: 'Decryption failed: $e');
       return;
     }
 
