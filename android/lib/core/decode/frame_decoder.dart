@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../format/bit_packing.dart';
@@ -8,24 +9,62 @@ import '../services/reed_solomon.dart';
 import 'cell_classifier.dart';
 import 'cell_sampler.dart';
 import 'diagnostics.dart';
+import 'finder_locator.dart';
 import 'grid_model.dart';
+import 'homography.dart';
+import 'luma_plane.dart';
 import 'rgb_buffer.dart';
+import 'white_point.dart';
 
 /// The single v2 frame decoder (spec §6.1). GIF paths call [decodeExact];
-/// camera paths call [decode] and (from Plan 3) get a located grid model.
+/// camera paths call [decode], which locates the finders, fits a homography
+/// grid, white-balances from the finder cores and decodes the cells.
 class FrameDecoder {
   final ReedSolomon _rs = ReedSolomon(CimbarSpec.rsEccBytes);
   final CellClassifier _classifier = CellClassifier();
+  final FinderLocator locator;
 
-  FrameResult decode(RgbBuffer image, {GridModel? grid}) {
-    if (grid == null) {
-      return FrameResult(
-        status: DecodeStatus.notLocated,
-        diag: Diagnostics()..note = 'locator not implemented (Plan 3)',
-      );
+  static const int gridTolerance = 6;
+
+  FrameDecoder({this.locator = const FinderLocator()});
+
+  FrameResult decode(RgbBuffer image, {GridModel? grid, bool useDrift = true}) {
+    if (grid != null) return decodeWithGrid(image, grid, useDrift: useDrift);
+    final diag = Diagnostics()..locateRan = true;
+    final sw = Stopwatch()..start();
+    final luma = LumaPlane.fromRgb(image);
+    final loc = locator.locate(luma);
+    diag.locateMs = sw.elapsedMilliseconds;
+    diag.candidates = loc.candidates;
+    diag.clusters = loc.clusters;
+    diag.devNorm = loc.devNorm;
+    diag.tlLuma = loc.tlLuma;
+    diag.secondLuma = loc.secondLuma;
+    if (!loc.ok) {
+      diag.locateFail = loc.failReason;
+      return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = loc.failReason);
     }
-    return decodeWithGrid(image, grid);
+    final tl = loc.tl!, tr = loc.tr!, bl = loc.bl!, br = loc.br!;
+    diag.corners = Float64List.fromList([tl.x, tl.y, tr.x, tr.y, bl.x, bl.y, br.x, br.y]);
+    diag.module = loc.module;
+
+    final gm = HomographyGridModel.fromFinders(tl: (tl.x, tl.y), tr: (tr.x, tr.y), bl: (bl.x, bl.y), br: (br.x, br.y));
+    if (gm == null) {
+      diag.locateFail = 'homography singular';
+      return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = diag.locateFail);
+    }
+    final side = (_dist(tl, tr) + _dist(tl, bl)) / 2;
+    final estimate = (side / loc.module).round() + CimbarSpec.finderCells;
+    diag.gridEstimate = estimate;
+    if ((estimate - CimbarSpec.gridCells).abs() > gridTolerance) {
+      return FrameResult(status: DecodeStatus.unsupportedGrid, diag: diag..note = 'grid estimate $estimate cells (supported: ${CimbarSpec.gridCells})');
+    }
+    final wp = WhitePoint.fromFinders(image, gm);
+    diag.whitePoint = wp;
+    return decodeWithGrid(image, gm, whitePoint: wp, useDrift: useDrift, luma: luma, diag: diag);
   }
+
+  static double _dist(Finder a, Finder b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 
   FrameResult decodeExact(RgbBuffer image) {
     const size = CimbarSpec.framePx;
@@ -39,42 +78,49 @@ class FrameDecoder {
     return decodeWithGrid(image, const ExactGridModel());
   }
 
-  FrameResult decodeWithGrid(RgbBuffer image, GridModel grid, {List<double>? whitePoint}) {
-    final diag = Diagnostics();
+  FrameResult decodeWithGrid(
+    RgbBuffer image,
+    GridModel grid, {
+    List<double>? whitePoint,
+    bool useDrift = false,
+    LumaPlane? luma,
+    Diagnostics? diag,
+  }) {
+    final d = diag ?? Diagnostics();
     final sw = Stopwatch()..start();
-    final sampler = CellSampler(image, grid);
+    final sampler = CellSampler(image, grid, luma: luma);
     final patch = CellPatch();
     final positions = CimbarSpec.usableCellPositions;
     final cells = Uint8List(positions.length);
     var hammingSum = 0;
+    d.driftUsed = false; // Task 6 wires the drift solver here
     for (var k = 0; k < positions.length; k++) {
       final pos = positions[k];
       sampler.sample(pos.col, pos.row, patch);
       final c = _classifier.classify(patch, whitePoint: whitePoint);
       cells[k] = BitPacking.cellValue(c.symbol, c.color);
       hammingSum += c.hamming;
-      diag.addHamming(c.hamming);
-      if (c.colorMargin < diag.colorMarginMin) diag.colorMarginMin = c.colorMargin;
+      d.addHamming(c.hamming);
+      if (c.colorMargin < d.colorMarginMin) d.colorMarginMin = c.colorMargin;
     }
-    diag.hammingMean = hammingSum / positions.length;
-    diag.sampleMs = sw.elapsedMilliseconds;
+    d.hammingMean = hammingSum / positions.length;
+    d.sampleMs = sw.elapsedMilliseconds;
 
     sw.reset();
     final raw = BitPacking.unpackCells(cells);
     final rs = RsFraming.decodeFrame(raw, _rs);
-    diag.rsMs = sw.elapsedMilliseconds;
-    diag.rsBlocks = rs.blocksOk + rs.blocksFailed;
-    diag.rsOk = rs.blocksOk;
-    diag.rsFailed = rs.blocksFailed;
+    d.rsMs = sw.elapsedMilliseconds;
+    d.rsBlocks = rs.blocksOk + rs.blocksFailed;
+    d.rsOk = rs.blocksOk;
+    d.rsFailed = rs.blocksFailed;
     if (rs.blocksFailed > 0) {
-      return FrameResult(status: DecodeStatus.rsFailed, diag: diag, cells: cells, raw: raw, data: rs.data);
+      return FrameResult(status: DecodeStatus.rsFailed, diag: d, cells: cells, raw: raw, data: rs.data);
     }
-
     final hd = FrameHeader.decode(rs.data);
     if (!hd.valid) {
-      diag.headerReason = hd.reason;
-      return FrameResult(status: DecodeStatus.badHeader, diag: diag, cells: cells, raw: raw, data: rs.data, header: hd.header);
+      d.headerReason = hd.reason;
+      return FrameResult(status: DecodeStatus.badHeader, diag: d, cells: cells, raw: raw, data: rs.data, header: hd.header);
     }
-    return FrameResult(status: DecodeStatus.ok, diag: diag, cells: cells, raw: raw, data: rs.data, header: hd.header);
+    return FrameResult(status: DecodeStatus.ok, diag: d, cells: cells, raw: raw, data: rs.data, header: hd.header);
   }
 }
