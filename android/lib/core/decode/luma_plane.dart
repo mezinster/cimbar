@@ -94,6 +94,7 @@ class LumaPlane {
   }
 
   /// Mean of the 3x3 neighbourhood around integer pixel (cx, cy), clamped.
+  /// Buffer-local coordinates (not offset by origin), like [at].
   double mean3x3(int cx, int cy) {
     var sum = 0;
     for (var dy = -1; dy <= 1; dy++) {
