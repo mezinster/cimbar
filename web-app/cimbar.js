@@ -7,6 +7,12 @@
  */
 'use strict';
 
+// Classic <script> files share one global lexical scope, so this file's
+// top-level consts (SPEC, API) must not leak: format.js declares the same
+// names. The IIFE keeps them private; only window.Cimbar / module.exports
+// escape. tests/test_browser_load.js enforces this for every script.
+(function () {
+
 const Fmt = (typeof module !== 'undefined' && module.exports)
   ? require('./format.js')
   : window.CimbarFormat;
@@ -313,3 +319,5 @@ const API = {
 
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 else window.Cimbar = API;
+
+})();

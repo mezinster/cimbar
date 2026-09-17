@@ -79,7 +79,7 @@ All tests live in `web-app/tests/`. Run from the `web-app/` directory (no instal
 
 ```bash
 cd web-app
-sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline + deploy healthcheck)
+sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline + browser load + deploy healthcheck)
 node tests/test_tiles.js     # single test
 node tests/test_format.js
 node tests/test_frame.js
@@ -99,6 +99,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, ≤32 error correction, >32 error detection, Forney/Omega correctness. |
 | `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). Android's Plan 2/3 test suites are planned to consume the same goldens. |
 | `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
+| `tests/test_browser_load.js` | Loads the seven page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does) and asserts `Cimbar`, `CimbarFormat`, `CimbarCrypto`, `ReedSolomon`, `GifEncoder`, `GifDecoder` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
 | `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
 | `tests/test_pipeline.py` | Python subprocess orchestrator: runs the six Node scripts above and, if a GIF path is given, `test_gif.py`. |
@@ -106,6 +107,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 
 ### Known Subtleties (Web)
 
+- The page scripts are classic `<script>` tags, so every file's top-level `const`/`let`/`class` lives in ONE shared global scope: two files declaring `const SPEC` is a `SyntaxError` in the browser (and `Cimbar` ends up undefined) even though every Node test passes, because Node gives each file its own module scope. `cimbar.js` is wrapped in an IIFE for that reason; `tests/test_browser_load.js` enforces it for all seven scripts.
 - `decodeFrameExact` unpacks exactly `usableCells × 6 / 8 = 2880` bytes (an exact division, no rounding); `decodeRSFrame` uses `format.js`'s `rawBytesPerFrame()` as the byte limit so block boundaries match the encoder.
 - `MockCanvas.getImageData` must return a copy (`_pixels.slice()`), not a reference — the real DOM API always copies, and GifEncoder stores the returned object by reference.
 - The 4-byte big-endian length prefix in frame data is the only mechanism that strips RS zero-padding before AES-GCM decryption.

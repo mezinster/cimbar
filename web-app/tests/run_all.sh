@@ -23,6 +23,9 @@ node tests/test_goldens.js
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
+echo ""; echo "--- Browser script load (shared global scope) ---"
+node tests/test_browser_load.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
