@@ -1,0 +1,296 @@
+name: Deploy web app
+
+# Manual only. Never on push or tag. Same pipeline shape as the NFC Archiver
+# and Banana Split web apps, which share this bucket and distribution.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the S3 upload plan and stop — uploads nothing'
+        type: boolean
+        default: false
+
+# No ambient permissions anywhere. The deploy job opts in to id-token below.
+permissions: {}
+
+concurrency:
+  # Queue, never cancel: a run cancelled mid-sync could leave cimbar/ half
+  # updated. Scoped to this repository; the sibling apps write disjoint
+  # prefixes and need no serialisation against us.
+  group: deploy-cimbar-webapp
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test & stage bundle
+    runs-on: ubuntu-latest
+    # No AWS credential here. The web app has no dependencies and no build
+    # step, but keeping the credentialed job free of any test/tool execution
+    # is still the right boundary.
+    permissions: {}
+    outputs:
+      sha: ${{ steps.stamp.outputs.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run the web test suite
+        working-directory: web-app
+        run: sh tests/run_all.sh
+
+      - name: Compute build stamp
+        id: stamp
+        run: echo "sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Stage the deployable files
+        env:
+          SHA: ${{ steps.stamp.outputs.sha }}
+        # Exactly the files index.html loads, nothing from tests/ or tools/.
+        # The build marker is an HTML comment before </head>; the healthcheck
+        # requires it, so a stale edge copy cannot pass verification.
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          cd web-app
+          for f in index.html rs.js format-data.js format.js cimbar.js crypto.js gif-encoder.js gif-decoder.js; do
+            [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
+            cp "$f" ../site/
+          done
+          cd ../site
+          awk -v m="<!-- cimbar-build:${SHA} -->" '/<\/head>/ && !done { print m; done=1 } { print }' index.html > index.tmp
+          mv index.tmp index.html
+
+      - name: Verify the staged bundle
+        env:
+          SHA: ${{ steps.stamp.outputs.sha }}
+        # Every <script src="X"> in the page must be staged — a script left
+        # behind would 404 on the live site while the page itself looks fine —
+        # and the marker must occur exactly once.
+        run: |
+          set -euo pipefail
+          cd site
+          n=$(grep -c "<!-- cimbar-build:${SHA} -->" index.html || true)
+          [ "$n" -eq 1 ] || { echo "::error::build marker occurs $n times in index.html (want 1)"; exit 1; }
+          missing=0
+          for src in $(grep -oE '<script src="[^"]+"' index.html | sed -E 's/.*src="([^"]+)"/\1/'); do
+            case "$src" in
+              http*) continue ;;
+            esac
+            [ -s "$src" ] || { echo "::error::index.html references $src, which is not staged"; missing=1; }
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "staged $(ls | wc -l) files, marker ok, build ${SHA}"
+          ls -l
+
+      - name: Verify the healthcheck starts
+        # Bad usage must exit 2 — that is how the deploy job can tell "we
+        # invoked this wrong" from "roll back". `|| code=$?` is required:
+        # run bodies execute under bash -e, so a bare non-zero exit would
+        # abort the step before the check.
+        run: |
+          set -uo pipefail
+          code=0
+          node web-app/tools/healthcheck.js >/dev/null 2>&1 || code=$?
+          [ "$code" -eq 2 ] || { echo "::error::healthcheck did not start correctly (exit ${code}, want 2)"; exit 1; }
+          echo "healthcheck ok"
+
+      - name: Upload deployable site
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload healthcheck tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-tools
+          path: web-app/tools/healthcheck.js
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to S3 + CloudFront
+    needs: build
+    runs-on: ubuntu-latest
+    # Zero required reviewers — the environment exists to pin the OIDC trust
+    # policy on `environment:production` and to restrict deploys to master.
+    environment: production
+    permissions:
+      id-token: write   # mint the OIDC token used to assume the AWS role
+      contents: read
+    env:
+      BUCKET: ${{ vars.S3_BUCKET }}
+      PREFIX: ${{ vars.S3_PREFIX }}
+      DIST_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+      BASE_URL: ${{ vars.SITE_BASE_URL }}
+      BUILD_SHA: ${{ needs.build.outputs.sha }}
+    steps:
+      - name: Download deployable site
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+
+      - name: Download healthcheck tool
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-tools
+          path: tools
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check configuration is present
+        # Fail loudly and early rather than letting an empty variable turn into
+        # `s3:///` deep in a sync command. This workflow only ever deploys to
+        # cimbar/, and the healthcheck must verify that same prefix.
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in BUCKET PREFIX DIST_ID BASE_URL BUILD_SHA; do
+            if [ -z "${!v:-}" ]; then echo "::error::$v is empty — check the environment variables"; missing=1; fi
+          done
+          case "${PREFIX}" in
+            cimbar/) ;;
+            *) echo "::error::refusing to deploy to prefix '${PREFIX}' — this workflow only deploys to cimbar/"; missing=1 ;;
+          esac
+          case "${BASE_URL}" in
+            https://*/"${PREFIX}") ;;
+            *) echo "::error::SITE_BASE_URL ('${BASE_URL}') must be an https URL ending in '/${PREFIX}'"; missing=1 ;;
+          esac
+          [ "$missing" -eq 0 ] || exit 1
+          echo "target s3://${BUCKET}/${PREFIX} | distribution ${DIST_ID} | build ${BUILD_SHA}"
+
+      - name: Assume the AWS deploy role via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-cimbar-deploy-${{ github.run_id }}
+
+      - name: Show what would be uploaded, then stop
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          aws s3 sync ./site/ "s3://${BUCKET}/${PREFIX}" --delete --dryrun
+          echo "dry_run: nothing was uploaded."
+
+      - name: Snapshot the live files for rollback
+        id: snapshot
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          mkdir -p previous
+          aws s3 sync "s3://${BUCKET}/${PREFIX}" ./previous/
+          echo "snapshot taken:"
+          find previous -type f | sort
+
+      - name: Upload scripts (short cache)
+        id: upload_assets
+        if: ${{ !inputs.dry_run }}
+        # --delete is confined to ${PREFIX}; it can never touch another app's
+        # keys. index.html is excluded here (and so exempt from --delete)
+        # because it is uploaded last, with different headers. The non-HTML
+        # tree is JavaScript only — add a pass if another type ever ships.
+        run: |
+          set -euo pipefail
+          aws s3 sync ./site/ "s3://${BUCKET}/${PREFIX}" \
+            --delete \
+            --exclude 'index.html' \
+            --content-type 'text/javascript; charset=utf-8' \
+            --cache-control 'public, max-age=3600'
+
+      - name: Upload index.html last (no-cache)
+        id: upload_html
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          aws s3 cp ./site/index.html "s3://${BUCKET}/${PREFIX}index.html" \
+            --content-type 'text/html; charset=utf-8' \
+            --cache-control 'no-cache'
+
+      - name: Invalidate the prefix and wait
+        id: invalidate
+        if: ${{ !inputs.dry_run }}
+        # A slow invalidation must not fail the step: `aws cloudfront wait`
+        # gives up at ~10 minutes and under `set -e` that would trigger a
+        # rollback of a perfectly good deploy. The healthcheck is the arbiter.
+        run: |
+          set -euo pipefail
+          id=$(aws cloudfront create-invalidation \
+                 --distribution-id "${DIST_ID}" \
+                 --paths "/${PREFIX}*" \
+                 --query 'Invalidation.Id' --output text)
+          echo "invalidation=${id}" >> "$GITHUB_OUTPUT"
+          echo "created invalidation ${id} for /${PREFIX}*"
+          if aws cloudfront wait invalidation-completed --distribution-id "${DIST_ID}" --id "${id}"; then
+            echo "invalidation ${id} completed"
+          else
+            echo "::warning::invalidation ${id} did not complete within the CLI wait cap; continuing to the healthcheck. index.html is served no-cache, so edges revalidate regardless."
+          fi
+
+      - name: Verify the live site serves this build
+        id: verify
+        if: ${{ !inputs.dry_run }}
+        run: node tools/healthcheck.js "${BASE_URL}" "${BUILD_SHA}"
+
+      - name: Roll back to the previous version
+        id: rollback
+        if: ${{ failure() && !inputs.dry_run && steps.snapshot.outcome == 'success' && steps.upload_assets.outcome != 'skipped' }}
+        run: |
+          set -euo pipefail
+          echo "::error::Deploy verification failed — restoring the previous version."
+          aws s3 sync ./previous/ "s3://${BUCKET}/${PREFIX}" \
+            --delete \
+            --exclude 'index.html' \
+            --content-type 'text/javascript; charset=utf-8' \
+            --cache-control 'public, max-age=3600'
+          if [ -f ./previous/index.html ]; then
+            aws s3 cp ./previous/index.html "s3://${BUCKET}/${PREFIX}index.html" \
+              --content-type 'text/html; charset=utf-8' \
+              --cache-control 'no-cache'
+          fi
+          rollback_id=$(aws cloudfront create-invalidation \
+                          --distribution-id "${DIST_ID}" \
+                          --paths "/${PREFIX}*" \
+                          --query 'Invalidation.Id' --output text)
+          if aws cloudfront wait invalidation-completed --distribution-id "${DIST_ID}" --id "${rollback_id}"; then
+            echo "rolled back; invalidation ${rollback_id} completed"
+          else
+            echo "::warning::rolled back, but invalidation ${rollback_id} did not complete within the CLI wait cap."
+          fi
+
+      - name: Summary
+        # Values reach the script through env:, never by interpolating ${{ }}
+        # into the body — github.ref_name is attacker-influenced.
+        if: ${{ always() }}
+        env:
+          REF: ${{ github.ref_name }}
+          MODE: ${{ inputs.dry_run && 'dry run (nothing uploaded)' || 'deploy' }}
+          INVALIDATION: ${{ steps.invalidate.outputs.invalidation }}
+          VERIFY: ${{ steps.verify.outcome }}
+          ROLLBACK: ${{ steps.rollback.outcome }}
+        run: |
+          {
+            echo "### CimBar web app deploy"
+            echo ""
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| mode | ${MODE} |"
+            echo "| build | \`${BUILD_SHA}\` |"
+            echo "| ref | \`${REF}\` |"
+            echo "| target | \`s3://${BUCKET}/${PREFIX}\` |"
+            echo "| url | ${BASE_URL} |"
+            echo "| invalidation | \`${INVALIDATION:-n/a}\` |"
+            echo "| verify | ${VERIFY:-did not run} |"
+            echo "| rollback | ${ROLLBACK:-did not run} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -23,5 +23,8 @@ node tests/test_goldens.js
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
+echo ""; echo "--- Deploy healthcheck ---"
+node tests/test_healthcheck.js
+
 echo ""
 echo "=== All tests passed ==="

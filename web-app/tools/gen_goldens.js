@@ -11,7 +11,8 @@ const path = require('path');
 global.ImageData = global.ImageData || class ImageData {
   constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); }
 };
-global.Blob = global.Blob || class Blob {
+// Always install the shim: Node >= 18 has a native Blob without the `_data` view used below.
+global.Blob = class Blob {
   constructor(parts) {
     const flat = parts.map(p => p instanceof Uint8Array ? p : new Uint8Array(p));
     let total = 0; flat.forEach(a => total += a.length);
