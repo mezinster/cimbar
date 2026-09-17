@@ -237,8 +237,13 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       await File('${dir.path}/capture_$ts.png').writeAsBytes(o.capturePng!);
-      final lines = o.diag.entries.map((e) => '${e.key}=${e.value}').join('\n');
-      await File('${dir.path}/capture_$ts.txt').writeAsString('status=${o.status.name}\n$lines\n');
+      final idLines = [
+        if (o.fileId != null) 'fileId=${o.fileId}',
+        if (o.seq != null) 'seq=${o.seq}',
+        if (o.total != null) 'total=${o.total}',
+      ].map((l) => '$l\n').join();
+      final diagLines = o.diag.entries.map((e) => '${e.key}=${e.value}').join('\n');
+      await File('${dir.path}/capture_$ts.txt').writeAsString('status=${o.status.name}\n$idLines$diagLines\n');
       if (mounted) state = state.copyWith(captureStatus: 'saved');
     } catch (_) {
       if (mounted) state = state.copyWith(captureStatus: 'failed');

@@ -93,6 +93,12 @@ Pure-Dart, no Flutter/UI dependencies — matches the web-app JS `format.js`/`ci
 
 No Flutter imports under these directories; `tool/decode_image.dart` runs with `dart run`.
 
+### Plan 4 decoder changes
+
+- `CellSampler` interpolates each cell's 64 sample positions from the 4 tile corners (bilinear over the corner-to-corner grid), so one cell costs 4 homography evaluations (the corners) rather than 64.
+- `FinderLocator`'s column scan is bounded to ±7 modules around each row hit (the row scan itself still runs every row — an attempted stride of 2 lost hits on small, rotated finders and was reverted).
+- `DriftSolver`'s hill-climb is capped at 3 steps (measured drift on the degradation matrix stays ≤ 2.1 px, so 3 steps of the ±1/±2 px search always converge).
+
 ## CLI decoder
 
 Offline decoder, no Flutter/emulator needed:

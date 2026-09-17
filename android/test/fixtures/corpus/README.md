@@ -38,12 +38,12 @@ To capture one from a device:
 2. Open Camera → Live Scan.
 3. Triple-tap the status panel at the bottom of the screen to turn on the debug overlay (this also reveals a camera icon in the top-right).
 4. Aim the phone at the barcode (present mode on a monitor, or phone-to-phone) per the capture checklist above.
-5. Tap the camera icon. It saves `capture_<ts>.png` (the full RGB camera frame) and `capture_<ts>.txt` (`status=` plus one `key=value` diagnostic line per field, including `seq=`) to the app's documents directory.
+5. Tap the camera icon. It saves `capture_<ts>.png` (the full RGB camera frame) and `capture_<ts>.txt` to the app's documents directory. The `.txt` contains `status=`, then `fileId=`/`seq=`/`total=` when the frame decoded, then one `key=value` diagnostic per line; set `frame` from `seq=` — if the capture did not decode there is no `seq=` line, so note the frame index from the display or re-capture.
 6. Pull both files off the device, e.g.:
    ```
-   adb shell run-as <applicationId> ls files/          # find the exact filenames
-   adb exec-out run-as <applicationId> cat files/capture_<ts>.png > capture_<ts>.png
-   adb exec-out run-as <applicationId> cat files/capture_<ts>.txt > capture_<ts>.txt
+   adb shell run-as <applicationId> ls app_flutter/          # find the exact filenames
+   adb exec-out run-as <applicationId> cat app_flutter/capture_<ts>.png > capture_<ts>.png
+   adb exec-out run-as <applicationId> cat app_flutter/capture_<ts>.txt > capture_<ts>.txt
    ```
    (or browse to them with Android Studio's Device Explorer, under `data/data/<applicationId>/app_flutter/`).
-7. Create a new `test/fixtures/corpus/<case>/` directory with `capture.png` (the pulled PNG) and a `meta.json` following the format above — set `golden` and `frame` from what was on screen when you captured it (`frame` is the `seq=` value in the pulled `.txt` file).
+7. Create a new `test/fixtures/corpus/<case>/` directory with `capture.png` (the pulled PNG) and a `meta.json` following the format above — set `golden` and `frame` from what was on screen when you captured it (`frame` is the `seq=` value in the pulled `.txt` file, when present).

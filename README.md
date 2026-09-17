@@ -7,7 +7,7 @@ Try it now at **https://nfcarchiver.com/cimbar/**
 This repo contains:
 
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via file import, binary import, or live camera scanning.
+- **`android/`** — A Flutter Android app that decodes CimBar GIFs via GIF import, live camera scanning, or a photo.
 
 Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count, so frames can be captured out of order and reassembled. Files can optionally be encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
