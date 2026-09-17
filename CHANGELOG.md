@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web app: frame-size menu removed, present-mode full-screen display added.
 - CI (`.github/workflows/ci.yml`) now runs both test suites: the Flutter test runner (`android/tests/run_all.sh`, including the corpus benchmark table) and the web-app Node test suite (`web-app/tests/run_all.sh`), and uploads the corpus/benchmark reports as a build artifact.
 
+### Fixed
+- Web app failed to load in the browser (`Cimbar is not defined`): `format.js` and `cimbar.js` both declared top-level `const SPEC`/`API` in the shared global scope; `cimbar.js` is now an IIFE and a browser-load test guards all scripts.
+
 ## [0.8.5] — 2026-02-23
 
 ### Added
