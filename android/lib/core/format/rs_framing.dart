@@ -20,6 +20,9 @@ class RsFraming {
   RsFraming._();
 
   static Uint8List encodeFrame(Uint8List data, ReedSolomon rs) {
+    if (data.length > CimbarSpec.dataBytesPerFrame) {
+      throw ArgumentError('frame data ${data.length} > ${CimbarSpec.dataBytesPerFrame} bytes');
+    }
     final sizes = CimbarSpec.rsBlockSizes();
     final blocks = <Uint8List>[];
     var off = 0;

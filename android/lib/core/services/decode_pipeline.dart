@@ -41,7 +41,15 @@ class DecodePipeline {
         );
         return;
       }
-      final added = assembler.add(r.data!, blocksFailed: r.diag.rsFailed);
+      final data = r.data;
+      if (data == null) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'Frame ${i + 1}: ${r.status.name}${r.diag.note.isEmpty ? '' : ' (${r.diag.note})'}',
+        );
+        return;
+      }
+      final added = assembler.add(data, blocksFailed: r.diag.rsFailed);
       if (!added.accepted) rejected++;
       yield DecodeProgress(
         state: DecodeState.decodingFrames,
@@ -51,6 +59,13 @@ class DecodePipeline {
     }
 
     if (!assembler.isComplete) {
+      if (assembler.total == 0) {
+        yield DecodeProgress(
+          state: DecodeState.error,
+          message: 'No CimBar v2 frames decoded ($rejected rejected)',
+        );
+        return;
+      }
       yield DecodeProgress(
         state: DecodeState.error,
         message: 'Incomplete: ${assembler.filled} of ${assembler.total} frames decoded ($rejected rejected)',

@@ -1,12 +1,19 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:cimbar_scanner/core/decode/cell_sampler.dart';
+import 'package:cimbar_scanner/core/decode/diagnostics.dart';
+import 'package:cimbar_scanner/core/decode/frame_decoder.dart';
+import 'package:cimbar_scanner/core/decode/golden_sidecar.dart';
 import 'package:cimbar_scanner/core/decode/grid_model.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
 import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/core/format/tiles.dart';
+import 'package:cimbar_scanner/core/services/gif_parser.dart';
+
+String repoPath(String rel) => '../$rel';
 
 void main() {
   test('RgbBuffer.fromImage copies pixels and clamps at edges', () {
@@ -17,6 +24,38 @@ void main() {
     expect(buf.height, 3);
     expect([buf.r(1, 2), buf.g(1, 2), buf.b(1, 2)], [10, 20, 30]);
     expect(buf.r(0, 0), 0);
+  });
+
+  test('RgbBuffer.fromImage bulk path reproduces every channel of a non-paletted image', () {
+    final im = img.Image(width: 3, height: 2);
+    var v = 0;
+    for (var y = 0; y < 2; y++) {
+      for (var x = 0; x < 3; x++) {
+        im.setPixelRgb(x, y, v, v + 1, v + 2);
+        v += 3;
+      }
+    }
+    expect(im.hasPalette, isFalse);
+    final buf = RgbBuffer.fromImage(im);
+    v = 0;
+    for (var y = 0; y < 2; y++) {
+      for (var x = 0; x < 3; x++) {
+        expect([buf.r(x, y), buf.g(x, y), buf.b(x, y)], [v, v + 1, v + 2], reason: '($x,$y)');
+        v += 3;
+      }
+    }
+  });
+
+  test('RgbBuffer.fromImage on a paletted GIF frame still decodes with hammingMax 0', () {
+    final jsonPath = repoPath('test-data/goldens/hello.json');
+    final golden = GoldenSidecar.load(jsonPath);
+    final frame = GifParser.parseFrames(File(GoldenSidecar.gifPathFor(jsonPath)).readAsBytesSync()).first;
+    expect(frame.hasPalette, isTrue, reason: 'this test guards the palette->RGB expansion branch');
+    final buf = RgbBuffer.fromImage(frame);
+    final r = FrameDecoder().decodeExact(buf);
+    expect(r.status, DecodeStatus.ok, reason: '${r.diag.toMap()}');
+    expect(r.diag.hammingMax, 0);
+    expect(r.cells, golden.frames[0].cells);
   });
 
   test('bilinear at a pixel center is exact; halfway blends', () {

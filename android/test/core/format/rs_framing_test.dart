@@ -48,6 +48,12 @@ void main() {
     final r = RsFraming.decodeFrame(bad, rs);
     expect(r.blocksFailed, 12);
     expect(r.data.length, CimbarSpec.dataBytesPerFrame);
+    expect(r.data.every((b) => b == 0), isTrue);
+  });
+
+  test('encodeFrame rejects data longer than dataBytesPerFrame', () {
+    final tooLong = Uint8List(2113);
+    expect(() => RsFraming.encodeFrame(tooLong, rs), throwsArgumentError);
   });
 
   test('tail block positions follow stride-skip-short', () {

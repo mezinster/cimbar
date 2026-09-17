@@ -17,6 +17,18 @@ class RgbBuffer {
 
   factory RgbBuffer.fromImage(img.Image image) {
     final w = image.width, h = image.height;
+    // `getBytes(order: rgb)` only expands to true RGB bytes for non-paletted
+    // images: on a paletted image (e.g. a decoded GIF frame) the underlying
+    // storage is still 1-byte-per-pixel palette indices, so the bulk path
+    // would silently return the wrong length/content. Verified against
+    // image 4.8.0's GifDecoder output (see final-fix-report.md, I1).
+    if (!image.hasPalette) {
+      final bytes = image.getBytes(order: img.ChannelOrder.rgb);
+      if (bytes.length == w * h * 3) {
+        return RgbBuffer(w, h, Uint8List.fromList(bytes));
+      }
+    }
+    // Fallback (paletted image, or unexpected layout): per-pixel copy.
     final out = Uint8List(w * h * 3);
     var i = 0;
     for (var y = 0; y < h; y++) {

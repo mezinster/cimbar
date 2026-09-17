@@ -263,8 +263,9 @@ the homography; Von Kries adaptation as today. `GridModel` exposes
 ### 6.4 Cell sampling
 
 For each usable cell, sample its 64 tile pixels at fractional cell coordinates
-`(col + (i + 0.5)/8, row + (j + 0.5)/8)` mapped to source, bilinear, into an 8×8 RGB patch
+`(col + (i + 0.5)/9, row + (j + 0.5)/9)` mapped to source, bilinear, into an 8×8 RGB patch
 and its luma. Sampling happens at source resolution; no intermediate warped image.
+(cell units are pitch units, 9 px, per §3.2; dividing by 8 would place tile pixel 7 in the gap)
 
 ### 6.5 Drift
 

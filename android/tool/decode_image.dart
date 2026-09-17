@@ -28,12 +28,28 @@ void main(List<String> args) {
   for (var i = 1; i < args.length; i++) {
     switch (args[i]) {
       case '--frame':
+        if (i + 1 >= args.length) {
+          stderr.writeln('missing value for ${args[i]}');
+          exit(2);
+        }
         frameIndex = int.parse(args[++i]);
       case '--golden':
+        if (i + 1 >= args.length) {
+          stderr.writeln('missing value for ${args[i]}');
+          exit(2);
+        }
         goldenPath = args[++i];
       case '--heatmap':
+        if (i + 1 >= args.length) {
+          stderr.writeln('missing value for ${args[i]}');
+          exit(2);
+        }
         heatmapPath = args[++i];
       case '--mode':
+        if (i + 1 >= args.length) {
+          stderr.writeln('missing value for ${args[i]}');
+          exit(2);
+        }
         mode = args[++i];
       default:
         stderr.writeln('unknown argument ${args[i]}');
@@ -43,6 +59,10 @@ void main(List<String> args) {
   final bytes = File(path).readAsBytesSync();
   final isGif = path.toLowerCase().endsWith('.gif');
   mode ??= isGif ? 'exact' : 'camera';
+  if (mode != 'exact' && mode != 'camera') {
+    stderr.writeln('--mode must be exact or camera');
+    exit(2);
+  }
 
   final img.Image image;
   var frameCount = 1;
