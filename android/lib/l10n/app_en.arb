@@ -164,18 +164,24 @@
   "@hintHoldStill": { "description": "Hint shown when camera motion is degrading the scan" },
   "hintAdjustAngle": "Adjust angle or lighting",
   "@hintAdjustAngle": { "description": "Hint shown when the barcode is located but frames keep failing to decode" },
-  "liveScanIncomplete": "Missing frames: {missing}",
-  "@liveScanIncomplete": {
-    "description": "Lists the frame sequence numbers still missing from the scan",
-    "placeholders": {
-      "missing": { "type": "String" }
-    }
-  },
   "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
   "@errorMultiFrameNeedsLive": {
     "description": "Error shown when a single photo cannot contain a multi-frame CimBar file",
     "placeholders": {
       "total": { "type": "int" }
+    }
+  },
+  "captureSaved": "Frame captured to app documents",
+  "@captureSaved": { "description": "Snackbar shown after a debug frame capture is saved" },
+  "captureFailed": "Capture failed",
+  "@captureFailed": { "description": "Snackbar shown when a debug frame capture fails to save" },
+  "errorPassphraseRequired": "This file is encrypted: a passphrase is required",
+  "@errorPassphraseRequired": { "description": "Error shown when a live-scanned file is encrypted but no passphrase was given" },
+  "errorDecoderFailed": "Decoder failed: {detail}",
+  "@errorDecoderFailed": {
+    "description": "Error shown when the frame decoder repeatedly fails or a completed scan cannot be parsed",
+    "placeholders": {
+      "detail": { "type": "String" }
     }
   },
 

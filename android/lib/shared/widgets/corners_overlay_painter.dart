@@ -5,11 +5,6 @@ import 'package:flutter/material.dart';
 /// Draws the static aiming square and, when known, the located finder quad.
 /// Maps camera-frame coordinates to the screen for a BoxFit.contain preview
 /// rotated by [sensorOrientation] (landscape sensor shown in portrait).
-///
-/// The 90°/270° mappings follow the same convention as
-/// [BarcodeOverlayPainter]'s rect mapping (see `barcode_overlay_painter.dart`):
-/// for sensorOrientation 90, `(x, y) -> (y, imgW - x)`; for 270,
-/// `(x, y) -> (imgH - y, x)`.
 class CornersOverlayPainter extends CustomPainter {
   final Float64List? corners; // tl,tr,bl,br as x,y pairs (frame px)
   final int sourceImageWidth;
@@ -25,12 +20,15 @@ class CornersOverlayPainter extends CustomPainter {
     final scale = (size.width / rw < size.height / rh) ? size.width / rw : size.height / rh; // contain
     final ox = (size.width - rw * scale) / 2, oy = (size.height - rh * scale) / 2;
     double rx, ry;
+    // 90° CW: (x, y) → (H − y, x). The legacy BarcodeOverlayPainter used the
+    // CCW mapping and was never validated on a device; confirm on the first
+    // device run.
     if (sensorOrientation == 90) {
-      rx = y;
-      ry = sourceImageWidth - x;
-    } else if (sensorOrientation == 270) {
       rx = sourceImageHeight - y;
       ry = x;
+    } else if (sensorOrientation == 270) {
+      rx = y;
+      ry = sourceImageWidth - x;
     } else if (sensorOrientation == 180) {
       rx = sourceImageWidth - x;
       ry = sourceImageHeight - y;

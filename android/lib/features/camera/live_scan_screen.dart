@@ -31,15 +31,19 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
   int _tapCount = 0;
   DateTime _lastTapTime = DateTime(0);
   final ScrollController _debugScrollController = ScrollController();
+  // Captured once in initState: `ref` is invalid inside dispose() because
+  // flutter_riverpod's StatefulElement.unmount runs before State.dispose.
+  late final LiveScanController _scan;
 
   @override
   void initState() {
     super.initState();
+    _scan = ref.read(liveScanControllerProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     _initCamera();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(liveScanControllerProvider.notifier).startScan();
+      _scan.startScan();
     });
   }
 
@@ -50,7 +54,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
     _cameraController?.stopImageStream().catchError((_) {});
     _cameraController?.dispose();
     _debugScrollController.dispose();
-    ref.read(liveScanControllerProvider.notifier).disposeIsolate();
+    _scan.disposeIsolate();
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
   }
@@ -146,6 +150,16 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
         ScanHint.none => '',
       };
 
+  /// Maps the controller's error code ('passphrase_required' or
+  /// 'decoder_failed:<detail>') to a localized message.
+  String _errorText(AppLocalizations l10n, String code) {
+    if (code == 'passphrase_required') return l10n.errorPassphraseRequired;
+    if (code.startsWith('decoder_failed:')) {
+      return l10n.errorDecoderFailed(code.substring('decoder_failed:'.length));
+    }
+    return code;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -172,7 +186,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
         if (!mounted) return;
         final saved = scanState.captureStatus == 'saved';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(saved ? 'Frame captured to app documents' : 'Capture failed'),
+          content: Text(saved ? l10n.captureSaved : l10n.captureFailed),
           backgroundColor: saved ? Colors.green : Colors.red,
           duration: const Duration(seconds: 2),
         ));
@@ -242,7 +256,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
                 style: IconButton.styleFrom(backgroundColor: Colors.black54),
               ),
             ),
-            if (scanState.debugEnabled)
+            if (scanState.debugEnabled && scanState.isScanning)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 right: 8,
@@ -311,7 +325,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
       return Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.error_outline, color: Colors.red.shade300, size: 40),
         const SizedBox(height: 8),
-        Text(s.errorMessage!, style: TextStyle(color: Colors.red.shade300, fontSize: 14), textAlign: TextAlign.center),
+        Text(_errorText(l10n, s.errorMessage!), style: TextStyle(color: Colors.red.shade300, fontSize: 14), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.cancel, style: const TextStyle(color: Colors.white70))),
       ]);

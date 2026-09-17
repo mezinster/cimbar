@@ -60,8 +60,11 @@
   "hintMoveBack": "Move back",
   "hintHoldStill": "Hold still",
   "hintAdjustAngle": "Adjust angle or lighting",
-  "liveScanIncomplete": "Missing frames: {missing}",
   "errorMultiFrameNeedsLive": "This file spans {total} frames — use Live Scan",
+  "captureSaved": "Frame captured to app documents",
+  "captureFailed": "Capture failed",
+  "errorPassphraseRequired": "This file is encrypted: a passphrase is required",
+  "errorDecoderFailed": "Decoder failed: {detail}",
 
   "tabFiles": "Файли",
   "filesTitle": "Декодовані файли",

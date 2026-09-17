@@ -17,6 +17,8 @@ import '../../core/services/decode_isolate.dart';
 final liveScanControllerProvider =
     StateNotifierProvider<LiveScanController, LiveScanState>((ref) => LiveScanController());
 
+/// [errorMessage] is a code the screen maps to a localized string:
+/// 'passphrase_required' or 'decoder_failed:<detail>'.
 class LiveScanState {
   final bool isScanning;
   final int framesAnalyzed;
@@ -33,7 +35,7 @@ class LiveScanState {
   final bool debugEnabled;
   final List<String> debugLog;
   final String? captureStatus;
-  final int lastFrameMs;
+  final int decodeErrors;
 
   const LiveScanState({
     this.isScanning = false,
@@ -51,7 +53,7 @@ class LiveScanState {
     this.debugEnabled = false,
     this.debugLog = const [],
     this.captureStatus,
-    this.lastFrameMs = 0,
+    this.decodeErrors = 0,
   });
 
   bool get isComplete => total > 0 && filled >= total;
@@ -74,7 +76,7 @@ class LiveScanState {
     List<String>? debugLog,
     String? captureStatus,
     bool clearCaptureStatus = false,
-    int? lastFrameMs,
+    int? decodeErrors,
   }) {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
@@ -92,7 +94,7 @@ class LiveScanState {
       debugEnabled: debugEnabled ?? this.debugEnabled,
       debugLog: debugLog ?? this.debugLog,
       captureStatus: clearCaptureStatus ? null : (captureStatus ?? this.captureStatus),
-      lastFrameMs: lastFrameMs ?? this.lastFrameMs,
+      decodeErrors: decodeErrors ?? this.decodeErrors,
     );
   }
 }
@@ -108,6 +110,8 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   bool _debugMode = false;
   bool _captureNext = false;
   int _frameNum = 0;
+  int _gen = 0;
+  int _consecutiveErrors = 0;
   static const _maxDebugEntries = 50;
 
   void updateDebugMode(bool enabled) => _debugMode = enabled;
@@ -120,14 +124,21 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _policy.reset();
     _hint = null;
     _frameNum = 0;
+    _consecutiveErrors = 0;
     state = LiveScanState(isScanning: true, debugEnabled: state.debugEnabled);
+    final gen = _gen;
     _spawning ??= DecodeIsolate.spawn();
-    _isolate ??= await _spawning;
+    final isolate = await _spawning!;
+    if (gen != _gen) {
+      // disposeIsolate() ran while we were awaiting spawn: discard this isolate.
+      isolate.dispose();
+      return;
+    }
+    _isolate ??= isolate;
   }
 
-  void stopScan() => state = state.copyWith(isScanning: false);
-
   void disposeIsolate() {
+    _gen++;
     _isolate?.dispose();
     _isolate = null;
     _spawning = null;
@@ -154,10 +165,13 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _captureNext = false;
     final job = FrameJob(frame: frame, useDrift: true, hint: _hint, capture: capture);
     final n = ++_frameNum;
-    _isolate!.decode(job).then((o) => _onOutcome(n, o), onError: (e) => _log('frame=$n isolate error: $e'));
+    _isolate!.decode(job).then(
+          (o) => _onOutcome(n, o, capture),
+          onError: (e) => _onIsolateError(n, e),
+        );
   }
 
-  void _onOutcome(int n, FrameOutcome o) {
+  void _onOutcome(int n, FrameOutcome o, bool captureRequested) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final (hint, lock) = _policy.update(o, now);
     _hint = o.roi == null ? null : RoiHint(o.roi![0], o.roi![1], o.roi![2], o.roi![3]);
@@ -166,12 +180,19 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       final added = _assembler.add(o.data!, blocksFailed: o.blocksFailed);
       if (!added.accepted) rejected = added.reason;
     }
+    _consecutiveErrors = 0;
     if (_debugMode) {
       final d = o.diag.entries.map((e) => '${e.key}=${e.value}').join(' ');
       _log('frame=$n status=${o.status.name} ms=${o.totalMs} filled=${_assembler.filled}/${_assembler.total}${rejected.isEmpty ? '' : ' rejected=$rejected'} $d');
       _overlay('#$n ${o.status.name} ${o.totalMs}ms f=${_assembler.filled}/${_assembler.total}');
     }
-    if (o.capturePng != null) _saveCapture(o);
+    if (captureRequested) {
+      if (o.capturePng != null) {
+        _saveCapture(o);
+      } else if (mounted) {
+        state = state.copyWith(captureStatus: 'failed');
+      }
+    }
     if (!mounted) return;
     state = state.copyWith(
       framesAnalyzed: n,
@@ -183,8 +204,20 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       imageWidth: o.width,
       imageHeight: o.height,
       pendingLock: lock == LockAction.none ? state.pendingLock : lock,
-      lastFrameMs: o.totalMs,
     );
+  }
+
+  /// Isolate call rejected (worker crash, or dispose racing an in-flight decode).
+  void _onIsolateError(int n, Object error) {
+    final msg = '$error';
+    if (msg.contains('DecodeIsolate disposed')) return; // normal teardown, ignore silently
+    _consecutiveErrors++;
+    _log('frame=$n isolate error: $msg');
+    if (!mounted) return;
+    state = state.copyWith(framesAnalyzed: n, decodeErrors: state.decodeErrors + 1);
+    if (_consecutiveErrors >= 3) {
+      state = state.copyWith(errorMessage: 'decoder_failed:$msg');
+    }
   }
 
   void _log(String msg) {
@@ -223,7 +256,8 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       Uint8List plain;
       if (FileContainer.isEncrypted(payload)) {
         if (passphrase.isEmpty) {
-          state = state.copyWith(isDecrypting: false, errorMessage: 'This file is encrypted: a passphrase is required');
+          if (!mounted) return;
+          state = state.copyWith(isDecrypting: false, errorMessage: 'passphrase_required');
           return;
         }
         plain = CryptoService.decrypt(payload, passphrase);
@@ -233,9 +267,11 @@ class LiveScanController extends StateNotifier<LiveScanState> {
       final file = FileContainer.parsePayload(plain);
       final result = DecodeResult(filename: file.fileName, data: file.fileBytes);
       await _autoSave(result);
+      if (!mounted) return;
       state = state.copyWith(isDecrypting: false, result: result);
     } catch (e) {
-      state = state.copyWith(isDecrypting: false, errorMessage: '$e');
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, errorMessage: 'decoder_failed:$e');
     }
   }
 
@@ -254,6 +290,4 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     final r = state.result;
     return r == null ? null : _autoSave(r);
   }
-
-  List<int> get missingSeqs => _assembler.missingSeqs();
 }

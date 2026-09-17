@@ -206,13 +206,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hintAdjustAngle => 'Adjust angle or lighting';
 
   @override
-  String liveScanIncomplete(String missing) {
-    return 'Missing frames: $missing';
+  String errorMultiFrameNeedsLive(int total) {
+    return 'This file spans $total frames — use Live Scan';
   }
 
   @override
-  String errorMultiFrameNeedsLive(int total) {
-    return 'This file spans $total frames — use Live Scan';
+  String get captureSaved => 'Frame captured to app documents';
+
+  @override
+  String get captureFailed => 'Capture failed';
+
+  @override
+  String get errorPassphraseRequired =>
+      'This file is encrypted: a passphrase is required';
+
+  @override
+  String errorDecoderFailed(String detail) {
+    return 'Decoder failed: $detail';
   }
 
   @override

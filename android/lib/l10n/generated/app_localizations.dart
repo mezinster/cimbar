@@ -464,17 +464,35 @@ abstract class AppLocalizations {
   /// **'Adjust angle or lighting'**
   String get hintAdjustAngle;
 
-  /// Lists the frame sequence numbers still missing from the scan
-  ///
-  /// In en, this message translates to:
-  /// **'Missing frames: {missing}'**
-  String liveScanIncomplete(String missing);
-
   /// Error shown when a single photo cannot contain a multi-frame CimBar file
   ///
   /// In en, this message translates to:
   /// **'This file spans {total} frames — use Live Scan'**
   String errorMultiFrameNeedsLive(int total);
+
+  /// Snackbar shown after a debug frame capture is saved
+  ///
+  /// In en, this message translates to:
+  /// **'Frame captured to app documents'**
+  String get captureSaved;
+
+  /// Snackbar shown when a debug frame capture fails to save
+  ///
+  /// In en, this message translates to:
+  /// **'Capture failed'**
+  String get captureFailed;
+
+  /// Error shown when a live-scanned file is encrypted but no passphrase was given
+  ///
+  /// In en, this message translates to:
+  /// **'This file is encrypted: a passphrase is required'**
+  String get errorPassphraseRequired;
+
+  /// Error shown when the frame decoder repeatedly fails or a completed scan cannot be parsed
+  ///
+  /// In en, this message translates to:
+  /// **'Decoder failed: {detail}'**
+  String errorDecoderFailed(String detail);
 
   /// Bottom navigation tab for file explorer
   ///
