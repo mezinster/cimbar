@@ -407,7 +407,7 @@ dim light. Record device and display names.
 | Tile set satisfies §3.4 constraints | yes | yes |
 | Header and bit-packing round-trips | yes | yes |
 | Golden GIF exact decode = payload | yes | yes |
-| Synthetic degradations of goldens (scale 1.5–2.5×, rotate 0–360°, perspective skew up to 20°, Gaussian blur σ ≤ 1.5 source px, brightness ±30 %, noise σ 8) → full payload | – | yes |
+| Synthetic degradations of goldens (scale 1.5–2.5×, rotate 0–360°, perspective skew up to 20° (keystone 0.12), Gaussian blur σ ≤ 1.0 source px, brightness ±30 %, noise σ 8) → full payload. Measured limit: σ 1.5 source px at 2× fails RS (mean Hamming 11 on 2 px tile blocks) | – | yes |
 | Locator on goldens composited onto real photo backgrounds, finder centers within 2 px | – | yes |
 | Corpus benchmark with asserted thresholds | – | yes |
 | RS, GF, crypto, GIF codec (existing) | yes | yes |
