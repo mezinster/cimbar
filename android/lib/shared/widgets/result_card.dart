@@ -59,7 +59,12 @@ class ResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
+            // Wrap, not Row: the two labels do not fit side by side in every
+            // locale (Russian overflowed by 9 px on a Pixel 8 Pro), so the
+            // second button moves to its own line when needed.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 if (onSave != null)
                   FilledButton.icon(
@@ -67,7 +72,6 @@ class ResultCard extends StatelessWidget {
                     icon: const Icon(Icons.save),
                     label: Text(l10n.saveFile),
                   ),
-                if (onSave != null && onShare != null) const SizedBox(width: 8),
                 if (onShare != null)
                   OutlinedButton.icon(
                     onPressed: onShare,
