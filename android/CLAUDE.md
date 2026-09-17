@@ -15,9 +15,9 @@ sh tests/run_all.sh --verbose  # list each test name
 
 Note: Do not use bare `flutter test` — its `\r`-based progress animation produces a single huge line that triggers output truncation in CLI tools. The wrapper parses the JSON reporter into clean output.
 
-Requires Flutter 3.24+ and Java 17.
+Requires Flutter 3.44+ and Java 17.
 
-**Known caveat — Gradle/AGP pin:** the repo pins Gradle 8.3 / AGP 8.1.0 (`android/android/gradle/wrapper/gradle-wrapper.properties`, `android/android/settings.gradle`). CI pins Flutter 3.24.x, which works with that pin. A local Flutter SDK ≥ 3.35 refuses to build an APK against it ("Gradle 8.3 < 8.7 floor" or similar) until the Gradle/AGP versions are bumped. Do not bump the Gradle files to work around a local toolchain mismatch — this is a known, deliberate pin, not a bug; use a matching Flutter version (3.24.x) or take bumping the Gradle files as its own deliberate change.
+**Toolchain pins:** Gradle 9.1.0 (`android/android/gradle/wrapper/gradle-wrapper.properties`), AGP 9.0.1 and Kotlin 2.3.20 (`android/android/settings.gradle`), Java 17, `compileSdk`/`targetSdk` taken from the Flutter SDK — the same versions Flutter 3.44's `flutter create` template uses. CI pins Flutter 3.44.x. `gradle.properties` keeps `android.newDsl=false` and `android.builtInKotlin=false` (as the Flutter template does) so the Groovy build files and the external Kotlin plugin keep working under AGP 9. Flutter's supported Gradle range is 8.7–9.x; an older Flutter (3.24) will not build against AGP 9.
 
 ## Project Structure
 

@@ -66,6 +66,10 @@ The **Import Binary** tab accepts the raw encrypted binary that the open-source 
 
 ---
 
+## Deploying the web app
+
+The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHub Actions workflow **Deploy web app** (`.github/workflows/deploy-webapp.yml`), the same pipeline shape as the NFC Archiver and Banana Split web apps that share the bucket. Run it from the Actions tab on `master` (the `production` environment refuses other branches); tick *dry_run* to see the upload plan without touching S3. The build job runs the web test suite, stages exactly the files `index.html` loads, stamps `<!-- cimbar-build:<sha> -->` into the page, and hands the bundle to a credentialed job that snapshots the live prefix, uploads scripts then `index.html` (no-cache), invalidates CloudFront, and verifies the public URL with `web-app/tools/healthcheck.js`; a failed verification restores the snapshot. Credentials come from GitHub OIDC (`AWS_DEPLOY_ROLE_ARN` on the `production` environment); the bucket, prefix, distribution and site URL are environment variables.
+
 ## Android App
 
 The `android/` directory contains a Flutter app that decodes CimBar v2 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
@@ -90,7 +94,7 @@ The scanner reassembles frames using their header's sequence number and total fr
 
 ### Building
 
-Requires Flutter 3.24+ and Java 17:
+Requires Flutter 3.44+ and Java 17:
 
 ```bash
 cd android
@@ -100,7 +104,7 @@ flutter build apk --debug      # debug APK
 flutter build apk --release    # release APK
 ```
 
-Note: building with a Flutter SDK newer than 3.24.x may fail against the repo's pinned Gradle/AGP versions — see `android/CLAUDE.md`'s Build section.
+Note: the Android build pins Gradle 9.1 / AGP 9.0.1 to match Flutter 3.44; use Flutter 3.44 or newer (see `android/CLAUDE.md`'s Build section).
 
 ### Running tests
 
@@ -182,4 +186,4 @@ Tests cover GF(256) arithmetic, Reed-Solomon encode/decode, the v2 format layer 
 
 **Web App:** Requires Web Crypto API (`crypto.subtle`). Works in all modern browsers on HTTPS or `localhost`. Does not work on `file://` in Firefox (use the local server method above).
 
-**Android App:** Requires Android 7.0+ (API 24). Built with Flutter 3.24+.
+**Android App:** Requires Android 7.0+ (API 24). Built with Flutter 3.44+.

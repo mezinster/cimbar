@@ -51,6 +51,7 @@ Encryption is optional. On encode, if a passphrase is provided, the payload is e
 - `tools/gen_tiles.js` — seeded random search that produces the 16-tile set committed to `spec/cimbar-v2.json`. Usage: `node tools/gen_tiles.js [startSeed]`
 - `tools/gen_format_data.js` — writes `format-data.js` from `spec/cimbar-v2.json`. Usage: `node tools/gen_format_data.js`
 - `tools/gen_goldens.js` — renders reference GIFs with the production encoder into `test-data/goldens/<name>.gif` plus a `<name>.json` ground-truth sidecar (payload, per-frame header, raw bytes, per-cell symbol/color). Usage: `node tools/gen_goldens.js`
+- `tools/healthcheck.js` — post-deploy verifier for the S3/CloudFront pipeline (`.github/workflows/deploy-webapp.yml`): fetches the public page and one script, requires the `<!-- cimbar-build:<sha> -->` marker the workflow stamps into `index.html`. Usage: `node tools/healthcheck.js https://nfcarchiver.com/cimbar/ <sha>`
 - `tools/node_crypto.js` — Node implementation of the `crypto.js` wire format (Node has no Web Crypto) used only so `gen_goldens.js` can produce encrypted goldens without a browser
 
 ## Format v2
@@ -78,7 +79,7 @@ All tests live in `web-app/tests/`. Run from the `web-app/` directory (no instal
 
 ```bash
 cd web-app
-sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline)
+sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline + deploy healthcheck)
 node tests/test_tiles.js     # single test
 node tests/test_format.js
 node tests/test_frame.js
@@ -98,6 +99,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, ≤32 error correction, >32 error detection, Forney/Omega correctness. |
 | `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). Android's Plan 2/3 test suites are planned to consume the same goldens. |
 | `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
+| `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
 | `tests/test_pipeline.py` | Python subprocess orchestrator: runs the six Node scripts above and, if a GIF path is given, `test_gif.py`. |
 | `tests/mock_canvas.js` | Node.js mock of Canvas 2D API. `getImageData` returns a copy of the pixel buffer (matching browser behavior). |

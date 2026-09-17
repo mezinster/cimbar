@@ -54,14 +54,14 @@ class ImportController extends StateNotifier<ImportState> {
   final _pipeline = DecodePipeline();
 
   Future<void> pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['gif'],
     );
 
-    if (result != null && result.files.isNotEmpty) {
-      final file = result.files.first;
-      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+    if (result.isNotEmpty) {
+      final file = result.first;
+      final bytes = await file.readAsBytes();
       state = ImportState(
         selectedFileName: file.name,
         selectedFileBytes: bytes,

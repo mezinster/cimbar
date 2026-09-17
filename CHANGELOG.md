@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Manual S3 + CloudFront deploy workflow for the web app (`.github/workflows/deploy-webapp.yml`) with OIDC credentials, build-marker healthcheck and automatic rollback; `web-app/tools/healthcheck.js` with tests.
 - Golden GIFs with ground-truth sidecars (`test-data/goldens/`) shared by the JS and Dart test suites.
 - Offline Dart CLI decoder `android/tool/decode_image.dart` and a real-capture corpus benchmark scaffold.
 - v2 camera decode stages in Dart: finder locator, homography grid model, finder-core white balance, per-cell drift solver; synthetic degradation test harness (scale, rotation, perspective, blur, brightness, noise, barrel distortion, photo backgrounds).
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The v1-era Dart tests and test-only synthetic encoder that exercised the above.
 
 ### Changed
+- Android toolchain: Gradle 9.1.0, AGP 9.0.1, Kotlin 2.3.20, Java 17, `compileSdk`/`targetSdk` from the Flutter SDK (matching the Flutter 3.44 template); CI builds with Flutter 3.44.x.
 - **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app and Android app (GIF import, live scan, photo capture) all encode/decode (or decode) v2. v1 GIFs must be re-encoded.
 - Web app: frame-size menu removed, present-mode full-screen display added.
 - CI (`.github/workflows/ci.yml`) now runs both test suites: the Flutter test runner (`android/tests/run_all.sh`, including the corpus benchmark table) and the web-app Node test suite (`web-app/tests/run_all.sh`), and uploads the corpus/benchmark reports as a build artifact.
