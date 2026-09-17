@@ -6,9 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/models/decode_result.dart';
-import '../../core/models/decode_tuning_config.dart';
-import '../../core/services/camera_decode_pipeline.dart';
 import '../../core/services/decode_pipeline.dart';
+import '../../core/services/photo_decoder.dart';
 
 final cameraControllerProvider =
     StateNotifierProvider<CameraController, CameraState>((ref) {
@@ -52,11 +51,8 @@ class CameraState {
 class CameraController extends StateNotifier<CameraState> {
   CameraController() : super(const CameraState());
 
-  final _cameraPipeline = CameraDecodePipeline();
   final _gifPipeline = DecodePipeline();
   final _picker = ImagePicker();
-
-  DecodeTuningConfig? tuningConfig;
 
   /// Check if bytes start with GIF magic (GIF87a or GIF89a).
   static bool _isGif(Uint8List bytes) {
@@ -69,14 +65,11 @@ class CameraController extends StateNotifier<CameraState> {
         bytes[5] == 0x61; // a
   }
 
-  Future<void> capturePhoto() async {
-    final xFile = await _picker.pickImage(source: ImageSource.camera);
-    if (xFile == null) return;
-
-    final bytes = await File(xFile.path).readAsBytes();
+  /// Adopt bytes captured by [PhotoCaptureScreen] (no on-disk path available).
+  void setPhoto(Uint8List bytes, {String? path}) {
     state = CameraState(
       capturedPhotoBytes: bytes,
-      capturedPhotoPath: xFile.path,
+      capturedPhotoPath: path,
     );
   }
 
@@ -116,19 +109,17 @@ class CameraController extends StateNotifier<CameraState> {
         }
       }
     } else {
-      await for (final progress
-          in _cameraPipeline.decodePhoto(bytes, passphrase,
-              tuningConfig: tuningConfig)) {
-        state = state.copyWith(progress: progress);
-
-        if (progress.state == DecodeState.done) {
-          final result = _cameraPipeline.lastResult;
-          state = state.copyWith(isDecoding: false, result: result);
-          if (result != null) await _autoSave(result);
-        } else if (progress.state == DecodeState.error) {
-          state = state.copyWith(isDecoding: false);
-        }
-      }
+      final r = await decodePhotoBytes(bytes, passphrase);
+      state = state.copyWith(
+        isDecoding: false,
+        result: r.result,
+        progress: DecodeProgress(
+          state: r.error == null ? DecodeState.done : DecodeState.error,
+          progress: 1,
+          message: r.error ?? 'Decoded: ${r.result!.filename}',
+        ),
+      );
+      if (r.result != null) await _autoSave(r.result!);
     }
   }
 

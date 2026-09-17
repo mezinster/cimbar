@@ -1,9 +1,8 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/providers/decode_tuning_provider.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/language_switcher_button.dart';
@@ -12,6 +11,7 @@ import '../../shared/widgets/progress_card.dart';
 import '../../shared/widgets/result_card.dart';
 import 'camera_controller.dart';
 import 'live_scan_screen.dart';
+import 'photo_capture_screen.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -43,7 +43,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(cameraControllerProvider);
     final controller = ref.read(cameraControllerProvider.notifier);
-    controller.tuningConfig = ref.watch(decodeTuningProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -65,7 +64,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           const SizedBox(height: 16),
 
           // Capture zone
-          if (state.capturedPhotoPath == null) ...[
+          if (state.capturedPhotoBytes == null) ...[
             // No photo yet — show capture buttons
             Row(
               children: [
@@ -73,7 +72,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                   child: OutlinedButton.icon(
                     onPressed: state.isDecoding
                         ? null
-                        : () => controller.capturePhoto(),
+                        : () async {
+                            final bytes = await Navigator.of(context).push<Uint8List>(
+                              MaterialPageRoute(builder: (_) => const PhotoCaptureScreen()),
+                            );
+                            if (bytes != null) controller.setPhoto(bytes);
+                          },
                     icon: const Icon(Icons.camera_alt),
                     label: Text(l10n.cameraTakePhoto),
                   ),
@@ -108,8 +112,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             // Photo captured — show thumbnail + retake
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(state.capturedPhotoPath!),
+              child: Image.memory(
+                state.capturedPhotoBytes!,
                 height: 200,
                 width: double.infinity,
                 fit: BoxFit.cover,
