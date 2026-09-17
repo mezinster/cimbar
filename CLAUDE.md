@@ -43,6 +43,7 @@ Encryption is optional. On encode, if a passphrase is provided, the payload is e
 - `format.js` — CimBar v2 format constants and pure helpers shared by encoder, decoder and tests: loads `spec/cimbar-v2.json` in Node or `format-data.js` in the browser. Exposes cell geometry (`usableCellPositions`, `cellOrigin`), header codec (`encodeHeader`/`decodeHeader`), bit packing (`packCells`/`unpackCells`, `cellValue`/`cellSymbol`/`cellColor`), and frame byte-budget helpers (`rawBytesPerFrame`, `rsBlockSizes`, `dataBytesPerFrame`, `fileBytesPerFrame`). Exposes `window.CimbarFormat`
 - `format-data.js` — **generated**; a browser-loadable mirror of `spec/cimbar-v2.json` (the browser cannot `require()` JSON). Sets `window.CIMBAR_SPEC`. Regenerate with `node tools/gen_format_data.js` whenever the spec changes
 - `cimbar.js` — core v2 barcode logic built on `format.js`: `renderFrame`/`decodeFrameExact` (draw/read frame pixels), `encodeRSFrame`/`decodeRSFrame` (RS encode/decode with byte-stride interleaving), `splitIntoFrames`/`FrameAssembler` (chunk a payload into headered frames and reassemble them out of order), `buildPayload`/`parsePayload`/`withLengthPrefix`/`stripLengthPrefix` (file container). Exposes `window.Cimbar`
+- `i18n.js` — UI strings in English, Russian, Ukrainian, Turkish and Georgian (the Android app's five languages): `data-i18n`/`data-i18n-html`/`data-i18n-placeholder`/`data-i18n-title` attributes are filled by `CimbarI18n.apply()`, dynamic messages use `CimbarI18n.t(key, params)`; language from localStorage (`cimbar.lang`), then the browser, then English; English is the fallback for any key. Exposes `window.CimbarI18n`
 - `crypto.js` — AES-256-GCM via Web Crypto API; wire format is `[CB 42 01 00 magic | 16-byte salt | 12-byte IV | ciphertext+tag]`. PBKDF2 with 150,000 SHA-256 iterations for key derivation. Exposes `window.CimbarCrypto`
 - `rs.js` — Reed-Solomon RS(255, 191) over GF(256): 64 ECC bytes per 255-byte block, tolerates up to 32 byte errors. Berlekamp-Massey + Chien search + Forney. Exposes `class ReedSolomon`
 - `gif-encoder.js` — pure-JS GIF89a encoder; builds a 256-color palette seeded with the v2 spec palette, quantizes frames, LZW-compresses. Exposes `class GifEncoder`
@@ -79,7 +80,7 @@ All tests live in `web-app/tests/`. Run from the `web-app/` directory (no instal
 
 ```bash
 cd web-app
-sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline + browser load + deploy healthcheck)
+sh tests/run_all.sh          # run all tests (tiles + format + frame + RS + goldens + pipeline + i18n + browser load + deploy healthcheck)
 node tests/test_tiles.js     # single test
 node tests/test_format.js
 node tests/test_frame.js
@@ -99,6 +100,7 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_rs.js` | Reed-Solomon encode/decode: clean round-trip, ≤32 error correction, >32 error detection, Forney/Omega correctness. |
 | `tests/test_goldens.js` | Decodes each GIF in `test-data/goldens/` and checks frames, cells, headers and payload against its `<name>.json` ground-truth sidecar (see `tools/gen_goldens.js`). Android's Plan 2/3 test suites are planned to consume the same goldens. |
 | `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
+| `tests/test_i18n.js` | `i18n.js`: every language defines every English key with no empty strings and the same `{placeholders}`, `t()` interpolates and falls back to English, language detection (stored choice → browser languages → English), and every `data-i18n*` key used in `index.html` exists. |
 | `tests/test_browser_load.js` | Loads the seven page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does) and asserts `Cimbar`, `CimbarFormat`, `CimbarCrypto`, `ReedSolomon`, `GifEncoder`, `GifDecoder` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
 | `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |

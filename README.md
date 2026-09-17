@@ -66,6 +66,8 @@ The **Import Binary** tab accepts the raw encrypted binary that the open-source 
 
 ---
 
+The web app's interface is available in English, Russian, Ukrainian, Turkish and Georgian (the same five languages as the Android app); pick one with the globe selector in the header — the choice is remembered in the browser, and the browser language is used by default.
+
 ## Deploying the web app
 
 The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHub Actions workflow **Deploy web app** (`.github/workflows/deploy-webapp.yml`), the same pipeline shape as the NFC Archiver and Banana Split web apps that share the bucket. Run it from the Actions tab on `master` (the `production` environment refuses other branches); tick *dry_run* to see the upload plan without touching S3. The build job runs the web test suite, stages exactly the files `index.html` loads, stamps `<!-- cimbar-build:<sha> -->` into the page, and hands the bundle to a credentialed job that snapshots the live prefix, uploads scripts then `index.html` (no-cache), invalidates CloudFront, and verifies the public URL with `web-app/tools/healthcheck.js`; a failed verification restores the snapshot. Credentials come from GitHub OIDC (`AWS_DEPLOY_ROLE_ARN` on the `production` environment); the bucket, prefix, distribution and site URL are environment variables.

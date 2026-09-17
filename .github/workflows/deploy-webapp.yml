@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           mkdir -p site
           cd web-app
-          for f in index.html rs.js format-data.js format.js cimbar.js crypto.js gif-encoder.js gif-decoder.js; do
+          for f in index.html rs.js format-data.js format.js cimbar.js crypto.js gif-encoder.js gif-decoder.js i18n.js; do
             [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
             cp "$f" ../site/
           done

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Web app localization: English, Russian, Ukrainian, Turkish and Georgian with a language selector in the header (`web-app/i18n.js`, stored in localStorage, browser language by default).
 - Manual S3 + CloudFront deploy workflow for the web app (`.github/workflows/deploy-webapp.yml`) with OIDC credentials, build-marker healthcheck and automatic rollback; `web-app/tools/healthcheck.js` with tests.
 - Golden GIFs with ground-truth sidecars (`test-data/goldens/`) shared by the JS and Dart test suites.
 - Offline Dart CLI decoder `android/tool/decode_image.dart` and a real-capture corpus benchmark scaffold.
