@@ -1031,14 +1031,33 @@ class _Cluster {
   double get m => sm / hits;
 }
 
+class _Refined {
+  final double x, y, m;
+  final int hits;
+  const _Refined(this.x, this.y, this.m, this.hits);
+}
+
 class _Run {
   final int start;
   final int length;
   final bool dark;
   const _Run(this.start, this.length, this.dark);
+  int get end => start + length;
 }
 
 /// Finds the four QR-style 7x7-cell finders (spec §6.2).
+///
+/// 1. Downscale 2x, binarize with a local mean.
+/// 2. Row scan: sliding 1:1:3:1:1 windows (strict) give candidate x positions.
+/// 3. For each hit, the finder's full 7-module extent along the column through
+///    it is matched *anchored* at the run containing the hit row — one of four
+///    interpretations (solid core, or the tr/bl/br core dot left of / at /
+///    right of the anchor run), best fit wins. This is dot-tolerant and, being
+///    a chord through the center, rotation-invariant.
+/// 4. Cluster hits within one module; refine each strong cluster by
+///    alternating row/column extents through its center (3 iterations).
+/// 5. Choose four by parallelogram closure, classify TL by core brightness,
+///    orient TR/BL by cross product, correct the module for rotation.
 class FinderLocator {
   final int downscale;
   final double maxDevNorm;
@@ -1047,28 +1066,41 @@ class FinderLocator {
 
   const FinderLocator({this.downscale = 2, this.maxDevNorm = 0.35, this.tlMargin = 40, this.maxClusters = 12});
 
+  static const List<double> _p5 = [1, 1, 3, 1, 1];
+  static const List<double> _p7 = [1, 1, 1, 1, 1, 1, 1];
+  static const double _p7Tol = 0.25;
+
+  /// Minimum downscaled module. Below ~3 px a ring is 2 px wide and, after
+  /// binarization, integer quantization makes a +-25% tolerance accept any
+  /// exact-2 px run, so ordinary photo texture matches the pattern. It also
+  /// bounds the barcode at >=57*2*3 = 342 full-res px across, under which the
+  /// 64-cell grid is not sampleable anyway.
+  static const double _minModule = 3.0;
+
   LocateResult locate(LumaPlane full) {
     final ds = downscale == 2 ? full.downscale2() : full;
     if (ds.width < 16 || ds.height < 16) return const LocateResult(failReason: 'image too small');
     final bin = _binarize(ds);
     final w = ds.width, h = ds.height;
 
-    // Phase 1+2: row scan with vertical confirmation.
+    // Phases 2–4: row scan, anchored column extent, clustering.
     final clusters = <_Cluster>[];
     var candidates = 0;
     for (var y = 0; y < h; y++) {
       final runs = _rowRuns(bin, w, y);
       for (var i = 1; i < runs.length; i++) {
-        if (runs[i].dark) continue; // pattern starts with a light run
-        final match = _matchPattern(runs, i);
+        if (runs[i].dark) continue;
+        final match = _slidingMatch(runs, i);
         if (match == null) continue;
         final (total, m) = match;
-        if (m < 1.5) continue;
+        if (m < _minModule) continue;
         final cx = runs[i].start + total / 2;
-        final vy = _confirmVertical(bin, w, h, cx.floor(), y, m);
-        if (vy == null) continue;
+        final col = _colRuns(bin, w, cx.floor().clamp(0, w - 1), 0, h);
+        final ey = _anchoredExtent(col, y, m);
+        if (ey == null) continue;
+        final cy = (ey.$1 + ey.$2) / 2;
+        final mv = (ey.$2 - ey.$1) / 7;
         candidates++;
-        final (cy, mv) = vy;
         final mod = (m + mv) / 2;
         _Cluster? best;
         var bestD = double.infinity;
@@ -1079,11 +1111,10 @@ class FinderLocator {
             bestD = d;
           }
         }
-        best ??= (() {
-          final c = _Cluster();
-          clusters.add(c);
-          return c;
-        })();
+        if (best == null) {
+          best = _Cluster();
+          clusters.add(best);
+        }
         best.sx += cx;
         best.sy += cy;
         best.sm += mod;
@@ -1092,22 +1123,26 @@ class FinderLocator {
     }
 
     final strong = clusters.where((c) => c.hits >= 2).toList()..sort((a, b) => b.hits.compareTo(a.hits));
-    final top = strong.take(maxClusters).toList();
-    if (top.length < 4) {
-      return LocateResult(candidates: candidates, clusters: strong.length, failReason: 'fewer than 4 finder candidates (${top.length})');
+    final refined = <_Refined>[];
+    for (final c in strong.take(maxClusters)) {
+      final r = _refine(bin, w, h, c.x, c.y, c.m);
+      if (r != null) refined.add(_Refined(r.$1, r.$2, r.$3, c.hits));
+    }
+    if (refined.length < 4) {
+      return LocateResult(candidates: candidates, clusters: strong.length, failReason: 'fewer than 4 finder candidates (${refined.length} after refinement, ${strong.length} clusters)');
     }
 
-    // Phase 4: parallelogram selection over diagonal pairs.
+    // Phase 5: parallelogram selection over diagonal pairs.
     var bestDev = double.infinity;
-    List<_Cluster>? bestQuad; // [P, R, Q, S] cyclic order; diagonals PQ and RS
-    final n = top.length;
+    List<_Refined>? bestQuad; // [P, R, Q, S] cyclic; diagonals PQ and RS
+    final n = refined.length;
     for (var i = 0; i < n; i++) {
       for (var j = i + 1; j < n; j++) {
         for (var k = 0; k < n; k++) {
           if (k == i || k == j) continue;
           for (var l = k + 1; l < n; l++) {
             if (l == i || l == j) continue;
-            final p = top[i], q = top[j], r = top[k], s = top[l];
+            final p = refined[i], q = refined[j], r = refined[k], s = refined[l];
             final mods = [p.m, q.m, r.m, s.m];
             final mMax = mods.reduce(math.max), mMin = mods.reduce(math.min);
             if (mMax > 2 * mMin) continue;
@@ -1129,7 +1164,7 @@ class FinderLocator {
       return LocateResult(candidates: candidates, clusters: strong.length, devNorm: bestQuad == null ? -1 : bestDev, failReason: 'no parallelogram of finders (devNorm ${bestDev.isFinite ? bestDev.toStringAsFixed(3) : '-'})');
     }
 
-    // Phase 5: classify TL by full-res core brightness; BR is TL's diagonal partner.
+    // Phase 6: classify TL by full-res core brightness; BR is TL's diagonal partner.
     final scale = downscale.toDouble();
     final pts = [for (final c in bestQuad) Finder(c.x * scale, c.y * scale, c.m * scale)];
     final lum = [for (final f in pts) full.mean3x3(f.x.floor(), f.y.floor())];
@@ -1144,7 +1179,7 @@ class FinderLocator {
     if (lum[tlIdx] - second < tlMargin) {
       return LocateResult(candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second, failReason: 'TL core not distinct (${lum[tlIdx].toStringAsFixed(0)} vs ${second.toStringAsFixed(0)})');
     }
-    final brIdx = (tlIdx + 2) % 4; // cyclic order P,R,Q,S: diagonal partner is two steps away
+    final brIdx = (tlIdx + 2) % 4;
     final tl = pts[tlIdx], br = pts[brIdx];
     Finder? tr, bl;
     for (final i in [(tlIdx + 1) % 4, (tlIdx + 3) % 4]) {
@@ -1168,7 +1203,7 @@ class FinderLocator {
     return LocateResult(tl: fix(tl), tr: fix(tr), bl: fix(bl), br: fix(br), candidates: candidates, clusters: strong.length, devNorm: bestDev, tlLuma: lum[tlIdx], secondLuma: second);
   }
 
-  static double _dist(_Cluster a, _Cluster b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  static double _dist(_Refined a, _Refined b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 
   /// Local-mean binarization (integral image). dark = v < mean - 8 || v < 24.
   static Uint8List _binarize(LumaPlane p) {
@@ -1227,58 +1262,109 @@ class FinderLocator {
     return runs;
   }
 
-  static const List<double> _p5 = [1, 1, 3, 1, 1];
-  static const List<double> _p7 = [1, 1, 1, 1, 1, 1, 1]; // core split by the tr/bl/br dot
-
-  /// Match a finder cross-section starting at light run [i]: the 5-run
-  /// 1:1:3:1:1 pattern (solid core) or the 7-run 1:1:1:1:1:1:1 pattern (core
-  /// split by the dot). Runs alternate, so a dark run precedes i (i >= 1) and
-  /// follows the window when i + n < runs.length. Returns (total, module).
-  static (int, double)? _matchPattern(List<_Run> runs, int i) {
-    for (final pat in [_p5, _p7]) {
-      final n = pat.length;
-      if (i + n >= runs.length) continue;
-      var total = 0;
-      for (var k = 0; k < n; k++) {
-        total += runs[i + k].length;
-      }
-      final m = total / 7;
-      var ok = true;
-      for (var k = 0; k < n; k++) {
-        final e = pat[k] * m;
-        if ((runs[i + k].length - e).abs() > 0.5 * e) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) return (total, m);
-    }
-    return null;
+  /// Sliding match starting at light run [i], bounded by dark runs on both
+  /// sides. Tries the solid core (1:1:3:1:1, 50% per-run tolerance) and then
+  /// the dotted core (1:1:1:1:1:1:1) at a much tighter tolerance.
+  ///
+  /// The dotted pattern is needed because an axis-aligned chord through an
+  /// obliquely rotated finder cannot avoid the core dot: the core's
+  /// clean-chord band is half-width (3m/2)|sin t - cos t| while the dot's
+  /// shadow is (m/2)(sin t + cos t), and for t near 37 deg the shadow is 2.4x
+  /// the band. Its tolerance is [_p7Tol], not 0.5, because a uniform 7-run
+  /// pattern at 50% also admits windows shifted by one run where a merged
+  /// ~2-module run stands in for a 1-module one.
+  static (int, double)? _slidingMatch(List<_Run> runs, int i) {
+    final five = _fitAt(runs, i, _p5, 0.5);
+    if (five != null) return five;
+    return _fitAt(runs, i, _p7, _p7Tol);
   }
 
-  /// Vertical confirmation at column x around row y: returns (centerY, module) or null.
-  static (double, double)? _confirmVertical(Uint8List bin, int w, int h, int x, int y, double m) {
-    if (x < 0 || x >= w) return null;
-    final y0 = math.max(0, (y - 6 * m).floor()), y1 = math.min(h, (y + 6 * m).ceil());
-    final runs = _colRuns(bin, w, x, y0, y1);
-    for (var i = 1; i < runs.length; i++) {
-      if (runs[i].dark) continue;
-      final match = _matchPattern(runs, i);
-      if (match == null) continue;
-      final (total, mv) = match;
-      final start = runs[i].start;
-      if (y < start || y >= start + total) continue; // the window must contain the row
-      if (mv < 0.5 * m || mv > 2 * m) continue;
-      return (start + total / 2, mv);
+  static (int, double)? _fitAt(List<_Run> runs, int i, List<double> pat, double tol) {
+    final n = pat.length;
+    if (i + n >= runs.length) return null; // dark run required on both sides
+    var total = 0;
+    for (var k = 0; k < n; k++) {
+      total += runs[i + k].length;
     }
-    return null;
+    final m = total / 7;
+    for (var k = 0; k < n; k++) {
+      final e = pat[k] * m;
+      if ((runs[i + k].length - e).abs() > tol * e) return null;
+    }
+    return (total, m);
+  }
+
+  /// Relative fit error of pattern [pat] over runs[start..start+n) with module
+  /// total/7; null when colors do not alternate light-first or bounds fail.
+  static double? _fit(List<_Run> runs, int start, List<double> pat) {
+    final n = pat.length;
+    if (start < 1 || start + n >= runs.length) return null;
+    if (runs[start].dark) return null;
+    var total = 0;
+    for (var k = 0; k < n; k++) {
+      total += runs[start + k].length;
+    }
+    final m = total / 7;
+    var worst = 0.0;
+    for (var k = 0; k < n; k++) {
+      final e = pat[k] * m;
+      final err = (runs[start + k].length - e).abs() / e;
+      if (err > worst) worst = err;
+    }
+    return worst;
+  }
+
+  /// Finder extent [start, end) along a run list, anchored at the run that
+  /// contains position [p]. Tries: solid core (5 runs starting two runs before
+  /// the anchor), and the dotted core with the anchor being the left core
+  /// half, the dot, or the right core half (7 runs). Best fit ≤ 0.5 wins; the
+  /// module must be within 0.5–2x of [m].
+  static (int, int)? _anchoredExtent(List<_Run> runs, int p, double m) {
+    var j = -1;
+    for (var i = 0; i < runs.length; i++) {
+      if (p >= runs[i].start && p < runs[i].end) {
+        j = i;
+        break;
+      }
+    }
+    if (j < 0) return null;
+    const tries = [(-2, _p5), (-2, _p7), (-3, _p7), (-4, _p7)];
+    double bestErr = 0.5;
+    (int, int)? best;
+    for (final (off, pat) in tries) {
+      final start = j + off;
+      final err = _fit(runs, start, pat);
+      if (err == null || err > bestErr) continue;
+      final end = runs[start + pat.length - 1].end;
+      final mm = (end - runs[start].start) / 7;
+      if (mm < 0.5 * m || mm > 2 * m) continue;
+      bestErr = err;
+      best = (runs[start].start, end);
+    }
+    return best;
+  }
+
+  /// Alternate row/column extents through the current center (3 iterations).
+  static (double, double, double)? _refine(Uint8List bin, int w, int h, double cx, double cy, double m) {
+    var x = cx, y = cy, mod = m;
+    for (var iter = 0; iter < 3; iter++) {
+      final yi = y.floor().clamp(0, h - 1), xi = x.floor().clamp(0, w - 1);
+      final ex = _anchoredExtent(_rowRuns(bin, w, yi), xi, mod);
+      if (ex == null) return null;
+      final ey = _anchoredExtent(_colRuns(bin, w, xi, 0, h), yi, mod);
+      if (ey == null) return null;
+      x = (ex.$1 + ex.$2) / 2;
+      y = (ey.$1 + ey.$2) / 2;
+      mod = ((ex.$2 - ex.$1) + (ey.$2 - ey.$1)) / 14;
+    }
+    return (x, y, mod);
   }
 }
 ```
 
 - [ ] **Step 4: Run tests and analyzer**
 
-Run: `cd android && flutter test test/core/decode/finder_locator_test.dart 2>&1 | tail -15` → 8 pass. If a synthetic case fails, print `r.failReason`, `r.candidates`, `r.clusters` and the four found centers versus expected, and report them; the two likely tuning points are the binarization constants (`mean - 8 || v < 24`, window `min(w,h) ~/ 10`) and the `hits >= 2` cluster floor — adjust only with the numbers in hand and record the change in your report.
+Run: `cd android && flutter test test/core/decode/finder_locator_test.dart 2>&1 | tail -15` → 8 pass. (History: this file went through four rounds during execution — off-center columns, a permissive 7-run sliding pattern, two-column AND — before the anchored-extent design above passed all cases; the row scan accepts the dotted 7-run pattern only at 25 % per-run tolerance and the module floor is 3.0 downscaled px because false clusters on real photos measure ≤ 2.6.)
 Run: `cd android && flutter analyze lib/core/decode test/core/decode 2>&1 | tail -2` → clean.
 
 - [ ] **Step 5: Commit**
