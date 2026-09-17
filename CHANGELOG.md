@@ -22,13 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - The v1 decoder and its Dart camera pipeline (`camera_decode_pipeline`, `frame_locator`, `symbol_hash_detector`, `image_preprocessing`, `perspective_transform`, `frame_decode_isolate`, `live_scanner`, `cimbar_decoder`, `yuv_converter`), its constants file, and its Settings decode-tuning sliders/toggles.
 - The v1-era Dart tests and test-only synthetic encoder that exercised the above.
-- The **Import Binary** feature from both the web app and the Android app — the web app's tabs are now Encode / Decode GIF / About.
 - The web app's frame-size menu: v2 has a single 608 px frame.
 
 ### Changed
 - Android toolchain: Gradle 9.1.0, AGP 9.0.1, Kotlin 2.3.20, Java 17, `compileSdk`/`targetSdk` from the Flutter SDK (matching the Flutter 3.44 template); CI builds with Flutter 3.44.x.
 - **CimBar v2 format** (breaking): 64×64 grid of 8 px tiles with 1 px gaps, four QR-style finders, 4 colors × 16 tiles = 6 bits/cell, RS(255,191), per-frame header `[ver][flags][fileId][seq][total]`, single 608 px frame. Web app and Android app (GIF import, live scan, photo capture) all encode/decode (or decode) v2. v1 GIFs must be re-encoded.
-- Encryption is now optional in both apps: encode without a passphrase, and decode auto-detects encryption from the payload's `CB 42` magic bytes instead of always demanding one.
 - CI (`.github/workflows/ci.yml`) now runs both test suites: the Flutter test runner (`android/tests/run_all.sh`, including the corpus benchmark table) and the web-app Node test suite (`web-app/tests/run_all.sh`), and uploads the corpus/benchmark reports as a build artifact.
 
 ### Fixed
@@ -36,6 +34,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bottom tab bar went dead after a scan: Live Scan and Photo Capture were pushed on the shell's nested navigator, so they kept covering the screen while tab taps switched the route underneath. Both are now pushed on the root navigator, with a regression test.
 - `ResultCard`'s save/share buttons overflowed on narrow phones with long translated labels; they now wrap.
 - Release workflow failed on Flutter 3.44: it is pinned to Flutter 3.44.x and `pubspec.yaml`'s SDK floor matches the toolchain.
+
+## [0.8.7] — 2026-03-04
+
+### Added
+- Persistent **Debug Mode** toggle in Settings, and a camera frame capture button that saves the current frame plus its diagnostics for offline analysis.
+- Two-channel debug logging: structured `key=value` diagnostics per stage to logcat, plus a short on-screen overlay line.
+- Center 3×3 metadata block and adaptive-threshold preprocessing (integral-image local mean) for camera decode.
+- Center-cross color averaging — a 5-pixel cross per cell absorbs JPEG noise and interpolation artifacts on the camera path.
+- Asymmetric TL finder pattern (no inner dot) with rotation-aware, brightness-based finder classification, so a barcode decodes at any orientation.
+- Color diagnostic instrumentation in the camera decode pipeline.
+
+### Changed
+- Encryption is now optional in both apps: encode without a passphrase, and decode auto-detects encryption from the payload's `CB 42` magic bytes instead of always demanding one.
+- Color palette updated to high-saturation, perceptually distinct colors.
+- Camera frame processing moved to a background isolate so the UI stays responsive.
+- Adaptive hash search radius and finder classification tuning.
+- Camera decode pipeline unified between Live Scan and photo capture to reduce code drift.
+
+### Removed
+- The **Import Binary** feature from both the web app and the Android app.
+
+### Fixed
+- Perspective warp sampling bug: Dart's `.round()` is banker's rounding, which biased every warped cell by ~0.5 px; pixel quantization now uses `.floor()`.
+- Live scan performance regression and several debug UX issues.
+
+## [0.8.6] — 2026-02-23
+
+### Added
+- **Four-corner finder patterns** with a 4-point perspective transform, replacing the 2-point homography.
+
+### Fixed
+- Double `v` prefix in the release workflow's run name.
 
 ## [0.8.5] — 2026-02-23
 
@@ -113,7 +143,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
 [Unreleased]: https://github.com/mezinster/cimbar/compare/v0.9.1...HEAD
-[0.9.1]: https://github.com/mezinster/cimbar/compare/v0.8.5...v0.9.1
+[0.9.1]: https://github.com/mezinster/cimbar/compare/v0.8.7...v0.9.1
+[0.8.7]: https://github.com/mezinster/cimbar/compare/v0.8.6...v0.8.7
+[0.8.6]: https://github.com/mezinster/cimbar/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/mezinster/cimbar/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/mezinster/cimbar/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/mezinster/cimbar/compare/v0.8.2...v0.8.3
