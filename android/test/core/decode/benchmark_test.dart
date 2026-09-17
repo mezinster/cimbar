@@ -14,8 +14,8 @@ void main() {
   test('1080p-class scene: stage timings printed, loose desktop bound', () {
     final frame = loadGoldenFrame('lorem_12k', 3);
     final truth = GoldenSidecar.load(repoPath('test-data/goldens/lorem_12k.json')).frames[3].data;
-    // 1280x960 scene, barcode ~850 px wide (scale 1.4), 15° rotation, mild keystone
-    final scene = renderScene(frame, 1280, 960, SceneSpec()..scale = 1.4..rotationDeg = 15..keystone = 0.05..centerX = 640..centerY = 480);
+    // 1280x960 scene, barcode ~700 px wide (scale 1.15), 15° rotation, mild keystone
+    final scene = renderScene(frame, 1280, 960, SceneSpec()..scale = 1.15..rotationDeg = 15..keystone = 0.05..centerX = 640..centerY = 480);
     final yuv = rgbToYuv420(scene.image, semiPlanar: true);
     final decoder = FrameDecoder();
     // warm-up

@@ -97,12 +97,12 @@ class FinderLocator {
     final w = ds.width, h = ds.height;
 
     // Phases 2–4: row scan, anchored column extent, clustering.
-    // Row stride 2: the finder's core band is >= 3 modules >= 9 downscaled px
-    // tall, so skipping every other row still leaves >= 2 hits per finder for
-    // the hits >= 2 clustering threshold below.
+    // Every row is scanned: a stride of 2 loses hits on small, rotated
+    // finders (37° at 1.8x dropped to 2 clusters) and the row scan is cheap
+    // next to sampling.
     final clusters = <_Cluster>[];
     var candidates = 0;
-    for (var y = 0; y < h; y += 2) {
+    for (var y = 0; y < h; y++) {
       final runs = _rowRuns(bin, w, y);
       for (var i = 1; i < runs.length; i++) {
         if (runs[i].dark) continue;
