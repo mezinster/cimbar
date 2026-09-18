@@ -234,6 +234,9 @@ class ReedSolomon {
   }
 }
 
+ReedSolomon.gfMul = gfMul;
+ReedSolomon.gfInv = gfInv;
+
 // Export
 if (typeof module !== 'undefined') module.exports = { ReedSolomon };
 else window.ReedSolomon = ReedSolomon;
