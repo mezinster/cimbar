@@ -857,6 +857,7 @@ async function startEncode() {
   document.getElementById('outEnc').style.display  = 'none';
   document.getElementById('logEnc').innerHTML = '';
   outputBlob = null;
+  encodeState = null;
 
   try {
     // 1. Read file and build payload
@@ -912,8 +913,14 @@ async function startEncode() {
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
     const gif = new GifEncoder(size, size, frameDelay);
     const all = frames.slice();
-    for (let r = 0, made = 0; made < R; r++) {
-      try { all.push(Cimbar.repairFrame(bodies, fileId, r, opts)); made++; } catch (e) { /* degenerate r: skip */ }
+    for (let r = 0, made = 0, misses = 0; made < R; r++) {
+      try {
+        all.push(Cimbar.repairFrame(bodies, fileId, r, opts));
+        made++; misses = 0;
+      } catch (e) {
+        if (!e.degenerate) throw e;
+        if (++misses >= 64) throw new Error('no usable repair id');
+      }
     }
     for (let f = 0; f < all.length; f++) {
       setProgress(25 + (f / all.length) * 65, t('encodingFrame', { i: f + 1, n: all.length }), 'progEncFill', 'progEncPct', 'progEncLabel');
@@ -979,7 +986,15 @@ function presentDraw() {
   let data, status;
   if (presentIdx < n) { data = st.frames[presentIdx]; status = t('presentSource', { i: presentIdx + 1, n }); presentIdx++; }
   else if (st.repairEnabled) {
-    for (;;) { try { data = Cimbar.repairFrame(st.bodies, st.fileId, presentRepair, st.opts); break; } catch (e) { presentRepair = (presentRepair + 1) & 0xFFFF; } }
+    let misses = 0;
+    for (;;) {
+      try { data = Cimbar.repairFrame(st.bodies, st.fileId, presentRepair, st.opts); break; }
+      catch (e) {
+        if (!e.degenerate) throw e;
+        presentRepair = (presentRepair + 1) & 0xFFFF;
+        if (++misses >= 64) { closePresent(); return; }
+      }
+    }
     status = t('presentRepair', { r: presentRepair, n });
     presentRepair = (presentRepair + 1) & 0xFFFF;
   } else { presentIdx = 0; return presentDraw(); } // > maxFrames: loop the source pass
@@ -992,6 +1007,7 @@ function presentDraw() {
 
 function openPresent() {
   if (!encodeState) return;
+  if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
   presentIdx = 0; presentRepair = 0;
   document.getElementById('present').classList.add('open');
   layoutPresent();
@@ -1040,20 +1056,24 @@ async function startDecode() {
     const asm = new Cimbar.RatelessAssembler();
     let rejected = 0;
     for (let f = 0; f < frames.length; f++) {
-      if (f % 4 === 0) setProgress(20 + (f / frames.length) * 55, t('rankInfo', { rank: asm.rank, n: asm.total }), 'progDecFill', 'progDecPct', 'progDecLabel');
       const cellsResult = Cimbar.decodeFrameExact(frames[f].imageData);
       const rsResult = Cimbar.decodeRSFrame(cellsResult.raw, rs);
       const added = asm.add(rsResult.data, rsResult.blocksFailed);
       if (!added.accepted) {
         if (added.reason === 'dependent') {
-          log(t('dependentFrame', { i: f + 1 }), 'info', 'logDec');
+          // Expected once assembly is complete (trailing repair frames); only worth logging before then.
+          if (!asm.isComplete()) log(t('dependentFrame', { i: f + 1 }), 'info', 'logDec');
         } else {
           rejected++;
           log(t('frameRejected', { i: f + 1, reason: added.reason, failed: rsResult.blocksFailed }), 'err', 'logDec');
         }
       }
-      if (f % 4 === 0) await sleep(0);
+      if (f % 4 === 0) {
+        setProgress(20 + (f / frames.length) * 55, t('rankInfo', { rank: asm.rank, n: asm.total }), 'progDecFill', 'progDecPct', 'progDecLabel');
+        await sleep(0);
+      }
     }
+    setProgress(75, t('rankInfo', { rank: asm.rank, n: asm.total }), 'progDecFill', 'progDecPct', 'progDecLabel');
     if (!asm.isComplete()) throw new Error(t('incomplete', { filled: asm.rank, total: asm.total, rejected }));
     log(t('assembled', { n: asm.total }), 'ok', 'logDec');
     const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());

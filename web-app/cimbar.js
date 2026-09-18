@@ -239,7 +239,7 @@ function repairFrame(bodies, fileId, r, opts) {
   const o = frameOpts(opts);
   const n = bodies.length;
   const coef = Fmt.codingCoefficients(fileId, r, n);
-  if (coef.every(c => c === 0)) throw new Error('degenerate repair id ' + r);
+  if (coef.every(c => c === 0)) { const e = new Error('degenerate repair id ' + r); e.degenerate = true; throw e; }
   const f = new Uint8Array(Fmt.dataBytesPerFrame());
   f.set(Fmt.encodeHeader({ encrypted: o.encrypted, compressed: o.compressed, repair: true, fileId, seq: r, total: n }), 0);
   f.set(Rateless.combineBodies(bodies, coef), Fmt.HEADER_LEN);
