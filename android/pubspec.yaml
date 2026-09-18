@@ -4,7 +4,7 @@ publish_to: 'none'
 # The newest release in CHANGELOG.md (test/version_test.dart enforces it). The
 # release workflow overwrites this line at build time; bump it together with
 # the CHANGELOG heading when cutting a release so local/debug builds stay honest.
-version: 0.10.0+185
+version: 0.10.1+186
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

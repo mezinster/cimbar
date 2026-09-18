@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-09-18
+
 ### Added
 - **Android: Open and Save to device.** The result card (GIF import, photo, live scan) and the Files tab now offer *Open* (`ACTION_VIEW` chooser via `open_filex`) and *Save to device* (the system save-as picker via `file_picker`, Downloads by default) next to *Share*; tapping a row in the Files tab opens it. Decoded files were previously reachable only through the share sheet, since they auto-save into the app's private documents directory.
 - **Android: passphrase asked in place after a live scan.** When a fully assembled scan turns out to be encrypted and no (or a wrong) passphrase was given up front, the scan screen now shows a passphrase field and retries the decrypt from the frames it already holds — no rescan. Previously it only showed an error and required cancelling, typing the passphrase on the Camera tab and scanning everything again.
