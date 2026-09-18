@@ -14,6 +14,9 @@ node tests/test_format.js
 echo ""; echo "--- Frame render/decode, RS framing, assembler ---"
 node tests/test_frame.js
 
+echo ""; echo "--- Rateless coding ---"
+node tests/test_rateless.js
+
 echo ""; echo "--- Reed-Solomon ---"
 node tests/test_rs.js
 

@@ -33,7 +33,7 @@ for (const name of names) {
     assertEq(frames.length, side.total, 'frame count');
     assertEq(frames[0].width, F.SPEC.grid.framePx, 'frame width');
     const rs = new ReedSolomon(F.SPEC.rs.eccBytes);
-    const asm = new C.FrameAssembler();
+    const asm = new C.RatelessAssembler();
     for (let i = 0; i < frames.length; i++) {
       const r = C.decodeFrameExact(frames[i].imageData);
       assertEq(r.diag.hammingMax, 0, `frame ${i} exact hashes`);

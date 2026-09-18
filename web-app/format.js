@@ -101,14 +101,23 @@ function decodeHeader(bytes) {
   return h;
 }
 
-/** Repair-row coefficients for (fileId, r): xorshift32 seeded from the header (spec §5.3). */
+/**
+ * Repair-row coefficients for (fileId, r): a splitmix32-style generator
+ * (linear state advance, murmur3 fmix32 output mix — non-linear, so rows
+ * for different r are not confined to a small linear subspace) seeded from
+ * the header alone (spec §5.3).
+ */
 function codingCoefficients(fileId, r, n) {
-  let s = ((((fileId & 0xFFFF) << 16) | (r & 0xFFFF)) ^ SPEC.coding.seedXor) >>> 0;
-  if (s === 0) s = SPEC.coding.seedXor >>> 0;
-  const next = () => { s ^= (s << 13) >>> 0; s >>>= 0; s ^= s >>> 17; s ^= (s << 5) >>> 0; s >>>= 0; return s; };
-  for (let i = 0; i < SPEC.coding.warmup; i++) next();
+  let state = (((fileId & 0xFFFF) << 16) | (r & 0xFFFF)) >>> 0;
   const out = new Uint8Array(n);
-  for (let j = 0; j < n; j++) out[j] = next() & 0xFF;
+  for (let j = 0; j < n; j++) {
+    state = (state + SPEC.coding.increment) >>> 0;
+    let z = state;
+    z = Math.imul(z ^ (z >>> 16), SPEC.coding.mixMul1) >>> 0;
+    z = Math.imul(z ^ (z >>> 13), SPEC.coding.mixMul2) >>> 0;
+    z = (z ^ (z >>> 16)) >>> 0;
+    out[j] = z & 0xFF;
+  }
   return out;
 }
 

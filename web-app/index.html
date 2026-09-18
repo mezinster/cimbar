@@ -754,6 +754,7 @@ footer {
 <script src="rs.js"></script>
 <script src="format-data.js"></script>
 <script src="format.js"></script>
+<script src="rateless.js"></script>
 <script src="cimbar.js"></script>
 <script src="crypto.js"></script>
 <script src="compress.js"></script>
@@ -993,7 +994,7 @@ async function startDecode() {
     log(t('foundFrames', { n: frames.length, w: frames[0].width, h: frames[0].height }), 'ok', 'logDec');
 
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
-    const asm = new Cimbar.FrameAssembler();
+    const asm = new Cimbar.RatelessAssembler();
     let rejected = 0;
     for (let f = 0; f < frames.length; f++) {
       setProgress(20 + (f / frames.length) * 55, t('decodingFrame', { i: f + 1, n: frames.length }), 'progDecFill', 'progDecPct', 'progDecLabel');
@@ -1006,7 +1007,7 @@ async function startDecode() {
       }
       if (f % 4 === 0) await sleep(0);
     }
-    if (!asm.isComplete()) throw new Error(t('incomplete', { filled: asm.filled, total: asm.total, rejected }));
+    if (!asm.isComplete()) throw new Error(t('incomplete', { filled: asm.rank, total: asm.total, rejected }));
     log(t('assembled', { n: asm.total }), 'ok', 'logDec');
     const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
 

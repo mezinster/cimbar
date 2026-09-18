@@ -44,11 +44,12 @@ function loadLikeABrowser() {
   return window;
 }
 
-test('index.html lists the nine local scripts in dependency order', () => {
-  assert(scripts.length === 9, `expected 9 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
+test('index.html lists the ten local scripts in dependency order', () => {
+  assert(scripts.length === 10, `expected 10 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
   assert(scripts.indexOf('format-data.js') < scripts.indexOf('format.js'), 'format-data.js must precede format.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('cimbar.js'), 'format.js must precede cimbar.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('gif-encoder.js'), 'format.js must precede gif-encoder.js');
+  assert(scripts.indexOf('rateless.js') < scripts.indexOf('cimbar.js'), 'rateless.js must precede cimbar.js');
   assert(scripts[scripts.length - 1] === 'i18n.js', 'i18n.js is loaded last, right before the page script');
 });
 
@@ -58,10 +59,10 @@ test('every script loads as a classic <script> sharing one global scope', () => 
 
 test('the globals the inline page script uses are all defined', () => {
   const w = loadLikeABrowser();
-  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder', 'CimbarI18n']) {
+  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'CimbarRateless', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder', 'CimbarI18n']) {
     assert(w[g] !== undefined, `window.${g} is not defined after loading the page scripts`);
   }
-  for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'FrameAssembler', 'buildPayload', 'parsePayload']) {
+  for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'repairFrame', 'frameBodies', 'gifRepairCount', 'RatelessAssembler', 'buildPayload', 'parsePayload']) {
     assert(typeof w.Cimbar[fn] === 'function', `Cimbar.${fn} missing`);
   }
 });
