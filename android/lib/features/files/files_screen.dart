@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/widgets/file_actions.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import 'files_controller.dart';
 
@@ -63,6 +64,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                               const Icon(Icons.delete, color: Colors.white),
                         ),
                         child: ListTile(
+                          onTap: () => openWithFeedback(context, () => controller.openFile(file.path)),
                           leading: Icon(_iconForExtension(file.name)),
                           title: Text(
                             file.name,
@@ -73,7 +75,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                           ),
                           trailing: PopupMenuButton<String>(
                             onSelected: (action) async {
-                              if (action == 'share') {
+                              if (action == 'open') {
+                                await openWithFeedback(context, () => controller.openFile(file.path));
+                              } else if (action == 'export') {
+                                await exportWithFeedback(context, () => controller.exportFile(file.path));
+                              } else if (action == 'share') {
                                 await controller.shareFile(file.path);
                               } else if (action == 'delete') {
                                 final confirmed = await _confirmDelete(
@@ -90,6 +96,26 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                               }
                             },
                             itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'open',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.open_in_new, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(l10n.openFile),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'export',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.download, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(l10n.saveToDevice),
+                                  ],
+                                ),
+                              ),
                               PopupMenuItem(
                                 value: 'share',
                                 child: Row(

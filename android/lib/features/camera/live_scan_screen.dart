@@ -9,6 +9,8 @@ import '../../core/services/capture_policy.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/corners_overlay_painter.dart';
+import '../../shared/widgets/file_actions.dart';
+import '../../shared/widgets/passphrase_prompt.dart';
 import '../../shared/widgets/result_card.dart';
 import 'live_scan_controller.dart';
 
@@ -150,10 +152,11 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
         ScanHint.none => '',
       };
 
-  /// Maps the controller's error code ('passphrase_required' or
-  /// 'decoder_failed:<detail>') to a localized message.
+  /// Maps the controller's error code ('passphrase_required',
+  /// 'wrong_passphrase' or 'decoder_failed:<detail>') to a localized message.
   String _errorText(AppLocalizations l10n, String code) {
     if (code == 'passphrase_required') return l10n.errorPassphraseRequired;
+    if (code == 'wrong_passphrase') return l10n.errorWrongPassphrase;
     if (code.startsWith('decoder_failed:')) {
       return l10n.errorDecoderFailed(code.substring('decoder_failed:'.length));
     }
@@ -313,17 +316,26 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
       return Column(mainAxisSize: MainAxisSize.min, children: [
         ResultCard(
           result: s.result!,
-          onSave: () async {
-            final path = await controller.saveResult();
-            if (path != null && mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.fileSaved)));
-            }
-          },
+          onOpen: () => openWithFeedback(context, () => FileService.openResult(s.result!)),
+          onExport: () => exportWithFeedback(context, () => FileService.exportBytes(s.result!.filename, s.result!.data)),
           onShare: () => FileService.shareResult(s.result!),
         ),
         const SizedBox(height: 8),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.cancel, style: const TextStyle(color: Colors.white70))),
       ]);
+    }
+    if (s.errorMessage == 'passphrase_required' || s.errorMessage == 'wrong_passphrase') {
+      // The frames are all assembled; only the passphrase is missing or wrong.
+      // Ask for it here and retry the decrypt — no rescan.
+      return Theme(
+        data: ThemeData.dark(useMaterial3: true),
+        child: PassphrasePrompt(
+          errorText: s.errorMessage == 'wrong_passphrase' ? l10n.errorWrongPassphrase : null,
+          busy: s.isDecrypting,
+          onSubmit: (p) => controller.finish(p),
+          onCancel: () => Navigator.of(context).pop(),
+        ),
+      );
     }
     if (s.errorMessage != null) {
       return Column(mainAxisSize: MainAxisSize.min, children: [

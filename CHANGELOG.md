@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Android: Open and Save to device.** The result card (GIF import, photo, live scan) and the Files tab now offer *Open* (`ACTION_VIEW` chooser via `open_filex`) and *Save to device* (the system save-as picker via `file_picker`, Downloads by default) next to *Share*; tapping a row in the Files tab opens it. Decoded files were previously reachable only through the share sheet, since they auto-save into the app's private documents directory.
+- **Android: passphrase asked in place after a live scan.** When a fully assembled scan turns out to be encrypted and no (or a wrong) passphrase was given up front, the scan screen now shows a passphrase field and retries the decrypt from the frames it already holds — no rescan. Previously it only showed an error and required cancelling, typing the passphrase on the Camera tab and scanning everything again.
+
+### Fixed
+- **Android: share sheet listed only a few apps.** Shared files now carry an explicit MIME type (`mime` package) and the manifest declares `SEND`/`SEND_MULTIPLE`/`VIEW` package-visibility queries, the same fix NFC Archiver needed for Telegram and other strict targets. The `READ_MEDIA_*` permissions `open_filex` would merge in are stripped.
+- **Android: `errorPassphraseRequired` was untranslated** in Russian, Ukrainian, Turkish and Georgian.
+- **Web: encode stats panel.** The fourth stat (compression) no longer sits alone on a second row with an empty cell beside it (the grid now auto-fits its columns), and the frames stat shows a short `45 + 12` value with "Frames (source + repair)" as its label instead of a wrapped sentence in the big-number font. The compression stat is labelled "Compressed to" so `92%` reads as a size, not a saving.
+
 ## [0.10.0] — 2026-09-18
 
 ### Added

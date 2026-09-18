@@ -18,7 +18,7 @@ final liveScanControllerProvider =
     StateNotifierProvider<LiveScanController, LiveScanState>((ref) => LiveScanController());
 
 /// [errorMessage] is a code the screen maps to a localized string:
-/// 'passphrase_required' or 'decoder_failed:<detail>'.
+/// 'passphrase_required', 'wrong_passphrase' or 'decoder_failed:<detail>'.
 class LiveScanState {
   final bool isScanning;
   final int framesAnalyzed;
@@ -284,7 +284,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
   /// Assemble, strip the length prefix, decrypt if needed, parse the file.
   Future<void> finish(String passphrase) async {
     if (!_assembler.isComplete) return;
-    state = state.copyWith(isScanning: false, isDecrypting: true);
+    state = state.copyWith(isScanning: false, isDecrypting: true, clearError: true);
     try {
       final file = decodeFramedPayload(_assembler.framedData(), passphrase, compressed: _assembler.compressed);
       final result = DecodeResult(filename: file.fileName, data: file.fileBytes);
@@ -294,6 +294,11 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     } on PassphraseRequiredException {
       if (!mounted) return;
       state = state.copyWith(isDecrypting: false, errorMessage: 'passphrase_required');
+    } on StateError {
+      // CryptoService.decrypt: wrong passphrase or corrupt auth tag. The
+      // assembled frames are kept, so the screen can ask again and retry.
+      if (!mounted) return;
+      state = state.copyWith(isDecrypting: false, errorMessage: 'wrong_passphrase');
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isDecrypting: false, errorMessage: 'decoder_failed:$e');

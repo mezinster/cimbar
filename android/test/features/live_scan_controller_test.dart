@@ -143,4 +143,31 @@ void main() {
 
     c.dispose();
   });
+
+  test('encrypted file: finish asks for a passphrase in place, rejects a wrong one, decrypts on retry', () async {
+    final golden = GoldenSidecar.load('../test-data/goldens/lorem_coded_enc.json');
+    final c = LiveScanController();
+    for (var i = 0; i < golden.total; i++) {
+      final f = golden.frames[i];
+      c.onOutcomeForTest(outcome(status: DecodeStatus.ok, data: f.data, corners: quad(), seq: f.header.seq, total: f.header.total));
+    }
+    expect(c.state.isComplete, isTrue);
+
+    // The scan finished without a passphrase: the screen must ask for one, and the
+    // assembled frames stay in the controller so no rescan is needed.
+    await c.finish('');
+    expect(c.state.errorMessage, 'passphrase_required');
+    expect(c.state.isDecrypting, isFalse);
+    expect(c.state.result, isNull);
+
+    await c.finish('not-the-passphrase');
+    expect(c.state.errorMessage, 'wrong_passphrase');
+    expect(c.state.result, isNull);
+
+    await c.finish(golden.passphrase!);
+    expect(c.state.errorMessage, isNull);
+    expect(c.state.result?.filename, golden.fileName);
+    expect(c.state.result?.data, golden.fileBytes);
+    c.dispose();
+  });
 }
