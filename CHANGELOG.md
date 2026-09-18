@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Web: no gap between the frame-delay select and the Encode button.** The select's field is the last child of its two-column wrapper, whose bottom margin was zero; the wrapper now carries the spacing.
+
 ## [0.10.1] — 2026-09-18
 
 ### Added

@@ -246,6 +246,9 @@ input:focus, select:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  /* The wrapper, not its last .field (whose margin is zeroed), spaces the
+     Encode button below the frame-delay select. */
+  margin-bottom: 20px;
 }
 
 /* Strength meter */
