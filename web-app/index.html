@@ -364,7 +364,9 @@ input:focus, select:focus {
 /* Stats */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* auto-fit, not a fixed count: four stats on encode must not leave an
+     orphaned cell on a second row */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1px;
   background: var(--border);
   border-radius: var(--radius-sm);
@@ -900,7 +902,12 @@ async function startEncode() {
     const bodies = Cimbar.frameBodies(frames);
     encodeState = { frames, bodies, fileId, opts, delayMs: frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
 
-    document.getElementById('sFrames').textContent = t('repairInfo', { n: frames.length, r: R });
+    // Big-number cell: keep the value short ("45 + 12") and move the words
+    // into the label, which is re-translated on language switch via data-i18n.
+    document.getElementById('sFrames').textContent = R ? frames.length + ' + ' + R : String(frames.length);
+    const framesLbl = document.querySelector('#sFrames + .stat-lbl');
+    framesLbl.dataset.i18n = R ? 'statFramesCoded' : 'statFrames';
+    framesLbl.textContent = t(framesLbl.dataset.i18n);
     document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
     document.getElementById('sPerFrame').textContent = perFrame;
     document.getElementById('sCompressed').textContent = z.compressed ? Math.round(100 * z.bytes.length / payload.length) + '%' : '—';
