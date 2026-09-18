@@ -3,10 +3,16 @@ import 'dart:typed_data';
 import 'cimbar_spec.dart';
 
 /// The 8-byte frame header at the start of every frame's RS-protected data.
-/// `[ver 0x02][flags bit0=encrypted][fileId u16 BE][seq u16 BE][total u16 BE]`
+/// `[ver 0x02][flags][fileId u16 BE][seq u16 BE][total u16 BE]`, flags bit 0 =
+/// encrypted, bit 1 = repair (v2.1), bit 2 = compressed (v2.1).
+///
+/// On a repair frame `seq` is the repair id `r` (it indexes the coefficient
+/// generator, not a source slot) and is therefore not bounded by `total`.
 class FrameHeader {
   final int version;
   final bool encrypted;
+  final bool repair;
+  final bool compressed;
   final int fileId;
   final int seq;
   final int total;
@@ -14,6 +20,8 @@ class FrameHeader {
   const FrameHeader({
     required this.version,
     required this.encrypted,
+    this.repair = false,
+    this.compressed = false,
     required this.fileId,
     required this.seq,
     required this.total,
@@ -22,7 +30,9 @@ class FrameHeader {
   Uint8List encode() {
     final b = Uint8List(CimbarSpec.headerLen);
     b[0] = version;
-    b[1] = encrypted ? 1 : 0;
+    b[1] = (encrypted ? CimbarSpec.flagEncrypted : 0) |
+        (repair ? CimbarSpec.flagRepair : 0) |
+        (compressed ? CimbarSpec.flagCompressed : 0);
     b[2] = (fileId >> 8) & 0xFF;
     b[3] = fileId & 0xFF;
     b[4] = (seq >> 8) & 0xFF;
@@ -40,21 +50,23 @@ class FrameHeader {
     final flags = bytes[1];
     final h = FrameHeader(
       version: version,
-      encrypted: (flags & 1) == 1,
+      encrypted: (flags & CimbarSpec.flagEncrypted) != 0,
+      repair: (flags & CimbarSpec.flagRepair) != 0,
+      compressed: (flags & CimbarSpec.flagCompressed) != 0,
       fileId: (bytes[2] << 8) | bytes[3],
       seq: (bytes[4] << 8) | bytes[5],
       total: (bytes[6] << 8) | bytes[7],
     );
     if (version != CimbarSpec.version) return HeaderDecode(h, 'version');
-    if ((flags & 0xFE) != 0) return HeaderDecode(h, 'flags');
+    if ((flags & CimbarSpec.flagReserved) != 0) return HeaderDecode(h, 'flags');
     if (h.total < 1) return HeaderDecode(h, 'total');
-    if (h.seq >= h.total) return HeaderDecode(h, 'seq');
+    if (!h.repair && h.seq >= h.total) return HeaderDecode(h, 'seq');
     return HeaderDecode(h, '');
   }
 
   @override
-  String toString() =>
-      'FrameHeader(v$version enc=$encrypted fileId=0x${fileId.toRadixString(16)} seq=$seq total=$total)';
+  String toString() => 'FrameHeader(v$version enc=$encrypted rep=$repair comp=$compressed '
+      'fileId=0x${fileId.toRadixString(16)} seq=$seq total=$total)';
 }
 
 class HeaderDecode {

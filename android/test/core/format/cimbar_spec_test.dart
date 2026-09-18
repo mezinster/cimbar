@@ -41,6 +41,26 @@ void main() {
       expect(CimbarSpec.finderDotOn, (f['dotOn'] as List).cast<String>());
     });
 
+    test('v2.1 coding constants and header flag bits', () {
+      final c = spec['coding'] as Map<String, dynamic>;
+      expect(CimbarSpec.codingIncrement, c['increment']);
+      expect(CimbarSpec.codingMixMul1, c['mixMul1']);
+      expect(CimbarSpec.codingMixMul2, c['mixMul2']);
+      expect(CimbarSpec.codingMaxFrames, c['maxFrames']);
+      expect(CimbarSpec.gifRepairRatio, c['gifRepairRatio']);
+      // The JSON stores bit indices; CimbarSpec stores the masks.
+      final flags = (spec['header'] as Map<String, dynamic>)['flags'] as Map<String, dynamic>;
+      expect(CimbarSpec.flagEncrypted, 1 << (flags['encrypted'] as int));
+      expect(CimbarSpec.flagRepair, 1 << (flags['repair'] as int));
+      expect(CimbarSpec.flagCompressed, 1 << (flags['compressed'] as int));
+      expect(CimbarSpec.flagReserved,
+          0xFF & ~(CimbarSpec.flagEncrypted | CimbarSpec.flagRepair | CimbarSpec.flagCompressed));
+      expect(CimbarSpec.gifRepairCount(1), 0);
+      expect(CimbarSpec.gifRepairCount(2), 1);
+      expect(CimbarSpec.gifRepairCount(5), 2);
+      expect(CimbarSpec.gifRepairCount(345), 87);
+    });
+
     test('palette, tiles, bits, rs, header, capacity, gif', () {
       expect(CimbarSpec.palette, (spec['palette'] as List).map((c) => (c as List).cast<int>()).toList());
       expect(CimbarSpec.tiles, (spec['tiles'] as List).cast<String>());

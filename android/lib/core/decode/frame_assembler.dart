@@ -2,13 +2,11 @@ import 'dart:typed_data';
 
 import '../format/cimbar_spec.dart';
 import '../format/frame_header.dart';
+import 'rateless_assembler.dart' show AddResult;
 
-class AddResult {
-  final bool accepted;
-  final String reason;
-  final FrameHeader? header;
-  const AddResult(this.accepted, this.reason, this.header);
-}
+// AddResult now lives in rateless_assembler.dart (the v2.1 assembler that
+// replaces this one); re-exported so existing importers keep compiling.
+export 'rateless_assembler.dart' show AddResult;
 
 /// Sequence-slot frame assembly (spec §4.4) with the §4.2 acceptance rules.
 /// Reasons match web-app/cimbar.js FrameAssembler: 'rs', header reasons,

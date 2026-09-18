@@ -5,8 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cimbar_scanner/core/decode/diagnostics.dart';
 import 'package:cimbar_scanner/core/decode/frame_decoder.dart';
 import 'package:cimbar_scanner/core/decode/golden_sidecar.dart';
+import 'package:cimbar_scanner/core/decode/rateless_assembler.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
+import 'package:cimbar_scanner/core/format/rateless.dart';
 import 'package:cimbar_scanner/core/services/gif_parser.dart';
+import 'package:cimbar_scanner/core/services/payload_decoder.dart';
 
 String repoPath(String rel) => '../$rel';
 
@@ -24,27 +27,95 @@ void main() {
     expect(sidecars.length, greaterThanOrEqualTo(5));
   });
 
+  /// Assemble, decode the payload and check it against the sidecar's file.
+  void verifyAssembled(RatelessAssembler asm, GoldenSidecar side, String label) {
+    expect(asm.isComplete, isTrue, reason: '$label: rank ${asm.rank}/${asm.total}');
+    final f = decodeFramedPayload(asm.framedData(), side.passphrase ?? '', compressed: side.compressed);
+    expect(f.fileName, side.fileName, reason: '$label: file name');
+    expect(f.fileBytes, side.fileBytes, reason: '$label: file bytes');
+  }
+
   for (final jsonPath in sidecars) {
     test('golden ${jsonPath.split('/').last}: exact decode matches sidecar', () {
       final golden = GoldenSidecar.load(jsonPath);
       final frames = GifParser.parseFrames(File(GoldenSidecar.gifPathFor(jsonPath)).readAsBytesSync());
-      expect(frames.length, golden.total);
+      expect(frames.length, golden.frameCount);
+      expect(golden.sourceFrames + golden.repairFrames, golden.frameCount);
       final decoder = FrameDecoder();
+      final asm = RatelessAssembler();
+      final decoded = <Uint8List>[];
       for (var i = 0; i < frames.length; i++) {
+        final side = golden.frames[i];
         final r = decoder.decodeExact(RgbBuffer.fromImage(frames[i]));
         expect(r.status, DecodeStatus.ok, reason: 'frame $i: ${r.diag.toMap()}');
         expect(r.diag.hammingMax, 0, reason: 'frame $i');
-        expect(r.cells, golden.frames[i].cells, reason: 'frame $i cells');
-        expect(r.raw, golden.frames[i].raw, reason: 'frame $i raw');
-        expect(r.data, golden.frames[i].data, reason: 'frame $i data');
-        expect(r.header!.seq, golden.frames[i].header.seq);
+        expect(r.cells, side.cells, reason: 'frame $i cells');
+        expect(r.raw, side.raw, reason: 'frame $i raw');
+        expect(r.data, side.data, reason: 'frame $i data');
+        expect(r.header!.seq, side.header.seq, reason: 'frame $i seq');
         expect(r.header!.fileId, golden.fileId);
         expect(r.header!.total, golden.total);
         expect(r.header!.encrypted, golden.passphrase != null);
+        expect(r.header!.repair, side.header.repair, reason: 'frame $i repair flag');
+        expect(r.header!.compressed, side.header.compressed, reason: 'frame $i compressed flag');
+        expect(r.header!.compressed, golden.compressed, reason: 'frame $i compressed flag');
+        expect(r.header!.repair, side.repair, reason: 'frame $i sidecar repair');
         expect(r.diag.rsOk, 12);
+        if (side.repair) {
+          expect(side.r, side.header.seq, reason: 'frame $i repair id');
+          final n = golden.total < 12 ? golden.total : 12;
+          expect(side.coef12, Rateless.coefficients(golden.fileId, side.r!, golden.total).sublist(0, n),
+              reason: 'frame $i coefficients');
+        } else {
+          expect(side.coef12, isNull, reason: 'frame $i is a source frame');
+        }
+        decoded.add(r.data!);
+        final add = asm.add(r.data!);
+        // Source frames always add information; a repair frame received after the
+        // assembler is already full rank is legitimately redundant ('dependent').
+        if (!side.repair) expect(add.accepted, isTrue, reason: 'frame $i accepted: ${add.reason}');
+      }
+      verifyAssembled(asm, golden, 'all frames');
+
+      if (golden.repairFrames > 0) {
+        // (a) source frames only.
+        final asmSource = RatelessAssembler();
+        for (var i = 0; i < golden.sourceFrames; i++) {
+          asmSource.add(decoded[i]);
+        }
+        verifyAssembled(asmSource, golden, 'source-only');
+
+        // (b) drop every k-th frame (1-indexed), k = frameCount ~/ repairFrames.
+        final k = decoded.length ~/ golden.repairFrames;
+        final asmDropped = RatelessAssembler();
+        var dropped = 0;
+        for (var i = 0; i < decoded.length; i++) {
+          if ((i + 1) % k == 0) {
+            dropped++;
+            continue;
+          }
+          asmDropped.add(decoded[i]);
+        }
+        expect(dropped, greaterThan(0));
+        expect(dropped, lessThanOrEqualTo(golden.repairFrames));
+        expect(dropped, greaterThanOrEqualTo(1));
+        // At least one dropped frame must be a source frame, or repair rows are untested.
+        expect(k, lessThanOrEqualTo(golden.sourceFrames), reason: 'a source frame must be among the dropped');
+        verifyAssembled(asmDropped, golden, 'dropped every ${k}th');
       }
     });
   }
+
+  test('the coded goldens are present and carry repair frames', () {
+    final coded = sidecars.where((p) => p.contains('lorem_coded')).map(GoldenSidecar.load).toList();
+    expect(coded.length, 2, reason: 'lorem_coded and lorem_coded_enc');
+    for (final side in coded) {
+      expect(side.compressed, isTrue);
+      expect(side.repairFrames, greaterThan(0));
+      expect(side.frameCount, side.sourceFrames + side.repairFrames);
+      expect(side.total, side.sourceFrames);
+    }
+  });
 
   test('decodeExact rejects non-608 images as unsupportedGrid (v1 GIF)', () {
     final v1 = GifParser.parseFrames(File('test/fixtures/test_hello.gif').readAsBytesSync());
