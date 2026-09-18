@@ -47,7 +47,7 @@ function encodeToGif(fileName, fileBytes, fileId) {
 function decodeFromGif(gifBytes, order) {
   const frames = new GifDecoder(gifBytes).decode();
   const rs = new ReedSolomon(F.SPEC.rs.eccBytes);
-  const asm = new C.FrameAssembler();
+  const asm = new C.RatelessAssembler();
   const idx = order || frames.map((_, i) => i);
   for (const i of idx) {
     const r = C.decodeFrameExact(frames[i].imageData);

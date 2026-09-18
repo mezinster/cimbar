@@ -103,23 +103,24 @@ test('splitIntoFrames writes headers and pads the last frame', () => {
   assertEq(frames[2][8 + 5], 0, 'zero padded');
   assertEq(frames[1][8], framed[per], 'second frame starts at byte per');
   assertEq(C.splitIntoFrames(new Uint8Array(0), 1, false).length, 1, 'empty input still yields one frame');
+  assert((F.decodeHeader(C.splitIntoFrames(framed, 1, { compressed: true })[0])).compressed, 'opts object sets bit 2 (compressed)');
 });
 
-test('FrameAssembler accepts, dedups, rejects and completes', () => {
+test('RatelessAssembler accepts, dedups, rejects and completes', () => {
   const per = F.fileBytesPerFrame();
   const framed = seqBytes(per + 10, 5, 2);
   const frames = C.splitIntoFrames(framed, 7, false);
-  const a = new C.FrameAssembler();
+  const a = new C.RatelessAssembler();
   assertEq(a.add(frames[1]).accepted, true);
-  assertEq(a.total, 2); assertEq(a.filled, 1); assert(!a.isComplete());
+  assertEq(a.total, 2); assertEq(a.rank, 1); assert(!a.isComplete());
   assertEq(a.add(frames[1]).reason, 'duplicate');
   const other = C.splitIntoFrames(seqBytes(20, 9, 3), 8, false)[0];
   assertEq(a.add(other).accepted, true, 'fileId change resets and accepts');
-  assertEq(a.total, 1); assertEq(a.fileId, 8); assertEq(a.filled, 1);
+  assertEq(a.total, 1); assertEq(a.fileId, 8); assertEq(a.rank, 1);
   const badVer = frames[0].slice(); badVer[0] = 1;
   assertEq(a.add(badVer).reason, 'version');
   assertEq(a.add(frames[1]).accepted, true, 'fileId change back resets again');
-  assertEq(a.total, 2); assertEq(a.fileId, 7); assertEq(a.filled, 1);
+  assertEq(a.total, 2); assertEq(a.fileId, 7); assertEq(a.rank, 1);
   assertEq(a.add(frames[0], 1).reason, 'rs');
   assertEq(a.add(frames[0]).accepted, true);
   assert(a.isComplete());

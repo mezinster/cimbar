@@ -20,8 +20,16 @@
       { "name": "fileId", "offset": 2, "size": 2 },
       { "name": "seq", "offset": 4, "size": 2 },
       { "name": "total", "offset": 6, "size": 2 }
-    ]
+    ],
+    "flags": { "encrypted": 0, "repair": 1, "compressed": 2 }
   },
   "gif": { "framePx": 608, "delayOptionsMs": [100, 200, 400], "defaultDelayMs": 200 },
-  "capacity": { "usableCells": 3840, "rawBytesPerFrame": 2880, "dataBytesPerFrame": 2112, "fileBytesPerFrame": 2104 }
+  "capacity": { "usableCells": 3840, "rawBytesPerFrame": 2880, "dataBytesPerFrame": 2112, "fileBytesPerFrame": 2104 },
+  "coding": { "field": "GF(256)/0x11D", "prng": "splitmix32-fmix", "increment": 2654435769, "mixMul1": 2246822507, "mixMul2": 3266489909, "maxFrames": 4096, "gifRepairRatio": 0.25,
+    "vectors": [
+      { "fileId": 4660, "r": 0, "coef": [28,109,139,16,186,124,155,221,203,51,25,61] },
+      { "fileId": 4660, "r": 1, "coef": [128,8,126,10,167,74,57,30,16,200,144,103] },
+      { "fileId": 0, "r": 0, "coef": [14,243,204,191,171,157,143,229,84,239,176,155] },
+      { "fileId": 65535, "r": 65535, "coef": [3,182,181,52,55,127,108,1,42,32,112,65] } ] },
+  "compression": { "format": "zlib", "minSaving": 0.05, "maxInflatedBytes": 134217728 }
 }

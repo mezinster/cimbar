@@ -395,7 +395,7 @@ abstract class AppLocalizations {
   /// Progress during live scanning
   ///
   /// In en, this message translates to:
-  /// **'Scanning... {captured}/{total} frames captured'**
+  /// **'Scanning... {captured}/{total} frames'**
   String liveScanProgress(int captured, int total);
 
   /// Status while searching for barcode in camera feed

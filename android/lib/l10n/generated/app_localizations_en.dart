@@ -166,7 +166,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String liveScanProgress(int captured, int total) {
-    return 'Scanning... $captured/$total frames captured';
+    return 'Scanning... $captured/$total frames';
   }
 
   @override

@@ -78,6 +78,34 @@ class CimbarSpec {
   // Header
   static const int headerLen = 8;
 
+  /// Header flag masks. `spec/cimbar-v2.json` stores bit indices
+  /// (encrypted 0, repair 1, compressed 2); these are the masks.
+  static const int flagEncrypted = 1;
+  static const int flagRepair = 2;
+  static const int flagCompressed = 4;
+
+  /// Bits a v2.1 decoder must reject: nothing is defined above bit 2 yet.
+  static const int flagReserved = 0xF8;
+
+  // v2.1 coding layer (spec §5): splitmix32-style coefficient generator.
+  static const int codingIncrement = 0x9E3779B9;
+  static const int codingMixMul1 = 0x85EBCA6B;
+  static const int codingMixMul2 = 0xC2B2AE35;
+
+  /// Above this source-frame count a file is uncoded: repair frames are
+  /// rejected so a crafted `total` can never force O(n^2) elimination.
+  static const int codingMaxFrames = 4096;
+
+  /// Hard cap on inflated payload size (spec §4): a few KB of crafted zlib
+  /// can otherwise expand to gigabytes. Decoders refuse output above this.
+  static const int maxInflatedBytes = 134217728; // 128 MB
+
+  /// Repair frames the GIF encoder ships per source frame.
+  static const double gifRepairRatio = 0.25;
+
+  /// Repair frame count for an n-frame file (matches cimbar.js gifRepairCount).
+  static int gifRepairCount(int n) => n <= 1 ? 0 : (n * gifRepairRatio).ceil();
+
   // Capacity
   static const int usableCells = 3840;
   static const int rawBytesPerFrame = 2880;

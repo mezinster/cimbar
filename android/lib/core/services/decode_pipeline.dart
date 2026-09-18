@@ -4,15 +4,15 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../decode/diagnostics.dart';
-import '../decode/frame_assembler.dart';
 import '../decode/frame_decoder.dart';
+import '../decode/rateless_assembler.dart';
 import '../decode/rgb_buffer.dart';
 import '../format/file_container.dart';
 import '../models/decode_result.dart';
 import 'gif_parser.dart';
 import 'payload_decoder.dart';
 
-/// GIF import: GIF -> frames -> FrameDecoder (exact) -> FrameAssembler ->
+/// GIF import: GIF -> frames -> FrameDecoder (exact) -> RatelessAssembler ->
 /// length prefix -> [decrypt] -> file. Mirrors web-app/index.html startDecode.
 class DecodePipeline {
   final FrameDecoder _decoder = FrameDecoder();
@@ -30,7 +30,7 @@ class DecodePipeline {
 
     yield const DecodeProgress(state: DecodeState.decodingFrames, message: 'Decoding frames...');
 
-    final assembler = FrameAssembler();
+    final assembler = RatelessAssembler();
     var rejected = 0;
     for (var i = 0; i < frames.length; i++) {
       final r = _decoder.decodeExact(RgbBuffer.fromImage(frames[i]));
@@ -50,11 +50,19 @@ class DecodePipeline {
         return;
       }
       final added = assembler.add(data, blocksFailed: r.diag.rsFailed);
-      if (!added.accepted) rejected++;
+      final String frameMsg;
+      if (added.accepted) {
+        frameMsg = 'ok';
+      } else if (added.reason == 'dependent') {
+        frameMsg = 'no new information';
+      } else {
+        rejected++;
+        frameMsg = 'rejected (${added.reason})';
+      }
       yield DecodeProgress(
         state: DecodeState.decodingFrames,
         progress: (i + 1) / frames.length,
-        message: 'Frame ${i + 1}/${frames.length}: ${added.accepted ? 'ok' : 'rejected (${added.reason})'}',
+        message: 'Frame ${i + 1}/${frames.length}: $frameMsg',
       );
     }
 
@@ -68,14 +76,14 @@ class DecodePipeline {
       }
       yield DecodeProgress(
         state: DecodeState.error,
-        message: 'Incomplete: ${assembler.filled} of ${assembler.total} frames decoded ($rejected rejected)',
+        message: 'Incomplete: rank ${assembler.rank} of ${assembler.total} ($rejected rejected)',
       );
       return;
     }
 
     final ParsedFile file;
     try {
-      file = decodeFramedPayload(assembler.framedData(), passphrase);
+      file = decodeFramedPayload(assembler.framedData(), passphrase, compressed: assembler.compressed);
     } on PassphraseRequiredException {
       yield const DecodeProgress(state: DecodeState.error, message: 'This GIF is encrypted: a passphrase is required');
       return;

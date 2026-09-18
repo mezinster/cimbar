@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../decode/diagnostics.dart';
-import '../decode/frame_assembler.dart';
 import '../decode/frame_decoder.dart';
+import '../decode/rateless_assembler.dart';
 import '../decode/rgb_buffer.dart';
 import '../models/decode_result.dart';
 import 'payload_decoder.dart';
@@ -57,7 +57,7 @@ PhotoDecodeResult decodePhotoSync(Uint8List imageBytes, String passphrase) {
     );
   }
   final h = r.header!;
-  if (h.total > 1) {
+  if (h.total > 1 || h.repair) {
     return PhotoDecodeResult(
       error: 'This file spans ${h.total} frames — use Live Scan',
       errorCode: 'multi_frame',
@@ -65,13 +65,13 @@ PhotoDecodeResult decodePhotoSync(Uint8List imageBytes, String passphrase) {
       total: h.total,
     );
   }
-  final asm = FrameAssembler();
+  final asm = RatelessAssembler();
   final added = asm.add(r.data!, blocksFailed: r.diag.rsFailed);
   if (!added.accepted) {
     return PhotoDecodeResult(error: 'Frame rejected (${added.reason})', errorCode: 'decode_failed', diag: diag);
   }
   try {
-    final f = decodeFramedPayload(asm.framedData(), passphrase);
+    final f = decodeFramedPayload(asm.framedData(), passphrase, compressed: asm.compressed);
     return PhotoDecodeResult(result: DecodeResult(filename: f.fileName, data: f.fileBytes), diag: diag);
   } on PassphraseRequiredException {
     return PhotoDecodeResult(

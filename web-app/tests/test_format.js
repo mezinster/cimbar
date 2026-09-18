@@ -12,6 +12,7 @@ function test(name, fn) {
 }
 function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
 function assertEq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'assertEq'}: expected ${b}, got ${a}`); }
+function hex(bytes) { let s = ''; for (const b of bytes) s += b.toString(16).padStart(2, '0'); return s; }
 
 console.log('\ntest_format.js');
 
@@ -117,7 +118,7 @@ test('header encode/decode round trip and validation', () => {
   assert(d.valid, 'valid');
   assertEq(d.fileId, 0xBEEF); assertEq(d.seq, 3); assertEq(d.total, 12); assertEq(d.encrypted, true);
   assertEq(F.decodeHeader(new Uint8Array([1, 0, 0, 0, 0, 0, 0, 1])).reason, 'version');
-  assertEq(F.decodeHeader(new Uint8Array([2, 2, 0, 0, 0, 0, 0, 1])).reason, 'flags');
+  assertEq(F.decodeHeader(new Uint8Array([2, 8, 0, 0, 0, 0, 0, 1])).reason, 'flags');
   assertEq(F.decodeHeader(new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0])).reason, 'total');
   assertEq(F.decodeHeader(new Uint8Array([2, 0, 0, 0, 0, 5, 0, 5])).reason, 'seq');
   assertEq(F.decodeHeader(new Uint8Array([2, 0, 0])).reason, 'short');
@@ -148,6 +149,38 @@ test('cellValue/cellSymbol/cellColor', () => {
 test('HEADER_LEN/FORMAT_VERSION match spec', () => {
   assertEq(F.HEADER_LEN, F.SPEC.header.lengthBytes);
   assertEq(F.FORMAT_VERSION, F.SPEC.header.version);
+});
+
+test('header flags: repair and compressed round trip; reserved bits rejected', () => {
+  const b = F.encodeHeader({ encrypted: true, repair: true, compressed: true, fileId: 0x1234, seq: 65535, total: 3 });
+  assertEq(b[1], 7, 'flags byte');
+  const h = F.decodeHeader(b);
+  assert(h.valid, h.reason);
+  assert(h.encrypted && h.repair && h.compressed, 'flags decoded');
+  assertEq(h.seq, 65535, 'repair id may exceed total');
+  const src = F.decodeHeader(F.encodeHeader({ fileId: 1, seq: 3, total: 3 }));
+  assertEq(src.reason, 'seq', 'source seq must be < total');
+  const reserved = F.encodeHeader({ fileId: 1, seq: 0, total: 1 }); reserved[1] = 8;
+  assertEq(F.decodeHeader(reserved).reason, 'flags', 'bit 3 rejected');
+  assertEq(F.FLAG_REPAIR, 2); assertEq(F.FLAG_COMPRESSED, 4);
+});
+
+test('codingCoefficients matches the spec vectors and is deterministic', () => {
+  for (const v of F.SPEC.coding.vectors) {
+    const c = F.codingCoefficients(v.fileId, v.r, 12);
+    assertEq(Array.from(c).join(','), v.coef.join(','), `vector fileId=${v.fileId} r=${v.r}`);
+  }
+  const a = F.codingCoefficients(0x1234, 0, 400), b = F.codingCoefficients(0x1234, 0, 400);
+  assertEq(hex(a), hex(b), 'deterministic');
+  assertEq(a.length, 400);
+  assertEq(F.SPEC.coding.maxFrames, 4096); assertEq(F.SPEC.coding.gifRepairRatio, 0.25);
+  assertEq(F.SPEC.compression.format, 'zlib'); assertEq(F.SPEC.compression.minSaving, 0.05);
+});
+
+test('ReedSolomon exports GF(256) helpers', () => {
+  const { ReedSolomon } = require('../rs.js');
+  assertEq(ReedSolomon.gfMul(2, 128), 0x1D, 'x * x^7 wraps to 0x11D - 0x100');
+  for (let x = 1; x < 256; x++) assertEq(ReedSolomon.gfMul(x, ReedSolomon.gfInv(x)), 1, `inv ${x}`);
 });
 
 console.log(`Results: ${passed} passed, ${failed} failed`);

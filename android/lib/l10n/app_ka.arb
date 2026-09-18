@@ -48,7 +48,7 @@
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "ვერსია {version}",
   "liveScanButton": "პირდაპირი სკანირება",
-  "liveScanProgress": "სკანირება... {captured}/{total} კადრი დაფიქსირდა",
+  "liveScanProgress": "სკანირება... {captured}/{total} კადრი",
   "liveScanSearching": "CimBar შტრიხკოდის ძიება...",
   "liveScanComplete": "ყველა კადრი დაფიქსირდა!",
   "liveScanError": "სკანირება ვერ მოხერხდა",

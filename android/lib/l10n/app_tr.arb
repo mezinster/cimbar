@@ -48,7 +48,7 @@
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "Sürüm {version}",
   "liveScanButton": "Canlı Tarama",
-  "liveScanProgress": "Taranıyor... {captured}/{total} kare yakalandı",
+  "liveScanProgress": "Taranıyor... {captured}/{total} kare",
   "liveScanSearching": "CimBar barkodu aranıyor...",
   "liveScanComplete": "Tüm kareler yakalandı!",
   "liveScanError": "Tarama başarısız",

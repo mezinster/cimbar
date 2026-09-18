@@ -166,7 +166,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String liveScanProgress(int captured, int total) {
-    return 'Сканування... $captured/$total кадрів захоплено';
+    return 'Сканування... $captured/$total кадрів';
   }
 
   @override

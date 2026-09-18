@@ -16,6 +16,7 @@
 const Fmt = (typeof module !== 'undefined' && module.exports)
   ? require('./format.js')
   : window.CimbarFormat;
+const Rateless = (typeof module !== 'undefined' && module.exports) ? require('./rateless.js') : window.CimbarRateless;
 const SPEC = Fmt.SPEC;
 
 // ── Rendering ────────────────────────────────────────────────────────────
@@ -211,67 +212,44 @@ function decodeRSFrame(raw, rs) {
 
 // ── Frame split and assembly ─────────────────────────────────────────────
 
-/** Split framed data into per-frame data arrays (header + chunk, zero padded). */
-function splitIntoFrames(framedData, fileId, encrypted) {
+function frameOpts(opts) {
+  if (typeof opts === 'boolean') return { encrypted: opts, compressed: false };
+  return { encrypted: !!(opts && opts.encrypted), compressed: !!(opts && opts.compressed) };
+}
+
+/** Split framed data into N source frames (header + body, zero padded). */
+function splitIntoFrames(framedData, fileId, opts) {
+  const o = frameOpts(opts);
   const per = Fmt.fileBytesPerFrame();
   const total = Math.max(1, Math.ceil(framedData.length / per));
   if (total > 65535) throw new Error(`File too large: needs ${total} frames (max 65535)`);
   const frames = [];
   for (let seq = 0; seq < total; seq++) {
     const f = new Uint8Array(Fmt.dataBytesPerFrame());
-    f.set(Fmt.encodeHeader({ encrypted, fileId, seq, total }), 0);
-    const start = seq * per;
-    const end = Math.min(framedData.length, start + per);
+    f.set(Fmt.encodeHeader({ encrypted: o.encrypted, compressed: o.compressed, fileId, seq, total }), 0);
+    const start = seq * per, end = Math.min(framedData.length, start + per);
     if (end > start) f.set(framedData.subarray(start, end), Fmt.HEADER_LEN);
     frames.push(f);
   }
   return frames;
 }
 
-class FrameAssembler {
-  constructor() { this.reset(); }
-
-  reset() {
-    this.fileId = null;
-    this.total = 0;
-    this.encrypted = false;
-    this.slots = [];
-    this.filled = 0;
-  }
-
-  /**
-   * data: Uint8Array(dataBytesPerFrame) after RS decode; blocksFailed: count
-   * from decodeRSFrame — any failed block rejects the frame (spec §4.2).
-   */
-  add(data, blocksFailed = 0) {
-    if (blocksFailed > 0) return { accepted: false, reason: 'rs', header: null };
-    const h = Fmt.decodeHeader(data);
-    if (!h.valid) return { accepted: false, reason: h.reason, header: h };
-    if (this.fileId !== null && h.fileId !== this.fileId) this.reset();
-    if (this.fileId !== null && h.total !== this.total) return { accepted: false, reason: 'total', header: h };
-    if (this.fileId === null) {
-      this.fileId = h.fileId;
-      this.total = h.total;
-      this.encrypted = h.encrypted;
-      this.slots = new Array(h.total).fill(null);
-    }
-    if (this.slots[h.seq]) return { accepted: false, reason: 'duplicate', header: h };
-    this.slots[h.seq] = data.slice(Fmt.HEADER_LEN);
-    this.filled++;
-    return { accepted: true, reason: '', header: h };
-  }
-
-  isComplete() { return this.total > 0 && this.filled === this.total; }
-
-  /** Concatenated frame bodies (still carries the u32 length prefix + zero padding). */
-  framedData() {
-    if (!this.isComplete()) throw new Error(`Incomplete: ${this.filled}/${this.total} frames`);
-    const per = Fmt.fileBytesPerFrame();
-    const out = new Uint8Array(per * this.total);
-    for (let i = 0; i < this.total; i++) out.set(this.slots[i], i * per);
-    return out;
-  }
+/** Repair frame r for the N source bodies (each fileBytesPerFrame long). */
+function repairFrame(bodies, fileId, r, opts) {
+  const o = frameOpts(opts);
+  const n = bodies.length;
+  const coef = Fmt.codingCoefficients(fileId, r, n);
+  if (coef.every(c => c === 0)) { const e = new Error('degenerate repair id ' + r); e.degenerate = true; throw e; }
+  const f = new Uint8Array(Fmt.dataBytesPerFrame());
+  f.set(Fmt.encodeHeader({ encrypted: o.encrypted, compressed: o.compressed, repair: true, fileId, seq: r, total: n }), 0);
+  f.set(Rateless.combineBodies(bodies, coef), Fmt.HEADER_LEN);
+  return f;
 }
+
+/** Bodies of source frames produced by splitIntoFrames. */
+function frameBodies(frames) { return frames.map(f => f.subarray(Fmt.HEADER_LEN)); }
+
+function gifRepairCount(n) { return n <= 1 ? 0 : Math.ceil(n * SPEC.coding.gifRepairRatio); }
 
 // ── File container helpers ───────────────────────────────────────────────
 
@@ -311,7 +289,8 @@ function stripLengthPrefix(bytes) {
 const API = {
   renderFrame, decodeFrameExact,
   encodeRSFrame, decodeRSFrame,
-  splitIntoFrames, FrameAssembler,
+  splitIntoFrames, repairFrame, frameBodies, gifRepairCount,
+  RatelessAssembler: Rateless.RatelessAssembler,
   buildPayload, parsePayload, withLengthPrefix, stripLengthPrefix,
   // exported for tests
   drawTile, drawFinder, finderOrigin,

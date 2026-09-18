@@ -70,10 +70,12 @@ function hexToTile(hex) {
 const _tiles = SPEC.tiles.map(hexToTile);
 function tileBits(sym) { return _tiles[sym]; }
 
+const FLAG_ENCRYPTED = 1, FLAG_REPAIR = 2, FLAG_COMPRESSED = 4, FLAG_RESERVED = 0xF8;
+
 function encodeHeader(h) {
   const b = new Uint8Array(HEADER_LEN);
   b[0] = FORMAT_VERSION;
-  b[1] = h.encrypted ? 1 : 0;
+  b[1] = (h.encrypted ? FLAG_ENCRYPTED : 0) | (h.repair ? FLAG_REPAIR : 0) | (h.compressed ? FLAG_COMPRESSED : 0);
   b[2] = (h.fileId >> 8) & 0xFF; b[3] = h.fileId & 0xFF;
   b[4] = (h.seq >> 8) & 0xFF;    b[5] = h.seq & 0xFF;
   b[6] = (h.total >> 8) & 0xFF;  b[7] = h.total & 0xFF;
@@ -81,20 +83,42 @@ function encodeHeader(h) {
 }
 
 function decodeHeader(bytes) {
-  const h = { valid: false, reason: '', version: 0, encrypted: false, fileId: 0, seq: 0, total: 0 };
+  const h = { valid: false, reason: '', version: 0, encrypted: false, repair: false, compressed: false, fileId: 0, seq: 0, total: 0 };
   if (!bytes || bytes.length < HEADER_LEN) { h.reason = 'short'; return h; }
   h.version = bytes[0];
   const flags = bytes[1];
-  h.encrypted = (flags & 1) === 1;
+  h.encrypted = (flags & FLAG_ENCRYPTED) !== 0;
+  h.repair = (flags & FLAG_REPAIR) !== 0;
+  h.compressed = (flags & FLAG_COMPRESSED) !== 0;
   h.fileId = (bytes[2] << 8) | bytes[3];
   h.seq = (bytes[4] << 8) | bytes[5];
   h.total = (bytes[6] << 8) | bytes[7];
   if (h.version !== FORMAT_VERSION) { h.reason = 'version'; return h; }
-  if ((flags & 0xFE) !== 0) { h.reason = 'flags'; return h; }
+  if ((flags & FLAG_RESERVED) !== 0) { h.reason = 'flags'; return h; }
   if (h.total < 1) { h.reason = 'total'; return h; }
-  if (h.seq >= h.total) { h.reason = 'seq'; return h; }
+  if (!h.repair && h.seq >= h.total) { h.reason = 'seq'; return h; }
   h.valid = true;
   return h;
+}
+
+/**
+ * Repair-row coefficients for (fileId, r): a splitmix32-style generator
+ * (linear state advance, murmur3 fmix32 output mix — non-linear, so rows
+ * for different r are not confined to a small linear subspace) seeded from
+ * the header alone (spec §5.3).
+ */
+function codingCoefficients(fileId, r, n) {
+  let state = (((fileId & 0xFFFF) << 16) | (r & 0xFFFF)) >>> 0;
+  const out = new Uint8Array(n);
+  for (let j = 0; j < n; j++) {
+    state = (state + SPEC.coding.increment) >>> 0;
+    let z = state;
+    z = Math.imul(z ^ (z >>> 16), SPEC.coding.mixMul1) >>> 0;
+    z = Math.imul(z ^ (z >>> 13), SPEC.coding.mixMul2) >>> 0;
+    z = (z ^ (z >>> 16)) >>> 0;
+    out[j] = z & 0xFF;
+  }
+  return out;
 }
 
 function packCells(raw) {
@@ -132,10 +156,11 @@ function cellColor(v) { return v & 0x3; }
 
 const API = {
   SPEC, HEADER_LEN, FORMAT_VERSION, BITS_PER_CELL,
+  FLAG_ENCRYPTED, FLAG_REPAIR, FLAG_COMPRESSED,
   isReservedCell, usableCellPositions, usableCells, cellOrigin,
   rawBytesPerFrame, rsBlockSizes, dataBytesPerFrame, fileBytesPerFrame,
   hexToTile, tileBits,
-  encodeHeader, decodeHeader,
+  encodeHeader, decodeHeader, codingCoefficients,
   packCells, unpackCells, cellValue, cellSymbol, cellColor,
 };
 

@@ -47,7 +47,7 @@ void main() {
   test('an ok outcome fills its sequence slot and completes the file', () {
     final c = LiveScanController();
     c.onOutcomeForTest(outcome(status: DecodeStatus.ok, data: frameData, corners: quad()));
-    expect(c.state.filled, 1);
+    expect(c.state.rank, 1);
     expect(c.state.total, 1);
     expect(c.state.isComplete, isTrue);
     expect(c.state.framesAnalyzed, 1);
@@ -98,6 +98,49 @@ void main() {
     // Already locked: a second located frame does not ask again.
     c.onOutcomeForTest(outcome(status: DecodeStatus.ok, data: frameData, corners: quad()));
     expect(c.state.pendingLock, LockAction.none);
+    c.dispose();
+  });
+
+  test('rateless assembly: rank climbs across source and repair frames, then holds', () {
+    final golden = GoldenSidecar.load('../test-data/goldens/lorem_coded.json');
+    final frames = golden.frames; // [0..4] source, [5] repair r=0, [6] repair r=1
+
+    FrameOutcome outcomeFor(int index) {
+      final f = frames[index];
+      return outcome(
+        status: DecodeStatus.ok,
+        data: f.data,
+        corners: quad(),
+        seq: f.header.seq,
+        total: f.header.total,
+      );
+    }
+
+    final c = LiveScanController();
+    // repair r=0 (index 5), source 1, source 0, source 2, source 3: rank climbs 1..5,
+    // completing the file at total == 5.
+    final order = [5, 1, 0, 2, 3];
+    for (var i = 0; i < order.length; i++) {
+      c.onOutcomeForTest(outcomeFor(order[i]));
+      expect(c.state.rank, i + 1, reason: 'after feeding index ${order[i]}');
+    }
+    expect(c.state.total, 5);
+    expect(c.state.isComplete, isTrue);
+
+    // source 4 (index 4) arrives after the file is already full rank: legitimately
+    // redundant ('dependent'), rank unchanged.
+    c.onOutcomeForTest(outcomeFor(4));
+    expect(c.state.rank, 5);
+
+    // Feeding source 1 again is a duplicate: rank unchanged.
+    c.onOutcomeForTest(outcomeFor(1));
+    expect(c.state.rank, 5);
+
+    // A never-seen repair row (r=1, index 6) arriving after completion: dependent,
+    // rank unchanged.
+    c.onOutcomeForTest(outcomeFor(6));
+    expect(c.state.rank, 5);
+
     c.dispose();
   });
 }

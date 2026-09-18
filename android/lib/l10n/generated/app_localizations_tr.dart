@@ -166,7 +166,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String liveScanProgress(int captured, int total) {
-    return 'Taranıyor... $captured/$total kare yakalandı';
+    return 'Taranıyor... $captured/$total kare';
   }
 
   @override
