@@ -17,6 +17,9 @@ node tests/test_frame.js
 echo ""; echo "--- Reed-Solomon ---"
 node tests/test_rs.js
 
+echo ""; echo "--- Compression ---"
+node tests/test_compress.js
+
 echo ""; echo "--- Goldens ---"
 node tests/test_goldens.js
 
