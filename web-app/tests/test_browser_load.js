@@ -67,6 +67,15 @@ test('the globals the inline page script uses are all defined', () => {
   }
 });
 
+test('the About tab declares the app version and matches the newest CHANGELOG release', () => {
+  const m = html.match(/<span id="appVersion" data-version="(\d+\.\d+\.\d+)">/);
+  assert(m, 'index.html must carry <span id="appVersion" data-version="x.y.z">');
+  const changelog = fs.readFileSync(path.join(root, '..', 'CHANGELOG.md'), 'utf8');
+  const newest = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m)[1];
+  assert(m[1] === newest, `index.html data-version ${m[1]} but the newest CHANGELOG release is ${newest}`);
+  assert(/<span id="buildSha">dev<\/span>/.test(html), 'index.html must carry <span id="buildSha">dev</span> for the deploy workflow to stamp');
+});
+
 (async () => {
   console.log('\ntest_browser_load.js');
   for (const t of tests) {

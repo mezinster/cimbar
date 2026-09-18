@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Android: share sheet listed only a few apps.** Shared files now carry an explicit MIME type (`mime` package) and the manifest declares `SEND`/`SEND_MULTIPLE`/`VIEW` package-visibility queries, the same fix NFC Archiver needed for Telegram and other strict targets. The `READ_MEDIA_*` permissions `open_filex` would merge in are stripped.
+- **Version display.** The Android About screen showed `1.0.0+1` on any locally built APK — the pubspec placeholder, never a released version; pubspec now names the newest CHANGELOG release (`test/version_test.dart` enforces it) and non-release builds append "(debug)". The web About tab showed no version at all; it now shows `CimBar web vX.Y.Z · build <sha>` (version checked against the CHANGELOG by `test_browser_load.js`, sha stamped by the deploy workflow).
 - **Android: `errorPassphraseRequired` was untranslated** in Russian, Ukrainian, Turkish and Georgian.
 - **Web: encode stats panel.** The fourth stat (compression) no longer sits alone on a second row with an empty cell beside it (the grid now auto-fits its columns), and the frames stat shows a short `45 + 12` value with "Frames (source + repair)" as its label instead of a wrapped sentence in the big-number font. The compression stat is labelled "Compressed to" so `92%` reads as a size, not a saving.
 

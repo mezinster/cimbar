@@ -64,6 +64,8 @@ jobs:
           cd ../site
           awk -v m="<!-- cimbar-build:${SHA} -->" '/<\/head>/ && !done { print m; done=1 } { print }' index.html > index.tmp
           mv index.tmp index.html
+          # Visible counterpart of the marker, shown in the About tab.
+          sed -i "s|<span id=\"buildSha\">dev</span>|<span id=\"buildSha\">${SHA}</span>|" index.html
 
       - name: Verify the staged bundle
         env:
@@ -76,6 +78,8 @@ jobs:
           cd site
           n=$(grep -c "<!-- cimbar-build:${SHA} -->" index.html || true)
           [ "$n" -eq 1 ] || { echo "::error::build marker occurs $n times in index.html (want 1)"; exit 1; }
+          v=$(grep -c "<span id=\"buildSha\">${SHA}</span>" index.html || true)
+          [ "$v" -eq 1 ] || { echo "::error::visible build stamp occurs $v times in index.html (want 1)"; exit 1; }
           missing=0
           for src in $(grep -oE '<script src="[^"]+"' index.html | sed -E 's/.*src="([^"]+)"/\1/'); do
             case "$src" in
