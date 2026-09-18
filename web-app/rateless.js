@@ -26,9 +26,23 @@ function combineBodies(bodies, coef) {
   return out;
 }
 
-/** row -= c * pivot, over coefficients from column `from` and the whole body. */
+/**
+ * row -= c * pivot, over coefficients from column `from` and the whole body.
+ * `row` is always a materialised (dense) row. `pivot.coef === null` means
+ * the pivot is the unmaterialised unit vector e_from (a systematic source
+ * pivot that has never needed arithmetic): row -= c*e_from only zeroes
+ * row.coef[from] (e_from is 1 there and 0 everywhere else), no dense pivot
+ * array is read or allocated.
+ */
 function subtractScaled(row, pivot, c, from) {
-  const rc = row.coef, pc = pivot.coef, rb = row.body, pb = pivot.body;
+  const rb = row.body, pb = pivot.body;
+  if (pivot.coef === null) {
+    row.coef[from] = 0;
+    if (c === 1) { for (let i = 0; i < rb.length; i++) rb[i] ^= pb[i]; }
+    else { for (let i = 0; i < rb.length; i++) if (pb[i]) rb[i] ^= gfMul(c, pb[i]); }
+    return;
+  }
+  const rc = row.coef, pc = pivot.coef;
   if (c === 1) {
     for (let k = from; k < rc.length; k++) rc[k] ^= pc[k];
     for (let i = 0; i < rb.length; i++) rb[i] ^= pb[i];
@@ -44,6 +58,29 @@ function scaleRow(row, inv, from) {
   for (let i = 0; i < row.body.length; i++) if (row.body[i]) row.body[i] = gfMul(inv, row.body[i]);
 }
 
+/**
+ * Recovers the N source bodies from any N independent rows (source and/or
+ * repair frames) by incremental Gaussian elimination over GF(256).
+ *
+ * Memory: an uncoded systematic source frame whose column is still free is
+ * stored as `{ coef: null, body }` — the implicit unit vector e_seq — with
+ * no O(n) coefficient array allocated. Only a row that needs real
+ * arithmetic (a repair frame, or a source frame whose column a repair
+ * pivot already occupies) is materialised to a dense `Uint8Array(n)`. This
+ * keeps an all-source v2 file (`total` up to 65535) at O(n) memory instead
+ * of O(n²): `total > SPEC.coding.maxFrames` additionally rejects repair
+ * frames outright (reason `uncoded`) so a crafted large `total` can never
+ * force dense elimination at all.
+ *
+ * `counts` (all four count only ACCEPTED-vs-rejected outcomes, mutually
+ * exclusive per frame):
+ *  - `source` / `repair`: accepted rows of that kind (pivot stored, rank
+ *    increased) — NOT incremented for a row that is rejected as duplicate
+ *    or dependent, or for a repair row rejected as `uncoded`.
+ *  - `duplicate`: a source seq or repair id already seen for this file.
+ *  - `dependent`: a valid, non-duplicate row whose coefficients reduce to
+ *    all-zero against the current pivots (no new information).
+ */
 class RatelessAssembler {
   constructor() { this.reset(); }
 
@@ -54,7 +91,10 @@ class RatelessAssembler {
     this._bodies = null;
   }
 
-  /** data: Uint8Array(dataBytesPerFrame) after RS decode. Reasons: rs, header reasons, total, flags, duplicate, dependent. */
+  /** Count of stored pivots that hold a materialised (dense) coefficient array — for tests/diagnostics only. */
+  denseRows() { let n = 0; for (const p of this.pivots) if (p !== null && p.coef !== null) n++; return n; }
+
+  /** data: Uint8Array(dataBytesPerFrame) after RS decode. Reasons: rs, header reasons, total, flags, uncoded, duplicate, dependent. */
   add(data, blocksFailed = 0) {
     if (blocksFailed > 0) return { accepted: false, reason: 'rs', header: null };
     const h = Fmt.decodeHeader(data);
@@ -66,16 +106,32 @@ class RatelessAssembler {
       this.fileId = h.fileId; this.total = h.total; this.encrypted = h.encrypted; this.compressed = h.compressed;
       this.pivots = new Array(h.total).fill(null);
     }
+    const n = this.total;
+    // Decoder-side guard: an uncoded (all-source) file can claim any total
+    // up to 65535 with no coding cost; a repair frame on such a file would
+    // force O(n) dense arrays per row (O(n²) total) for a file the encoder
+    // never actually protects with repair frames beyond maxFrames.
+    if (h.repair && n > Fmt.SPEC.coding.maxFrames) return { accepted: false, reason: 'uncoded', header: h };
     const seen = h.repair ? this.seenRepair : this.seenSource;
     if (seen.has(h.seq)) { this.counts.duplicate++; return { accepted: false, reason: 'duplicate', header: h }; }
     seen.add(h.seq);
-    const n = this.total;
     const body = data.slice(Fmt.HEADER_LEN);
-    let coef;
-    if (h.repair) { coef = Fmt.codingCoefficients(h.fileId, h.seq, n); this.counts.repair++; }
-    else { coef = new Uint8Array(n); coef[h.seq] = 1; this.counts.source++; }
-    const row = { coef, body };
+
+    if (!h.repair && this.pivots[h.seq] === null) {
+      // Fast path: source frame, free column — store the unit vector e_seq
+      // without ever allocating a coefficient array.
+      this.pivots[h.seq] = { coef: null, body };
+      this.rank++;
+      this.counts.source++;
+      this._bodies = null;
+      return { accepted: true, reason: '', header: h };
+    }
+
     if (this.rank >= n) { this.counts.dependent++; return { accepted: false, reason: 'dependent', header: h }; }
+    let coef;
+    if (h.repair) coef = Fmt.codingCoefficients(h.fileId, h.seq, n);
+    else { coef = new Uint8Array(n); coef[h.seq] = 1; }
+    const row = { coef, body };
     // forward elimination against existing pivots
     for (let c = 0; c < n; c++) {
       const v = row.coef[c];
@@ -88,6 +144,7 @@ class RatelessAssembler {
     scaleRow(row, gfInv(row.coef[p]), p);
     this.pivots[p] = row;
     this.rank++;
+    if (h.repair) this.counts.repair++; else this.counts.source++;
     this._bodies = null;
     return { accepted: true, reason: '', header: h };
   }
@@ -101,6 +158,7 @@ class RatelessAssembler {
       const n = this.total;
       for (let c = n - 1; c >= 0; c--) {
         const pr = this.pivots[c];
+        if (pr.coef === null) continue; // already the unit vector e_c — nothing to reduce
         for (let k = c + 1; k < n; k++) {
           const v = pr.coef[k];
           if (v !== 0) subtractScaled(pr, this.pivots[k], v, k);

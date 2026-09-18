@@ -92,7 +92,7 @@ test('duplicates and dependent rows leave rank unchanged; counters and flags mis
   for (const d of src) assert(b.add(d).accepted);
   assertEq(b.rank, 4); assert(b.isComplete());
   const r = b.add(rep[3]); assertEq(r.reason, 'dependent', 'full-rank assembler treats any new row as dependent'); assertEq(b.rank, 4);
-  assertEq(b.counts.source, 4); assertEq(b.counts.dependent, 1);
+  assertEq(b.counts.source, 4); assertEq(b.counts.repair, 0, 'the dependent repair row must not be counted'); assertEq(b.counts.dependent, 1);
   // flags mismatch: a frame claiming uncompressed for the same file is rejected
   const mismatch = new Uint8Array(src[1]); mismatch.set(F.encodeHeader({ fileId: 0x3000, seq: 1, total: 4 }), 0);
   assertEq(a.add(mismatch).reason, 'flags', 'bit 2 must match the first accepted frame');
@@ -104,6 +104,43 @@ test('systematic fast path: in-order source frames never need arithmetic', () =>
   const a = new R.RatelessAssembler();
   for (const d of src) assert(a.add(d).accepted);
   assert(a.isComplete()); assertEq(a.counts.repair, 0);
+});
+
+test('memory bound: an all-source, in-order file never materialises a dense coefficient array', () => {
+  const n = 200;
+  const { src, bodies } = frameSet(n, 11, 0x6000, 0);
+  const a = new R.RatelessAssembler();
+  for (const d of src) assert(a.add(d).accepted);
+  assert(a.isComplete());
+  assertEq(a.denseRows(), 0, 'an all-source, in-order file must never materialise a dense coefficient array');
+  const out = a.framedData();
+  for (let i = 0; i < n; i++) assertEq(hex(out.subarray(i * PER, (i + 1) * PER)), hex(bodies[i]), `body ${i}`);
+
+  const b = new R.RatelessAssembler();
+  assert(b.add(C.repairFrame(bodies, 0x6000, 0, {})).accepted);
+  assertEq(b.denseRows(), 1, 'a repair row is always materialised (it needs real coefficients)');
+});
+
+test('memory bound: total beyond maxFrames accepts source frames only (uncoded mode)', () => {
+  const maxFrames = F.SPEC.coding.maxFrames;
+  const n = maxFrames + 1;
+  const fileId = 0x7000;
+
+  const srcFrame = new Uint8Array(F.dataBytesPerFrame());
+  srcFrame.set(F.encodeHeader({ fileId, seq: 0, total: n }), 0);
+  srcFrame.set(seqBytes(PER, 42), F.HEADER_LEN);
+
+  const repFrame = new Uint8Array(F.dataBytesPerFrame());
+  repFrame.set(F.encodeHeader({ repair: true, fileId, seq: 0, total: n }), 0);
+  repFrame.set(seqBytes(PER, 43), F.HEADER_LEN);
+
+  const a = new R.RatelessAssembler();
+  const rSrc = a.add(srcFrame);
+  assert(rSrc.accepted, 'source frame accepted even when total exceeds maxFrames');
+  assertEq(a.total, n);
+  const rRep = a.add(repFrame);
+  assertEq(rRep.reason, 'uncoded', 'repair frame rejected when total exceeds maxFrames');
+  assertEq(a.denseRows(), 0, 'uncoded-mode acceptance never materialises a dense array');
 });
 
 (async () => {
