@@ -96,6 +96,10 @@ class CimbarSpec {
   /// rejected so a crafted `total` can never force O(n^2) elimination.
   static const int codingMaxFrames = 4096;
 
+  /// Hard cap on inflated payload size (spec §4): a few KB of crafted zlib
+  /// can otherwise expand to gigabytes. Decoders refuse output above this.
+  static const int maxInflatedBytes = 134217728; // 128 MB
+
   /// Repair frames the GIF encoder ships per source frame.
   static const double gifRepairRatio = 0.25;
 

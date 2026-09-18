@@ -37,7 +37,7 @@ class _Row {
 /// [repairCount] count ACCEPTED rows of that kind only (a row rejected as
 /// duplicate, dependent or uncoded is not counted there).
 ///
-/// Reasons match web-app/rateless.js: 'rs', the header reasons, 'total',
+/// Reasons match web-app/rateless.js: 'rs', 'short', the header reasons, 'total',
 /// 'flags', 'uncoded', 'duplicate', 'dependent'; '' when accepted.
 class RatelessAssembler {
   int? fileId;
@@ -84,6 +84,10 @@ class RatelessAssembler {
   /// data: dataBytesPerFrame bytes after RS decode; blocksFailed: from RsFraming.
   AddResult add(Uint8List data, {int blocksFailed = 0}) {
     if (blocksFailed > 0) return const AddResult(false, 'rs', null);
+    // A truncated buffer would yield a short body and corrupt elimination.
+    if (data.length < CimbarSpec.dataBytesPerFrame) {
+      return const AddResult(false, 'short', null);
+    }
     final hd = FrameHeader.decode(data);
     if (!hd.valid) return AddResult(false, hd.reason, hd.header);
     final h = hd.header!;

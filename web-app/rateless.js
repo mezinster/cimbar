@@ -94,9 +94,11 @@ class RatelessAssembler {
   /** Count of stored pivots that hold a materialised (dense) coefficient array — for tests/diagnostics only. */
   denseRows() { let n = 0; for (const p of this.pivots) if (p !== null && p.coef !== null) n++; return n; }
 
-  /** data: Uint8Array(dataBytesPerFrame) after RS decode. Reasons: rs, header reasons, total, flags, uncoded, duplicate, dependent. */
+  /** data: Uint8Array(dataBytesPerFrame) after RS decode. Reasons: rs, short, header reasons, total, flags, uncoded, duplicate, dependent. */
   add(data, blocksFailed = 0) {
     if (blocksFailed > 0) return { accepted: false, reason: 'rs', header: null };
+    // A truncated buffer would yield a short body and corrupt elimination.
+    if (data.length < Fmt.dataBytesPerFrame()) return { accepted: false, reason: 'short', header: null };
     const h = Fmt.decodeHeader(data);
     if (!h.valid) return { accepted: false, reason: h.reason, header: h };
     if (this.fileId !== null && h.fileId !== this.fileId) this.reset();

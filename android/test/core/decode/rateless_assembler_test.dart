@@ -85,6 +85,18 @@ void main() {
     expect(a.total, 0);
   });
 
+  test('rejects a short frame buffer before header decode', () {
+    final a = RatelessAssembler();
+    final full = frame(fileId: 7, seq: 0, total: 3);
+    final truncated = Uint8List.sublistView(full, 0, CimbarSpec.dataBytesPerFrame - 1);
+    final r = a.add(truncated);
+    expect(r.accepted, isFalse);
+    expect(r.reason, 'short');
+    expect(r.header, isNull);
+    expect(a.total, 0, reason: 'assembler state untouched');
+    expect(a.add(full).accepted, isTrue, reason: 'a full frame is still accepted afterwards');
+  });
+
   test('rejects invalid headers with the header reason', () {
     final a = RatelessAssembler();
     final bad = frame(fileId: 7, seq: 0, total: 1);

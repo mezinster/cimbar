@@ -48,6 +48,8 @@ void main() {
       expect(CimbarSpec.codingMixMul2, c['mixMul2']);
       expect(CimbarSpec.codingMaxFrames, c['maxFrames']);
       expect(CimbarSpec.gifRepairRatio, c['gifRepairRatio']);
+      final comp = spec['compression'] as Map<String, dynamic>;
+      expect(CimbarSpec.maxInflatedBytes, comp['maxInflatedBytes']);
       // The JSON stores bit indices; CimbarSpec stores the masks.
       final flags = (spec['header'] as Map<String, dynamic>)['flags'] as Map<String, dynamic>;
       expect(CimbarSpec.flagEncrypted, 1 << (flags['encrypted'] as int));

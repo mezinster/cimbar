@@ -143,6 +143,35 @@ test('memory bound: total beyond maxFrames accepts source frames only (uncoded m
   assertEq(a.denseRows(), 0, 'uncoded-mode acceptance never materialises a dense array');
 });
 
+test('a short frame buffer is rejected before header decode', () => {
+  const { src } = frameSet(3, 77, 0x7100, 0);
+  const a = new R.RatelessAssembler();
+  const truncated = src[0].slice(0, F.dataBytesPerFrame() - 1);
+  const r = a.add(truncated);
+  assertEq(r.accepted, false, 'rejected');
+  assertEq(r.reason, 'short', 'reason');
+  assertEq(r.header, null, 'header not decoded');
+  assertEq(a.total, 0, 'assembler state untouched');
+  assert(a.add(src[0]).accepted, 'a full frame is still accepted afterwards');
+});
+
+test('repairFrame stays under 50 ms for a 345-frame file', () => {
+  const n = 345, fileId = 0x7200;
+  const bodies = sources(n, 991);
+  const times = [];
+  for (let i = 0; i < 5; i++) {
+    const t0 = process.hrtime.bigint();
+    const f = C.repairFrame(bodies, fileId, i, {});
+    const t1 = process.hrtime.bigint();
+    assertEq(f.length, F.dataBytesPerFrame(), 'repair frame size');
+    times.push(Number(t1 - t0) / 1e6);
+  }
+  times.sort((a, b) => a - b);
+  const median = times[2];
+  console.log(`        repairFrame N=${n}: median ${median.toFixed(1)} ms over 5 runs (${times.map(x => x.toFixed(1)).join(', ')})`);
+  assert(median < 50, `median ${median.toFixed(1)} ms exceeds the 50 ms budget`);
+});
+
 (async () => {
   console.log('\ntest_rateless.js');
   for (const t of tests) { try { await t.f(); passed++; console.log(`  PASS  ${t.n}`); } catch (e) { failed++; console.log(`  FAIL  ${t.n}: ${e.message}`); } }

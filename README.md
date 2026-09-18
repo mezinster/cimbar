@@ -50,7 +50,7 @@ The stats panel shows the frame count as "N source + R repair" (see "Why large f
 
 ### Why large files finish faster
 
-A downloaded GIF carries its N source frames plus about 25% extra *repair* frames, and **Present full screen** doesn't loop at all: it shows the N source frames once, then keeps generating and showing repair frames for as long as the window stays open. Either way, a decoder — GIF import, live scan, or a photo of a single-frame barcode — only ever needs to capture *any* N of those frames, source or repair, in any order, to reconstruct the file. That removes the old failure mode where a scan would catch almost everything quickly and then stall waiting to specifically re-catch the one or two frames it kept missing.
+A downloaded GIF carries its N source frames plus about 25% extra *repair* frames, and **Present full screen** doesn't loop at all: it shows the N source frames once, then keeps generating and showing repair frames for as long as the window stays open (for a single-frame file, or one above the 4096-frame coding cap, there are no repair frames and present mode loops the source pass instead). Either way, a decoder — GIF import, live scan, or a photo of a single-frame barcode — only ever needs to capture *any* N of those frames, source or repair, in any order, to reconstruct the file. That removes the old failure mode where a scan would catch almost everything quickly and then stall waiting to specifically re-catch the one or two frames it kept missing.
 
 ---
 
@@ -189,7 +189,7 @@ cd android
 sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
 ```
 
-The suite (231 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
+The suite (233 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 

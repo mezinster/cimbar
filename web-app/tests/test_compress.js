@@ -31,6 +31,41 @@ test('inflate rejects garbage', async () => {
   assert(threw, 'must throw');
 });
 
+test('a browser without CompressionStream still encodes (payload left raw)', async () => {
+  const text = new TextEncoder().encode('lorem ipsum dolor sit amet, '.repeat(500));
+  const saved = Z._impl.hasCompression;
+  Z._impl.hasCompression = () => false;
+  try {
+    const r = await Z.maybeDeflate(text);
+    assertEq(r.compressed, false, 'not compressed without CompressionStream');
+    assert(r.bytes === text, 'same buffer returned');
+  } finally { Z._impl.hasCompression = saved; }
+});
+
+test('a browser without DecompressionStream reports an unsupported error', async () => {
+  const deflated = await Z.deflateBytes(new TextEncoder().encode('x'.repeat(4096)));
+  const saved = Z._impl.hasDecompression;
+  Z._impl.hasDecompression = () => false;
+  let err = null;
+  try { await Z.inflateBytes(deflated); } catch (e) { err = e; } finally { Z._impl.hasDecompression = saved; }
+  assert(err !== null, 'must throw');
+  assertEq(err.unsupported, true, 'marked unsupported');
+  assert(!err.tooLarge, 'not a size error');
+});
+
+test('inflate refuses output past the cap (zip-bomb guard)', async () => {
+  const zeros = new Uint8Array(2 * 1024 * 1024);
+  const deflated = await Z.deflateBytes(zeros);
+  assert(deflated.length < 16 * 1024, `expected a tiny stream, got ${deflated.length}`);
+  let err = null;
+  try { await Z.inflateBytes(deflated, 64 * 1024); } catch (e) { err = e; }
+  assert(err !== null, 'must throw past the cap');
+  assertEq(err.tooLarge, true, 'marked tooLarge');
+  const back = await Z.inflateBytes(deflated, 4 * 1024 * 1024);
+  assertEq(back.length, zeros.length, 'inflates fine under the cap');
+  assertEq(Z.MAX_INFLATED, 134217728, 'default cap is the spec 128 MB');
+});
+
 (async () => {
   console.log('\ntest_compress.js');
   for (const t of tests) { try { await t.f(); passed++; console.log(`  PASS  ${t.n}`); } catch (e) { failed++; console.log(`  FAIL  ${t.n}: ${e.message}`); } }

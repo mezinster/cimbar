@@ -3,6 +3,7 @@ import 'dart:io' show ZLibCodec;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/core/services/crypto_service.dart';
 import 'package:cimbar_scanner/core/services/payload_decoder.dart';
 
@@ -74,6 +75,23 @@ void main() {
   test('inflating non-deflate bytes throws a FormatException, not a raw zlib error', () {
     final framed = framedOf(payload('plain.txt', [1, 2, 3]));
     expect(() => decodeFramedPayload(framed, '', compressed: true), throwsA(isA<FormatException>()));
+  });
+
+  test('inflate refuses output past the cap (zip-bomb guard)', () {
+    final body = payload('big.bin', List<int>.filled(300 * 1024, 0));
+    final deflated = Uint8List.fromList(ZLibCodec().encode(body));
+    expect(deflated.length, lessThan(4096), reason: 'a tiny stream that expands hugely');
+    final framed = framedOf(deflated);
+    expect(
+      () => decodeFramedPayload(framed, '', compressed: true, maxInflatedBytes: 1024),
+      throwsA(isA<FormatException>().having(
+          (e) => e.message, 'message', contains('inflated size exceeds 1024 bytes'))),
+    );
+    // Under the cap the same stream still decodes.
+    final f = decodeFramedPayload(framed, '', compressed: true, maxInflatedBytes: 1 << 20);
+    expect(f.fileName, 'big.bin');
+    expect(f.fileBytes.length, 300 * 1024);
+    expect(CimbarSpec.maxInflatedBytes, 134217728, reason: 'default cap is the spec 128 MB');
   });
 
   test('encrypted + compressed decrypts first, then inflates', () {

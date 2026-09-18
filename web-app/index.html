@@ -621,6 +621,7 @@ footer {
           <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl" data-i18n="statFrames">Frames</div></div>
           <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl" data-i18n="statBytes">Encoded bytes</div></div>
           <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl" data-i18n="statPerFrame">Bytes / frame</div></div>
+          <div class="stat"><div class="stat-val" id="sCompressed">—</div><div class="stat-lbl" data-i18n="statCompressed">Compressed</div></div>
         </div>
         <div class="preview-frame" style="margin-top:16px;">
           <img id="gifOut" alt="Encoded GIF">
@@ -902,6 +903,7 @@ async function startEncode() {
     document.getElementById('sFrames').textContent = t('repairInfo', { n: frames.length, r: R });
     document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
     document.getElementById('sPerFrame').textContent = perFrame;
+    document.getElementById('sCompressed').textContent = z.compressed ? Math.round(100 * z.bytes.length / payload.length) + '%' : '—';
     document.getElementById('delayHint').style.display = frames.length > 100 ? 'block' : 'none';
 
     // 4. Render source frames, then repair frames
@@ -912,19 +914,27 @@ async function startEncode() {
     const ctx = canvas.getContext('2d');
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
     const gif = new GifEncoder(size, size, frameDelay);
-    const all = frames.slice();
-    for (let r = 0, made = 0, misses = 0; made < R; r++) {
-      try {
-        all.push(Cimbar.repairFrame(bodies, fileId, r, opts));
-        made++; misses = 0;
-      } catch (e) {
-        if (!e.degenerate) throw e;
-        if (++misses >= 64) throw new Error('no usable repair id');
+    // Source frames first, then R repair frames generated inside this loop —
+    // building them up front would block the UI thread for the whole batch.
+    const totalFrames = frames.length + R;
+    let repairId = 0;
+    for (let f = 0; f < totalFrames; f++) {
+      setProgress(25 + (f / totalFrames) * 65, t('encodingFrame', { i: f + 1, n: totalFrames }), 'progEncFill', 'progEncPct', 'progEncLabel');
+      let data;
+      if (f < frames.length) {
+        data = frames[f];
+      } else {
+        for (let misses = 0; ; ) {
+          try { data = Cimbar.repairFrame(bodies, fileId, repairId, opts); break; }
+          catch (e) {
+            if (!e.degenerate) throw e;
+            repairId = (repairId + 1) & 0xFFFF;
+            if (++misses >= 64) throw new Error('no usable repair id');
+          }
+        }
+        repairId = (repairId + 1) & 0xFFFF;
       }
-    }
-    for (let f = 0; f < all.length; f++) {
-      setProgress(25 + (f / all.length) * 65, t('encodingFrame', { i: f + 1, n: all.length }), 'progEncFill', 'progEncPct', 'progEncLabel');
-      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(all[f], rs));
+      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(data, rs));
       gif.addFrame(canvas);
       if (f % 4 === 0) await sleep(0);
     }
@@ -1112,7 +1122,9 @@ async function startDecode() {
     log(t('savedDownloads'), 'ok', 'logDec');
 
   } catch (err) {
-    log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
+    if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
+    else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
+    else log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
     console.error(err);
   }
 
