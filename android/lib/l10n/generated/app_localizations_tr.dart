@@ -96,6 +96,32 @@ class AppLocalizationsTr extends AppLocalizations {
   String get fileSaved => 'Dosya başarıyla kaydedildi';
 
   @override
+  String get openFile => 'Aç';
+
+  @override
+  String get saveToDevice => 'Cihaza kaydet';
+
+  @override
+  String get savedToDevice => 'Dosya kaydedildi';
+
+  @override
+  String get noAppToOpen =>
+      'Bu telefonda bu dosyayı açabilecek bir uygulama yok';
+
+  @override
+  String get openFailed => 'Dosya açılamadı';
+
+  @override
+  String get passphrasePrompt =>
+      'Bu dosya şifreli. Şifresini çözmek için parolayı girin.';
+
+  @override
+  String get errorWrongPassphrase => 'Yanlış parola. Tekrar deneyin.';
+
+  @override
+  String get decrypt => 'Şifreyi çöz';
+
+  @override
   String get errorGeneric => 'Bir hata oluştu';
 
   @override
@@ -216,8 +242,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get captureFailed => 'Capture failed';
 
   @override
-  String get errorPassphraseRequired =>
-      'This file is encrypted: a passphrase is required';
+  String get errorPassphraseRequired => 'Bu dosya şifreli: parola gerekli';
 
   @override
   String errorDecoderFailed(String detail) {

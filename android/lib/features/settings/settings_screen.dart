@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -80,9 +81,11 @@ class SettingsScreen extends ConsumerWidget {
                   future: PackageInfo.fromPlatform(),
                   builder: (context, snap) {
                     final info = snap.data;
+                    // A sideloaded debug/profile build carries pubspec's
+                    // last-release version; say so rather than impersonate it.
                     final label = info == null
                         ? ''
-                        : '${info.version}+${info.buildNumber}';
+                        : '${info.version}+${info.buildNumber}${kReleaseMode ? '' : ' (debug)'}';
                     return Text(
                       l10n.version(label),
                       style: theme.textTheme.bodySmall?.copyWith(

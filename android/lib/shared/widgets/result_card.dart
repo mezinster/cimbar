@@ -5,13 +5,15 @@ import '../../l10n/generated/app_localizations.dart';
 
 class ResultCard extends StatelessWidget {
   final DecodeResult result;
-  final VoidCallback? onSave;
+  final VoidCallback? onOpen;
+  final VoidCallback? onExport;
   final VoidCallback? onShare;
 
   const ResultCard({
     super.key,
     required this.result,
-    this.onSave,
+    this.onOpen,
+    this.onExport,
     this.onShare,
   });
 
@@ -59,18 +61,24 @@ class ResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            // Wrap, not Row: the two labels do not fit side by side in every
-            // locale (Russian overflowed by 9 px on a Pixel 8 Pro), so the
-            // second button moves to its own line when needed.
+            // Wrap, not Row: the labels do not fit side by side in every
+            // locale (Russian overflowed by 9 px on a Pixel 8 Pro), so buttons
+            // move to their own line when needed.
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (onSave != null)
+                if (onOpen != null)
                   FilledButton.icon(
-                    onPressed: onSave,
-                    icon: const Icon(Icons.save),
-                    label: Text(l10n.saveFile),
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text(l10n.openFile),
+                  ),
+                if (onExport != null)
+                  OutlinedButton.icon(
+                    onPressed: onExport,
+                    icon: const Icon(Icons.download),
+                    label: Text(l10n.saveToDevice),
                   ),
                 if (onShare != null)
                   OutlinedButton.icon(

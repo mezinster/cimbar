@@ -266,6 +266,54 @@ abstract class AppLocalizations {
   /// **'File saved successfully'**
   String get fileSaved;
 
+  /// Button to open a decoded file with another app
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get openFile;
+
+  /// Button that opens the system save-as picker (Downloads by default)
+  ///
+  /// In en, this message translates to:
+  /// **'Save to device'**
+  String get saveToDevice;
+
+  /// Snackbar after the system save-as picker wrote the file
+  ///
+  /// In en, this message translates to:
+  /// **'File saved'**
+  String get savedToDevice;
+
+  /// Snackbar when ACTION_VIEW finds no handler for the file type
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this phone can open this file'**
+  String get noAppToOpen;
+
+  /// Snackbar when opening a file fails for another reason
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the file'**
+  String get openFailed;
+
+  /// Shown on the live scan screen when the assembled file is encrypted and no (or a wrong) passphrase was given
+  ///
+  /// In en, this message translates to:
+  /// **'This file is encrypted. Enter the passphrase to decrypt it.'**
+  String get passphrasePrompt;
+
+  /// Error under the passphrase field after a failed decrypt
+  ///
+  /// In en, this message translates to:
+  /// **'Wrong passphrase. Try again.'**
+  String get errorWrongPassphrase;
+
+  /// Button that retries decryption with the typed passphrase
+  ///
+  /// In en, this message translates to:
+  /// **'Decrypt'**
+  String get decrypt;
+
   /// Generic error message
   ///
   /// In en, this message translates to:

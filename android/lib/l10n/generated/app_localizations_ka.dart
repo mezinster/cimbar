@@ -96,6 +96,32 @@ class AppLocalizationsKa extends AppLocalizations {
   String get fileSaved => 'ფაილი წარმატებით შეინახა';
 
   @override
+  String get openFile => 'გახსნა';
+
+  @override
+  String get saveToDevice => 'მოწყობილობაზე შენახვა';
+
+  @override
+  String get savedToDevice => 'ფაილი შენახულია';
+
+  @override
+  String get noAppToOpen =>
+      'ამ ტელეფონზე არ არის აპი, რომელსაც ამ ფაილის გახსნა შეუძლია';
+
+  @override
+  String get openFailed => 'ფაილის გახსნა ვერ მოხერხდა';
+
+  @override
+  String get passphrasePrompt =>
+      'ფაილი დაშიფრულია. გასაშიფრად შეიყვანეთ პაროლი.';
+
+  @override
+  String get errorWrongPassphrase => 'არასწორი პაროლი. სცადეთ ხელახლა.';
+
+  @override
+  String get decrypt => 'გაშიფვრა';
+
+  @override
   String get errorGeneric => 'მოხდა შეცდომა';
 
   @override
@@ -217,8 +243,7 @@ class AppLocalizationsKa extends AppLocalizations {
   String get captureFailed => 'Capture failed';
 
   @override
-  String get errorPassphraseRequired =>
-      'This file is encrypted: a passphrase is required';
+  String get errorPassphraseRequired => 'ფაილი დაშიფრულია: საჭიროა პაროლი';
 
   @override
   String errorDecoderFailed(String detail) {

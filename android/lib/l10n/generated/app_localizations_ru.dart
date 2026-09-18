@@ -96,6 +96,32 @@ class AppLocalizationsRu extends AppLocalizations {
   String get fileSaved => 'Файл успешно сохранён';
 
   @override
+  String get openFile => 'Открыть';
+
+  @override
+  String get saveToDevice => 'Сохранить на устройство';
+
+  @override
+  String get savedToDevice => 'Файл сохранён';
+
+  @override
+  String get noAppToOpen =>
+      'На этом телефоне нет приложения, которое может открыть этот файл';
+
+  @override
+  String get openFailed => 'Не удалось открыть файл';
+
+  @override
+  String get passphrasePrompt =>
+      'Файл зашифрован. Введите пароль, чтобы расшифровать его.';
+
+  @override
+  String get errorWrongPassphrase => 'Неверный пароль. Попробуйте ещё раз.';
+
+  @override
+  String get decrypt => 'Расшифровать';
+
+  @override
   String get errorGeneric => 'Произошла ошибка';
 
   @override
@@ -217,8 +243,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get captureFailed => 'Capture failed';
 
   @override
-  String get errorPassphraseRequired =>
-      'This file is encrypted: a passphrase is required';
+  String get errorPassphraseRequired => 'Файл зашифрован: нужен пароль';
 
   @override
   String errorDecoderFailed(String detail) {

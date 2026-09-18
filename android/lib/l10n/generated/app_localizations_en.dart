@@ -96,6 +96,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fileSaved => 'File saved successfully';
 
   @override
+  String get openFile => 'Open';
+
+  @override
+  String get saveToDevice => 'Save to device';
+
+  @override
+  String get savedToDevice => 'File saved';
+
+  @override
+  String get noAppToOpen => 'No app on this phone can open this file';
+
+  @override
+  String get openFailed => 'Could not open the file';
+
+  @override
+  String get passphrasePrompt =>
+      'This file is encrypted. Enter the passphrase to decrypt it.';
+
+  @override
+  String get errorWrongPassphrase => 'Wrong passphrase. Try again.';
+
+  @override
+  String get decrypt => 'Decrypt';
+
+  @override
   String get errorGeneric => 'An error occurred';
 
   @override

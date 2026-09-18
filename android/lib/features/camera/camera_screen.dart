@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/widgets/file_actions.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import '../../shared/widgets/progress_card.dart';
@@ -161,14 +162,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             const SizedBox(height: 16),
             ResultCard(
               result: state.result!,
-              onSave: () async {
-                final path = await controller.saveResult();
-                if (path != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.fileSaved)),
-                  );
-                }
-              },
+              onOpen: () => openWithFeedback(context, () => FileService.openResult(state.result!)),
+              onExport: () => exportWithFeedback(context, () => FileService.exportBytes(state.result!.filename, state.result!.data)),
               onShare: () => FileService.shareResult(state.result!),
             ),
           ],

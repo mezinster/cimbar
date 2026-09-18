@@ -92,4 +92,8 @@ class FilesController extends StateNotifier<FilesState> {
   Future<void> shareFile(String path) async {
     await FileService.shareFile(path);
   }
+
+  Future<OpenOutcome> openFile(String path) => FileService.openFile(path);
+
+  Future<bool> exportFile(String path) => FileService.exportFile(path);
 }
