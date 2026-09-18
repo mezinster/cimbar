@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CimBar v2.1: rateless repair frames.** Every barcode's N source frames are now followed by extra GF(256) repair frames (a downloadable GIF adds `ceil(0.25 × N)` of them); any N of the N + R total frames — source or repair, captured in any order — reconstruct the file. Web app: `web-app/rateless.js` (`codingCoefficients`/`combineBodies`/`RatelessAssembler`). Android: `lib/core/format/rateless.dart` + `lib/core/decode/rateless_assembler.dart`. `RatelessAssembler` replaces the old sequence-slot assembler on both sides in GIF import, live scan and photo capture.
+- **Optional payload compression.** The file container is zlib-deflated before encryption whenever that saves at least 5% of its size, and left alone otherwise (already-compressed media costs nothing extra). `web-app/compress.js` (browser `CompressionStream`/`DecompressionStream`, Node `zlib`); Android decodes it via `dart:io`'s `ZLibCodec` in `payload_decoder.dart`. Recorded in a new frame-header flag bit and reversed automatically on decode — no user-facing toggle either side.
+- Web app present mode no longer loops a static GIF: it streams the N source frames once, then repair frames forever, so a receiver joining at any point keeps gaining progress instead of waiting on a fixed loop.
+- Two new coded goldens, `lorem_coded` and `lorem_coded_enc` (compressed, with repair frames), alongside the five existing v2 goldens in `test-data/goldens/`.
+- Web test suite: `test_rateless.js` (14 tests), `test_compress.js` (3 tests). Android: `rateless_test.dart`, `rateless_assembler_test.dart`, plus rateless/compression coverage added to the golden, payload-decoder, photo-decode and live-scan-controller suites — 231 tests total (`sh tests/run_all.sh`).
+
+### Changed
+- Decode progress is now **rank** (independent frames captured, source or repair) rather than a plain frames-captured count, in both the web app ("Rank r / N") and the Android live-scan/GIF-import/photo paths.
+- Frame header flags gain two bits: `repair` (bit 1) and `compressed` (bit 2), alongside the existing `encrypted` (bit 0); reserved bits 3–7 must still be zero, and a decoder rejects any frame that sets one.
+
+### Compatibility
+- A v0.9.1 (plain v2) decoder still assembles an **uncompressed** v2.1 file from its source frames — its repair frames are simply rejected as an unrecognized flag combination, which doesn't matter once the source frames alone complete the file. It cannot decode a **compressed** v2.1 GIF at all: compression sets a flag bit v0.9.1 doesn't recognize on every frame, including the source frames, so none of them are ever accepted.
+
 ## [0.9.1] — 2026-09-18
 
 ### Added
