@@ -423,7 +423,8 @@ input:focus, select:focus {
   display: none; align-items: center; justify-content: center; cursor: pointer;
 }
 #present.open { display: flex; }
-#present img { image-rendering: pixelated; display: block; }
+#present canvas { image-rendering: pixelated; display: block; }
+#presentStatus { position: fixed; left: 12px; bottom: 10px; font: 12px/1.4 var(--mono, monospace); color: #9aa; opacity: .8; }
 
 /* Callout */
 .callout {
@@ -594,6 +595,7 @@ footer {
             <option value="20" selected data-i18n="delayNormal">200 ms</option>
             <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
           </select>
+          <div class="field-hint" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
         </div>
       </div>
 
@@ -749,7 +751,7 @@ footer {
 <!-- Hidden canvas for rendering frames -->
 <canvas id="workCanvas" class="hidden"></canvas>
 
-<div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><img id="presentImg" alt="CimBar"></div>
+<div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><canvas id="presentCanvas"></canvas><div id="presentStatus"></div></div>
 
 <script src="rs.js"></script>
 <script src="format-data.js"></script>
@@ -838,6 +840,7 @@ function setProgress(pct, label, fillId, pctId, labelId) {
 
 // ── ENCODE ────────────────────────────────────────────────
 let outputBlob = null;
+let encodeState = null;
 
 async function startEncode() {
   if (!encFile) { alert(t('selectFileFirst')); return; }
@@ -863,30 +866,44 @@ async function startEncode() {
     const payload = Cimbar.buildPayload(encFile.name, raw);
     log(t('fileInfo', { name: encFile.name, size: fmtBytes(raw.length) }), 'ok', 'logEnc');
 
+    // 1b. Compress (optional, skipped when it doesn't save enough)
+    const z = await CimbarCompress.maybeDeflate(payload);
+    if (z.compressed) log(t('compressedInfo', { size: fmtBytes(z.bytes.length), pct: Math.round(100 * z.bytes.length / payload.length) }), 'ok', 'logEnc');
+    else log(t('notCompressed'), 'info', 'logEnc');
+
     // 2. Encrypt (optional)
     let framedPayload;
     if (isEncrypted) {
       log(t('encrypting'), 'info', 'logEnc');
       setProgress(15, t('encryptingShort'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = await CimbarCrypto.encryptBytes(payload, pass);
+      framedPayload = await CimbarCrypto.encryptBytes(z.bytes, pass);
       log(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
     } else {
       setProgress(15, t('encoding'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = payload;
-      log(t('payloadNoEnc', { size: fmtBytes(payload.length) }), 'ok', 'logEnc');
+      framedPayload = z.bytes;
+      log(t('payloadNoEnc', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
     }
     const framedData = Cimbar.withLengthPrefix(framedPayload);
 
     // 3. Split into frames with headers
     const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
-    const frames = Cimbar.splitIntoFrames(framedData, fileId, isEncrypted);
+    const opts = { encrypted: isEncrypted, compressed: z.compressed };
+    const frames = Cimbar.splitIntoFrames(framedData, fileId, opts);
     const perFrame = CimbarFormat.fileBytesPerFrame();
     log(t('framesInfo', { n: frames.length, per: perFrame, id: fileId.toString(16) }), 'info', 'logEnc');
-    document.getElementById('sFrames').textContent = frames.length;
+
+    const maxN = CimbarFormat.SPEC.coding.maxFrames;
+    const R = frames.length > maxN ? 0 : Cimbar.gifRepairCount(frames.length);
+    if (frames.length > maxN) log(t('tooLargeForCoding', { max: maxN }), 'err', 'logEnc');
+    const bodies = Cimbar.frameBodies(frames);
+    encodeState = { frames, bodies, fileId, opts, delayMs: frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
+
+    document.getElementById('sFrames').textContent = t('repairInfo', { n: frames.length, r: R });
     document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
     document.getElementById('sPerFrame').textContent = perFrame;
+    document.getElementById('delayHint').style.display = frames.length > 100 ? 'block' : 'none';
 
-    // 4. Render frames
+    // 4. Render source frames, then repair frames
     const size = CimbarFormat.SPEC.grid.framePx;
     const canvas = document.getElementById('workCanvas');
     canvas.width = size;
@@ -894,9 +911,13 @@ async function startEncode() {
     const ctx = canvas.getContext('2d');
     const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
     const gif = new GifEncoder(size, size, frameDelay);
-    for (let f = 0; f < frames.length; f++) {
-      setProgress(25 + (f / frames.length) * 65, t('encodingFrame', { i: f + 1, n: frames.length }), 'progEncFill', 'progEncPct', 'progEncLabel');
-      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(frames[f], rs));
+    const all = frames.slice();
+    for (let r = 0, made = 0; made < R; r++) {
+      try { all.push(Cimbar.repairFrame(bodies, fileId, r, opts)); made++; } catch (e) { /* degenerate r: skip */ }
+    }
+    for (let f = 0; f < all.length; f++) {
+      setProgress(25 + (f / all.length) * 65, t('encodingFrame', { i: f + 1, n: all.length }), 'progEncFill', 'progEncPct', 'progEncLabel');
+      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(all[f], rs));
       gif.addFrame(canvas);
       if (f % 4 === 0) await sleep(0);
     }
@@ -940,26 +961,48 @@ function presentScale(viewportW, viewportH, framePx) {
   return shorter / framePx; // integer scale would waste >40% of the screen
 }
 
+let presentTimer = null, presentIdx = 0, presentRepair = 0;
+const presentWork = document.createElement('canvas');
+
 function layoutPresent() {
-  const img = document.getElementById('presentImg');
-  if (!img.src) return;
+  const c = document.getElementById('presentCanvas');
   const framePx = CimbarFormat.SPEC.grid.framePx;
   const s = presentScale(window.innerWidth, window.innerHeight, framePx);
-  img.style.width = (framePx * s) + 'px';
-  img.style.height = (framePx * s) + 'px';
+  c.style.width = (framePx * s) + 'px'; c.style.height = (framePx * s) + 'px';
+}
+
+function presentDraw() {
+  const st = encodeState; if (!st) return;
+  const size = CimbarFormat.SPEC.grid.framePx;
+  const rs = presentDraw.rs || (presentDraw.rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes));
+  const n = st.frames.length;
+  let data, status;
+  if (presentIdx < n) { data = st.frames[presentIdx]; status = t('presentSource', { i: presentIdx + 1, n }); presentIdx++; }
+  else if (st.repairEnabled) {
+    for (;;) { try { data = Cimbar.repairFrame(st.bodies, st.fileId, presentRepair, st.opts); break; } catch (e) { presentRepair = (presentRepair + 1) & 0xFFFF; } }
+    status = t('presentRepair', { r: presentRepair, n });
+    presentRepair = (presentRepair + 1) & 0xFFFF;
+  } else { presentIdx = 0; return presentDraw(); } // > maxFrames: loop the source pass
+  presentWork.width = size; presentWork.height = size;
+  Cimbar.renderFrame(presentWork.getContext('2d'), Cimbar.encodeRSFrame(data, rs));
+  const c = document.getElementById('presentCanvas'); c.width = size; c.height = size;
+  c.getContext('2d').drawImage(presentWork, 0, 0);
+  document.getElementById('presentStatus').textContent = status;
 }
 
 function openPresent() {
-  if (!outputBlob) return;
-  const img = document.getElementById('presentImg');
-  img.src = document.getElementById('gifOut').src;
+  if (!encodeState) return;
+  presentIdx = 0; presentRepair = 0;
   document.getElementById('present').classList.add('open');
   layoutPresent();
+  presentDraw();
+  presentTimer = setInterval(presentDraw, encodeState.delayMs);
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
 }
 
 function closePresent() {
+  if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
   document.getElementById('present').classList.remove('open');
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
@@ -997,13 +1040,17 @@ async function startDecode() {
     const asm = new Cimbar.RatelessAssembler();
     let rejected = 0;
     for (let f = 0; f < frames.length; f++) {
-      setProgress(20 + (f / frames.length) * 55, t('decodingFrame', { i: f + 1, n: frames.length }), 'progDecFill', 'progDecPct', 'progDecLabel');
+      if (f % 4 === 0) setProgress(20 + (f / frames.length) * 55, t('rankInfo', { rank: asm.rank, n: asm.total }), 'progDecFill', 'progDecPct', 'progDecLabel');
       const cellsResult = Cimbar.decodeFrameExact(frames[f].imageData);
       const rsResult = Cimbar.decodeRSFrame(cellsResult.raw, rs);
       const added = asm.add(rsResult.data, rsResult.blocksFailed);
       if (!added.accepted) {
-        rejected++;
-        log(t('frameRejected', { i: f + 1, reason: added.reason, failed: rsResult.blocksFailed }), 'err', 'logDec');
+        if (added.reason === 'dependent') {
+          log(t('dependentFrame', { i: f + 1 }), 'info', 'logDec');
+        } else {
+          rejected++;
+          log(t('frameRejected', { i: f + 1, reason: added.reason, failed: rsResult.blocksFailed }), 'err', 'logDec');
+        }
       }
       if (f % 4 === 0) await sleep(0);
     }
@@ -1024,6 +1071,11 @@ async function startDecode() {
       log(t('unencrypted'), 'info', 'logDec');
       setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
       decrypted = payloadBytes;
+    }
+
+    if (asm.compressed) {
+      log(t('inflating'), 'info', 'logDec');
+      decrypted = await CimbarCompress.inflateBytes(decrypted);
     }
 
     const { fileName: filename, fileBytes: fileData } = Cimbar.parsePayload(decrypted);
