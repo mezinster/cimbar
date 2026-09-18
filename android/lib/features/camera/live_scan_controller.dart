@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/decode/diagnostics.dart';
-import '../../core/decode/frame_assembler.dart';
+import '../../core/decode/rateless_assembler.dart';
 import '../../core/decode/yuv_frame.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/capture_policy.dart';
@@ -22,7 +22,7 @@ final liveScanControllerProvider =
 class LiveScanState {
   final bool isScanning;
   final int framesAnalyzed;
-  final int filled;
+  final int rank;
   final int total;
   final ScanHint hint;
   final Float64List? corners;
@@ -39,7 +39,7 @@ class LiveScanState {
   const LiveScanState({
     this.isScanning = false,
     this.framesAnalyzed = 0,
-    this.filled = 0,
+    this.rank = 0,
     this.total = 0,
     this.hint = ScanHint.none,
     this.corners,
@@ -54,12 +54,12 @@ class LiveScanState {
     this.captureStatus,
   });
 
-  bool get isComplete => total > 0 && filled >= total;
+  bool get isComplete => total > 0 && rank >= total;
 
   LiveScanState copyWith({
     bool? isScanning,
     int? framesAnalyzed,
-    int? filled,
+    int? rank,
     int? total,
     ScanHint? hint,
     Float64List? corners,
@@ -80,7 +80,7 @@ class LiveScanState {
     return LiveScanState(
       isScanning: isScanning ?? this.isScanning,
       framesAnalyzed: framesAnalyzed ?? this.framesAnalyzed,
-      filled: filled ?? this.filled,
+      rank: rank ?? this.rank,
       total: total ?? this.total,
       hint: hint ?? this.hint,
       corners: clearCorners ? null : (corners ?? this.corners),
@@ -100,7 +100,7 @@ class LiveScanState {
 class LiveScanController extends StateNotifier<LiveScanState> {
   LiveScanController() : super(const LiveScanState());
 
-  final FrameAssembler _assembler = FrameAssembler();
+  final RatelessAssembler _assembler = RatelessAssembler();
   final CapturePolicy _policy = CapturePolicy();
   DecodeIsolate? _isolate;
   Future<DecodeIsolate>? _spawning;
@@ -199,8 +199,9 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     _consecutiveErrors = 0;
     if (_debugMode) {
       final d = o.diag.entries.map((e) => '${e.key}=${e.value}').join(' ');
-      _log('frame=$n status=${o.status.name} ms=${o.totalMs} filled=${_assembler.filled}/${_assembler.total}${rejected.isEmpty ? '' : ' rejected=$rejected'} $d');
-      _overlay('#$n ${o.status.name} ${o.totalMs}ms f=${_assembler.filled}/${_assembler.total}');
+      _log(
+          'frame=$n status=${o.status.name} ms=${o.totalMs} rank=${_assembler.rank}/${_assembler.total} src=${_assembler.sourceCount} rep=${_assembler.repairCount} dup=${_assembler.duplicateCount} dep=${_assembler.dependentCount}${rejected.isEmpty ? '' : ' rejected=$rejected'} $d');
+      _overlay('#$n ${o.status.name} ${o.totalMs}ms r=${_assembler.rank}/${_assembler.total}');
     }
     if (captureRequested) {
       if (o.capturePng != null) {
@@ -212,7 +213,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     if (!mounted) return;
     state = state.copyWith(
       framesAnalyzed: n,
-      filled: _assembler.filled,
+      rank: _assembler.rank,
       total: _assembler.total,
       hint: hint,
       corners: o.corners,
@@ -285,7 +286,7 @@ class LiveScanController extends StateNotifier<LiveScanState> {
     if (!_assembler.isComplete) return;
     state = state.copyWith(isScanning: false, isDecrypting: true);
     try {
-      final file = decodeFramedPayload(_assembler.framedData(), passphrase);
+      final file = decodeFramedPayload(_assembler.framedData(), passphrase, compressed: _assembler.compressed);
       final result = DecodeResult(filename: file.fileName, data: file.fileBytes);
       await _autoSave(result);
       if (!mounted) return;

@@ -71,9 +71,12 @@ void main() {
         }
         decoded.add(r.data!);
         final add = asm.add(r.data!);
-        // Source frames always add information; a repair frame received after the
-        // assembler is already full rank is legitimately redundant ('dependent').
-        if (!side.repair) expect(add.accepted, isTrue, reason: 'frame $i accepted: ${add.reason}');
+        // Source frames always add information and must be accepted; a repair
+        // frame received after the assembler is already full rank is
+        // legitimately redundant ('dependent') rather than accepted.
+        expect(add.accepted || add.reason == 'dependent', isTrue,
+            reason: 'frame $i (repair=${side.repair}) accepted: ${add.accepted}, reason: ${add.reason}');
+        if (!side.repair) expect(add.accepted, isTrue, reason: 'frame $i (source) must be accepted: ${add.reason}');
       }
       verifyAssembled(asm, golden, 'all frames');
 

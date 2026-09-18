@@ -128,7 +128,7 @@
 
   "liveScanButton": "Live Scan",
   "@liveScanButton": { "description": "Button to start live camera scanning" },
-  "liveScanProgress": "Scanning... {captured}/{total} frames captured",
+  "liveScanProgress": "Scanning... {captured}/{total} frames",
   "@liveScanProgress": {
     "description": "Progress during live scanning",
     "placeholders": {

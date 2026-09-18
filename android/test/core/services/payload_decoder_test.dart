@@ -8,7 +8,7 @@ import 'package:cimbar_scanner/core/services/payload_decoder.dart';
 
 /// [payload]/[framedOf] mirror file_container_test.dart's helpers: payload =
 /// [u32 nameLen][name][fileBytes]; framedOf wraps it as
-/// [u32 len][payload][zero padding] the way FrameAssembler.framedData() does.
+/// [u32 len][payload][zero padding] the way RatelessAssembler.framedData() does.
 Uint8List payload(String name, List<int> bytes) {
   final n = utf8.encode(name);
   final out = Uint8List(4 + n.length + bytes.length);

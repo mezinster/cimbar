@@ -19,7 +19,7 @@ Future<(DecodeProgress?, DecodePipeline)> run(String golden, String passphrase) 
 }
 
 void main() {
-  for (final name in ['hello', 'lorem_12k', 'edge_one_frame', 'edge_two_frames']) {
+  for (final name in ['hello', 'lorem_12k', 'edge_one_frame', 'edge_two_frames', 'lorem_coded']) {
     test('golden $name decodes through the GIF pipeline', () async {
       final golden = GoldenSidecar.load(repoPath('test-data/goldens/$name.json'));
       final (last, pipeline) = await run(name, '');
@@ -33,6 +33,14 @@ void main() {
     final golden = GoldenSidecar.load(repoPath('test-data/goldens/lorem_12k_enc.json'));
     final (last, pipeline) = await run('lorem_12k_enc', golden.passphrase!);
     expect(last?.state, DecodeState.done, reason: last?.message);
+    expect(pipeline.lastResult!.data, golden.fileBytes);
+  });
+
+  test('coded encrypted golden decrypts with its passphrase', () async {
+    final golden = GoldenSidecar.load(repoPath('test-data/goldens/lorem_coded_enc.json'));
+    final (last, pipeline) = await run('lorem_coded_enc', 'test123');
+    expect(last?.state, DecodeState.done, reason: last?.message);
+    expect(pipeline.lastResult!.filename, golden.fileName);
     expect(pipeline.lastResult!.data, golden.fileBytes);
   });
 

@@ -7,7 +7,7 @@ import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/core/format/frame_header.dart';
 import 'package:cimbar_scanner/core/format/rateless.dart';
 
-/// A source frame with a constant-ish filler body (ported from frame_assembler_test.dart).
+/// A source frame with a constant-ish filler body (ported from the old sequence-slot assembler's tests).
 Uint8List frame({required int fileId, required int seq, required int total, int fill = 0x5A}) {
   final f = Uint8List(CimbarSpec.dataBytesPerFrame);
   f.setRange(0, 8, FrameHeader(version: 2, encrypted: false, fileId: fileId, seq: seq, total: total).encode());
@@ -59,7 +59,7 @@ Uint8List repair(int fileId, int r, List<Uint8List> bodies, {bool compressed = f
 }
 
 void main() {
-  // ── ported frame_assembler_test.dart cases (filled -> rank, no missingSeqs) ──
+  // ── ported sequence-slot-assembler cases (filled -> rank, no missingSeqs) ──
 
   test('accepts frames in any order, dedups, completes, assembles', () {
     final a = RatelessAssembler();

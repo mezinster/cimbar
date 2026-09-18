@@ -40,6 +40,23 @@ void main() {
     expect(r.error, contains('6'));
   }, timeout: const Timeout(Duration(minutes: 2)));
 
+  test('a repair frame of a coded multi-frame file reports multiFrame with the total', () async {
+    final golden = GoldenSidecar.load(repoPath('test-data/goldens/lorem_coded.json'));
+    final scene = renderScene(
+      loadGoldenFrame('lorem_coded', golden.sourceFrames),
+      1000,
+      1000,
+      SceneSpec()
+        ..scale = 1.3
+        ..centerX = 500
+        ..centerY = 500,
+    );
+    final r = await decodePhotoBytes(pngOf(scene.image), '');
+    expect(r.result, isNull);
+    expect(r.total, golden.sourceFrames);
+    expect(r.errorCode, 'multi_frame');
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
   test('no barcode → error', () async {
     final photo = loadPhoto('test/fixtures/camera_raw_1280x720_b.png');
     final r = await decodePhotoBytes(pngOf(photo), '');

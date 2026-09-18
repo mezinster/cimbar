@@ -344,9 +344,9 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
     final hint = _hintText(l10n, s.hint);
     if (s.total > 0) {
       return Column(mainAxisSize: MainAxisSize.min, children: [
-        LinearProgressIndicator(value: s.filled / s.total, backgroundColor: Colors.white24, valueColor: const AlwaysStoppedAnimation(Colors.greenAccent)),
+        LinearProgressIndicator(value: s.rank / s.total, backgroundColor: Colors.white24, valueColor: const AlwaysStoppedAnimation(Colors.greenAccent)),
         const SizedBox(height: 12),
-        Text(s.isComplete ? l10n.liveScanComplete : l10n.liveScanProgress(s.filled, s.total), style: const TextStyle(color: Colors.white, fontSize: 16)),
+        Text(s.isComplete ? l10n.liveScanComplete : l10n.liveScanProgress(s.rank, s.total), style: const TextStyle(color: Colors.white, fontSize: 16)),
         if (hint.isNotEmpty) ...[const SizedBox(height: 4), Text(hint, style: const TextStyle(color: Colors.amberAccent, fontSize: 14))],
       ]);
     }

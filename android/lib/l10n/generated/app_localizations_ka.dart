@@ -166,7 +166,7 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String liveScanProgress(int captured, int total) {
-    return 'სკანირება... $captured/$total კადრი დაფიქსირდა';
+    return 'სკანირება... $captured/$total კადრი';
   }
 
   @override

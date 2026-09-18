@@ -48,7 +48,7 @@
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "Версія {version}",
   "liveScanButton": "Живе сканування",
-  "liveScanProgress": "Сканування... {captured}/{total} кадрів захоплено",
+  "liveScanProgress": "Сканування... {captured}/{total} кадрів",
   "liveScanSearching": "Пошук штрих-коду CimBar...",
   "liveScanComplete": "Усі кадри захоплено!",
   "liveScanError": "Сканування не вдалося",

@@ -109,7 +109,8 @@ class RatelessAssembler {
       duplicateCount++;
       return AddResult(false, 'duplicate', h);
     }
-    final body = data.sublist(CimbarSpec.headerLen); // copy: caller may reuse its buffer
+    final body = data.sublist(CimbarSpec.headerLen,
+        CimbarSpec.headerLen + CimbarSpec.fileBytesPerFrame); // copy: caller may reuse its buffer
 
     if (!h.repair && _pivots[h.seq] == null) {
       // Fast path: source frame, free column — the unit vector e_seq, with no

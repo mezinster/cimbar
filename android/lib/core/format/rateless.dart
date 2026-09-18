@@ -15,7 +15,8 @@ class Rateless {
   /// A splitmix32-style generator: a linear state advance plus murmur3's fmix32
   /// output mix, so rows for different `r` are not confined to a small linear
   /// subspace (a plain xorshift/LFSR would be). Dart ints are 64-bit, so each
-  /// 32x32 product fits exactly and the `& 0xFFFFFFFF` after it is the wrap.
+  /// product may exceed 2^63 and wrap; the low 32 bits survive, which is all
+  /// `& 0xFFFFFFFF` keeps.
   static Uint8List coefficients(int fileId, int r, int n) {
     var state = ((((fileId & 0xFFFF) << 16) | (r & 0xFFFF))) & 0xFFFFFFFF;
     final out = Uint8List(n);
