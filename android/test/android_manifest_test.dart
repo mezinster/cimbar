@@ -20,13 +20,34 @@ void main() {
     }
   });
 
-  test('removes the READ_MEDIA_* permissions merged from open_filex', () {
-    for (final p in ['READ_MEDIA_IMAGES', 'READ_MEDIA_VIDEO', 'READ_MEDIA_AUDIO']) {
+  test('removes the storage and media permissions merged from open_filex', () {
+    for (final p in ['READ_EXTERNAL_STORAGE', 'READ_MEDIA_IMAGES', 'READ_MEDIA_VIDEO', 'READ_MEDIA_AUDIO']) {
       expect(
         manifest,
         matches(RegExp('android:name="android.permission.$p"\\s+tools:node="remove"')),
         reason: '$p must be removed with tools:node="remove"',
       );
     }
+  });
+
+  test('removes the microphone and storage permissions merged from camera_android_camerax', () {
+    for (final p in ['RECORD_AUDIO', 'WRITE_EXTERNAL_STORAGE']) {
+      expect(
+        manifest,
+        matches(RegExp('android:name="android.permission.$p"\\s+tools:node="remove"')),
+        reason: '$p must be removed with tools:node="remove"',
+      );
+    }
+  });
+
+  // The store listings and the privacy policy promise "camera only"; F-Droid
+  // shows every requested permission on the app's page.
+  test('CAMERA is the only permission the app itself requests', () {
+    final kept = RegExp(r'<uses-permission\s+android:name="([^"]+)"([^>]*)/>')
+        .allMatches(manifest)
+        .where((m) => !m.group(2)!.contains('tools:node="remove"'))
+        .map((m) => m.group(1))
+        .toList();
+    expect(kept, ['android.permission.CAMERA']);
   });
 }

@@ -26,12 +26,15 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.x'
+          flutter-version: '3.44.8'
           channel: stable
           cache: true
 
+      # --enforce-lockfile is what F-Droid's build recipe runs: a pubspec.yaml
+      # change without a matching pubspec.lock fails here instead of in an
+      # F-Droid build pinned to an already-pushed release tag.
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Generate localizations
         run: flutter gen-l10n
@@ -69,6 +72,23 @@ jobs:
       - name: Run tests
         run: sh tests/run_all.sh
 
+  validate-metadata:
+    name: Validate Store Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Validate F-Droid recipe and fastlane listings
+        run: python3 tools/validate_store_metadata.py
+
   build-android:
     name: Build Debug APK
     needs: analyze-and-test
@@ -88,7 +108,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.x'
+          flutter-version: '3.44.8'
           channel: stable
           cache: true
 

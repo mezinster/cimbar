@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+/**
+ * Generates the Android launcher icon and the F-Droid store graphics from the
+ * CimBar v2 spec itself (tile shapes + palette from spec/cimbar-v2.json), so
+ * the icon is a real piece of the format rather than a drawing of one.
+ *
+ *   node tools/gen_store_graphics.js
+ *
+ * Always writes (no dependencies):
+ *   android/android/app/src/main/res/drawable/ic_launcher_foreground.xml   adaptive icon foreground (vector)
+ *   android/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml     adaptive icon (API 26+)
+ *   android/android/app/src/main/res/values/ic_launcher_background.xml     adaptive icon background colour
+ *
+ * Also writes, when Playwright is resolvable (e.g. NODE_PATH=<dir>/node_modules
+ * with its Chromium installed), the raster images:
+ *   android/android/app/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png   legacy icon (API 24-25)
+ *   fastlane/metadata/android/en-US/images/icon.png                               512x512
+ *   fastlane/metadata/android/en-US/images/featureGraphic.png                     1024x500
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const REPO = path.resolve(__dirname, '..');
+const SPEC = JSON.parse(fs.readFileSync(path.join(REPO, 'spec', 'cimbar-v2.json'), 'utf8'));
+const RES = path.join(REPO, 'android', 'android', 'app', 'src', 'main', 'res');
+const IMAGES = path.join(REPO, 'fastlane', 'metadata', 'android', 'en-US', 'images');
+
+const TILE = 8;   // tile pixels per side
+const PITCH = 9;  // tile + 1 px black gap, as in a real frame
+const BG = '#000000';
+const hex = (rgb) => '#' + rgb.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+const PALETTE = SPEC.palette.map(hex); // green, cyan, yellow, magenta
+
+/** Tile bits, row-major; MSB of the first hex digit is the top-left pixel. */
+function tileBits(i) {
+  const h = SPEC.tiles[i];
+  const bits = [];
+  for (const c of h) {
+    const nib = parseInt(c, 16);
+    for (let b = 3; b >= 0; b--) bits.push((nib >> b) & 1);
+  }
+  return bits;
+}
+
+/** Rectangles [x, y, w, h] (tile px) covering a tile's set bits, merged per row. */
+function tileRects(i) {
+  const bits = tileBits(i);
+  const rects = [];
+  for (let y = 0; y < TILE; y++) {
+    let x = 0;
+    while (x < TILE) {
+      if (!bits[y * TILE + x]) { x++; continue; }
+      const x0 = x;
+      while (x < TILE && bits[y * TILE + x]) x++;
+      rects.push([x0, y, x - x0, 1]);
+    }
+  }
+  return rects;
+}
+
+/**
+ * The icon mosaic: a 4x4-cell block whose top-left 2x2 cells hold a finder
+ * pattern (the TL finder: solid core, no dot) and whose other 12 cells hold
+ * distinct spec tiles, three per palette colour. Units are tile px.
+ */
+const ICON_CELLS = 4;
+const ICON_EXTENT = ICON_CELLS * PITCH - 1; // 35: no gap after the last cell
+const ICON_TILES = [
+  // [row, col, tileIndex, colorIndex]
+  [0, 2, 0, 2], [0, 3, 1, 3],
+  [1, 2, 2, 1], [1, 3, 3, 0],
+  [2, 0, 4, 3], [2, 1, 5, 0], [2, 2, 6, 2], [2, 3, 7, 1],
+  [3, 0, 8, 1], [3, 1, 9, 2], [3, 2, 10, 3], [3, 3, 11, 0],
+];
+
+/** Shapes as {color, rects} in mosaic units; later shapes paint over earlier ones. */
+function mosaicShapes() {
+  const shapes = [];
+  // Finder over 2x2 cells (17 units), 1:1:3:1:1 like the real one.
+  const f = 2 * PITCH - 1;
+  const u = f / 7;
+  shapes.push({ color: '#FFFFFF', rects: [[0, 0, f, f]] });
+  shapes.push({ color: BG, rects: [[u, u, 5 * u, 5 * u]] });
+  shapes.push({ color: '#FFFFFF', rects: [[2 * u, 2 * u, 3 * u, 3 * u]] });
+  const byColor = PALETTE.map(() => []);
+  for (const [row, col, t, c] of ICON_TILES) {
+    for (const [x, y, w, h] of tileRects(t)) byColor[c].push([col * PITCH + x, row * PITCH + y, w, h]);
+  }
+  byColor.forEach((rects, c) => shapes.push({ color: PALETTE[c], rects }));
+  return shapes;
+}
+
+const num = (v) => String(Math.round(v * 1000) / 1000);
+
+function svgRects(shapes, scale, ox, oy) {
+  return shapes.map(({ color, rects }) => {
+    const d = rects.map(([x, y, w, h]) =>
+      `M${num(ox + x * scale)} ${num(oy + y * scale)}h${num(w * scale)}v${num(h * scale)}h${num(-w * scale)}z`).join('');
+    return `<path fill="${color}" d="${d}"/>`;
+  }).join('\n  ');
+}
+
+// ---------------------------------------------------------------- adaptive icon
+
+function adaptiveForeground() {
+  // 108dp canvas; the launcher mask keeps at least the central 66dp circle, so
+  // the square mosaic must fit inside it: side <= 66 / sqrt(2) = 46.7.
+  const side = 44;
+  const scale = side / ICON_EXTENT;
+  const o = (108 - side) / 2;
+  const paths = mosaicShapes().map(({ color, rects }) => {
+    const d = rects.map(([x, y, w, h]) =>
+      `M${num(o + x * scale)},${num(o + y * scale)}h${num(w * scale)}v${num(h * scale)}h${num(-w * scale)}z`).join('');
+    return `    <path\n        android:fillColor="${color}"\n        android:pathData="${d}" />`;
+  }).join('\n');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by tools/gen_store_graphics.js from spec/cimbar-v2.json; do not edit. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+${paths}
+</vector>
+`;
+}
+
+const ADAPTIVE_ICON = `<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by tools/gen_store_graphics.js; do not edit. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+`;
+
+const ICON_BACKGROUND = `<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by tools/gen_store_graphics.js; do not edit. -->
+<resources>
+    <color name="ic_launcher_background">${BG}</color>
+</resources>
+`;
+
+// ------------------------------------------------------------------ raster SVGs
+
+/** Rounded-square icon, used for the store icon and the legacy launcher icons. */
+function iconSvg(size) {
+  const radius = size * 0.2;
+  const side = size * 0.66;
+  const o = (size - side) / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <rect width="${size}" height="${size}" rx="${radius}" fill="${BG}"/>
+  ${svgRects(mosaicShapes(), side / ICON_EXTENT, o, o)}
+</svg>`;
+}
+
+/** Deterministic PRNG (mulberry32) so the feature graphic is reproducible. */
+function rng(seed) {
+  return () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** 1024x500: the top-left corner of a real-looking frame, fading into the title. */
+function featureGraphicSvg() {
+  const W = 1024, H = 500;
+  const cells = 13;            // visible cells per side of the frame corner
+  const scale = 4.3;
+  const ox = 34, oy = 34;
+  const rand = rng(SPEC.tilesSeed + 2026);
+  const corner = SPEC.finder.cornerCells; // 8: finder (7) plus its 1-cell margin
+  const byColor = PALETTE.map(() => []);
+  for (let row = 0; row < cells; row++) {
+    for (let col = 0; col < cells; col++) {
+      if (row < corner && col < corner) continue;
+      const t = Math.floor(rand() * SPEC.tiles.length);
+      const c = Math.floor(rand() * PALETTE.length);
+      for (const [x, y, w, h] of tileRects(t)) byColor[c].push([col * PITCH + x, row * PITCH + y, w, h]);
+    }
+  }
+  const F = SPEC.finder;
+  const finder = [
+    { color: '#FFFFFF', rects: [[0, 0, F.outerPx, F.outerPx]] },
+    { color: BG, rects: [[F.ringInsetPx, F.ringInsetPx, F.outerPx - 2 * F.ringInsetPx, F.outerPx - 2 * F.ringInsetPx]] },
+    { color: '#FFFFFF', rects: [[F.coreInsetPx, F.coreInsetPx, F.corePx, F.corePx]] },
+  ];
+  const shapes = finder.concat(byColor.map((rects, c) => ({ color: PALETTE[c], rects })));
+  const gridEnd = ox + (cells * PITCH) * scale;
+  const font = `'DejaVu Sans', 'Noto Sans', Arial, sans-serif`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="fadeR" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="${BG}" stop-opacity="0"/>
+      <stop offset="1" stop-color="${BG}" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="fadeB" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="${BG}" stop-opacity="0"/>
+      <stop offset="1" stop-color="${BG}" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="${BG}"/>
+  ${svgRects(shapes, scale, ox, oy)}
+  <rect x="${num(gridEnd - 230)}" y="0" width="231" height="${H}" fill="url(#fadeR)"/>
+  <rect x="0" y="${H - 120}" width="${num(gridEnd + 1)}" height="120" fill="url(#fadeB)"/>
+  <text x="560" y="210" fill="#FFFFFF" font-family="${font}" font-size="64" font-weight="bold">CimBar</text>
+  <text x="560" y="280" fill="#FFFFFF" font-family="${font}" font-size="64" font-weight="bold">Scanner</text>
+  <text x="562" y="336" fill="#BDBDBD" font-family="${font}" font-size="26">Receive files from animated</text>
+  <text x="562" y="370" fill="#BDBDBD" font-family="${font}" font-size="26">color barcodes</text>
+  <text x="562" y="420" fill="${PALETTE[0]}" font-family="${font}" font-size="22">Offline · open source · no trackers</text>
+</svg>`;
+}
+
+// ----------------------------------------------------------------------- output
+
+function write(file, content) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content);
+  console.log('wrote', path.relative(REPO, file));
+}
+
+async function rasterize(jobs) {
+  let playwright;
+  try {
+    playwright = require('playwright');
+  } catch (e) {
+    console.log('\nPlaywright not found: skipped the PNGs. To produce them, run with');
+    console.log('NODE_PATH=<a node_modules containing playwright> (Chromium installed).');
+    return;
+  }
+  const browser = await playwright.chromium.launch();
+  try {
+    const page = await browser.newPage();
+    for (const { file, svg, width, height } of jobs) {
+      await page.setViewportSize({ width, height });
+      await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">${svg}</body></html>`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      await page.screenshot({ path: file, omitBackground: true, clip: { x: 0, y: 0, width, height } });
+      console.log('wrote', path.relative(REPO, file));
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+async function main() {
+  write(path.join(RES, 'drawable', 'ic_launcher_foreground.xml'), adaptiveForeground());
+  write(path.join(RES, 'mipmap-anydpi-v26', 'ic_launcher.xml'), ADAPTIVE_ICON);
+  write(path.join(RES, 'values', 'ic_launcher_background.xml'), ICON_BACKGROUND);
+
+  const legacy = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+  const jobs = Object.entries(legacy).map(([dpi, size]) => ({
+    file: path.join(RES, `mipmap-${dpi}`, 'ic_launcher.png'), svg: iconSvg(size), width: size, height: size,
+  }));
+  jobs.push({ file: path.join(IMAGES, 'icon.png'), svg: iconSvg(512), width: 512, height: 512 });
+  jobs.push({ file: path.join(IMAGES, 'featureGraphic.png'), svg: featureGraphicSvg(), width: 1024, height: 500 });
+  await rasterize(jobs);
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

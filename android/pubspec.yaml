@@ -1,10 +1,12 @@
 name: cimbar_scanner
 description: CimBar scanner — decode Color Icon Matrix Barcodes via camera or file import.
 publish_to: 'none'
-# The newest release in CHANGELOG.md (test/version_test.dart enforces it). The
-# release workflow overwrites this line at build time; bump it together with
-# the CHANGELOG heading when cutting a release so local/debug builds stay honest.
-version: 0.10.1+186
+# The newest release in CHANGELOG.md (test/version_test.dart enforces it), and
+# the single source of truth for the versionCode (the +N): release.yml builds
+# with it and refuses a release whose name disagrees, and F-Droid's checkupdates
+# bot parses this line at each release tag. Bump name AND code together with the
+# CHANGELOG heading and a fastlane changelogs/<code>.txt in every locale.
+version: 0.11.0+187
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

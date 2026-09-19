@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace = "com.cimbar.scanner"
+    namespace = "com.nfcarchiver.cimbar"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -33,7 +33,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.cimbar.scanner"
+        applicationId = "com.nfcarchiver.cimbar"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
@@ -44,6 +44,14 @@ android {
         release {
             signingConfig = signingConfigs.debug
         }
+    }
+
+    // AGP otherwise embeds a dependency-metadata block encrypted with a Google
+    // key that only Play can read; F-Droid asks for APKs without it. The AAB is
+    // only ever uploaded to Play, so it keeps the block.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = true
     }
 }
 

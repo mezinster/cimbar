@@ -76,7 +76,9 @@ The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHu
 
 ## Android App
 
-The `android/` directory contains a Flutter app that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
+The `android/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
+
+**Install:** APKs are attached to each [GitHub release](https://github.com/mezinster/cimbar/releases); the app is being submitted to [F-Droid](https://f-droid.org/), which builds it from source with the recipe in `fdroid/com.nfcarchiver.cimbar.yml`. The only permission it requests is the camera — no internet, no storage. Up to 0.10.1 the app id was `com.cimbar.scanner`: 0.11.0 installs as a separate app next to it, so save any decoded files you need from the old one, then uninstall it.
 
 ### Features
 
@@ -116,6 +118,18 @@ Note: the Android build pins Gradle 9.1 / AGP 9.0.1 to match Flutter 3.44; use F
 cd android
 sh tests/run_all.sh
 ```
+
+### Releasing
+
+F-Droid builds each release from the committed source at its `vX.Y.Z` tag and learns about new releases by reading `android/pubspec.yaml` there, so everything below must be merged **before** the release is started:
+
+1. Bump the version in `android/pubspec.yaml` — name **and** `+versionCode` (the code always goes up by one) — and in `web-app/index.html` (`data-version` and the visible `vX.Y.Z`).
+2. Move the CHANGELOG's `[Unreleased]` entries under `## [X.Y.Z] — <date>`.
+3. Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for all five locales (≤ 500 characters each).
+4. `python3 tools/validate_store_metadata.py` and both test suites pass; merge via PR.
+5. Run the **Release** workflow on `master` with the same version; it refuses to run if the committed pubspec disagrees. It tags `vX.Y.Z`, builds the APK/AAB with Flutter from `FLUTTER_VERSION` in `release.yml` (the F-Droid recipe reads the same line), and publishes the GitHub release.
+
+F-Droid's update bot notices the new tag by itself and opens the update merge request in fdroiddata; no manual recipe change is needed unless the build steps change. `CLAUDE.md` has the details.
 
 The Android app ports the full v2.1 decode pipeline from the web app to Dart — GF(256) arithmetic, Reed-Solomon RS(255,191), rateless repair-frame coding and assembly, optional zlib decompression, the finder locator, homography grid model, white balance, drift solver, cell classifier, AES-256-GCM decryption, and the live-scan/photo capture layer — all with matching unit tests, plus a synthetic-degradation test harness and a real-capture corpus benchmark.
 
@@ -189,7 +203,7 @@ cd android
 sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
 ```
 
-The suite (233 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
+The suite (255 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 
@@ -198,3 +212,17 @@ The suite (233 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the
 **Web App:** Requires Web Crypto API (`crypto.subtle`). Works in all modern browsers on HTTPS or `localhost`. Does not work on `file://` in Firefox (use the local server method above).
 
 **Android App:** Requires Android 7.0+ (API 24). Built with Flutter 3.44+.
+
+---
+
+## Privacy
+
+Neither app collects anything: no analytics, no trackers, no ads, and the files you encode or decode never leave your device. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+
+## Issues
+
+Bug reports and feature requests are welcome in [GitHub issues](https://github.com/mezinster/cimbar/issues). For a decoding problem, say which app (web or Android) and path (GIF import, photo, live scan), and attach the GIF if you can share it.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

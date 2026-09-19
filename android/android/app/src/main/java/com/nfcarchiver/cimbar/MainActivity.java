@@ -1,4 +1,4 @@
-package com.cimbar.scanner;
+package com.nfcarchiver.cimbar;
 
 import io.flutter.embedding.android.FlutterActivity;
 

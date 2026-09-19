@@ -31,7 +31,6 @@ android/android/gradlew
 android/android/gradlew.bat
 android/android/local.properties
 android/local.properties
-android/pubspec.lock
 android/*.iml
 android/.idea/
 android/android/app/src/main/java/io/
