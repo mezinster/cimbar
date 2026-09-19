@@ -116,6 +116,12 @@ jobs:
       - name: Build iOS app without signing
         run: flutter build ios --release --no-codesign
 
+      - name: Share Extension is embedded in the app
+        run: |
+          appex=build/ios/iphoneos/Runner.app/PlugIns/ShareExtension.appex
+          test -d "$appex" || { echo "::error::$appex missing"; ls -R build/ios/iphoneos/Runner.app | head -50; exit 1; }
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$appex/Info.plist"
+
       - name: Podfile.lock must match the committed one
         run: |
           if [ -f ios/Podfile.lock ] && git ls-files --error-unmatch ios/Podfile.lock >/dev/null 2>&1; then
