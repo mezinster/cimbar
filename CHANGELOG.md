@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-09-19
+
+### Added
+- **F-Droid readiness.** Fastlane store listings (`fastlane/metadata/android/`) in all five app languages — English, Russian, Ukrainian, Turkish, Georgian — with title, short and full description and a per-release changelog (`changelogs/<versionCode>.txt`), plus a 512×512 icon and a 1024×500 feature graphic. The F-Droid build recipe lives in `fdroid/com.nfcarchiver.cimbar.yml` (the local copy of what is submitted to fdroiddata).
+- `tools/validate_store_metadata.py`, run by CI as *Validate Store Metadata*: the recipe parses and pins a full commit sha (or the release tag), `UpdateCheckData` reads the same `name+code` as the pubspec, `release.yml` pins an exact Flutter version, the recipe's app id matches `applicationId`, every locale has its listing files within F-Droid's length limits and a changelog for the current versionCode, the store images have the right sizes, and every `app_<locale>.arb` has a store listing (and vice versa).
+- **App icon.** The placeholder solid-green launcher icon is replaced by an adaptive icon built from the format itself — a finder pattern and twelve real v2 tiles in the four palette colors on black — with legacy PNGs for Android 7.x. `tools/gen_store_graphics.js` generates the launcher icon, the store icon and the feature graphic from `spec/cimbar-v2.json`.
+- **About screen credits sz3's [libcimbar](https://github.com/sz3/libcimbar) and [CFC](https://github.com/sz3/cfc)** as this app's predecessors, with links, and states that their barcodes and CimBar v2's are not compatible (all five languages; `test/features/settings_screen_test.dart`). The store listings and README carry the same note.
+- `app/pubspec.lock` is now committed, resolved with the pinned Flutter 3.44.8: F-Droid runs `flutter pub get --enforce-lockfile`, and so does CI's *Analyze & Test* job, so a dependency change without a matching lock fails CI rather than an F-Droid build pinned to a release tag.
+
+### Changed
+- **The Flutter project moved from `android/` to `app/`** (native Android is now `app/android/`, no longer `android/android/`), making room for the iOS project next to it. CI, the release workflow, the F-Droid recipe (`subdir: app`), the metadata validator and the docs follow; entries below this release keep the paths of their time.
+- **Android application id is now `com.nfcarchiver.cimbar`** (was `com.cimbar.scanner`), matching the project's other apps (`com.nfcarchiver.nfc_archiver`, `com.nfcarchiver.banana_split`). Android treats this as a different app: 0.11.0 installs next to an older CimBar Scanner rather than upgrading it, and files decoded by the old app stay in that app's storage — save any you need, then uninstall it.
+- **The committed `app/pubspec.yaml` is the single source of truth for the versionCode.** The release workflow used to rewrite it with the commit count, so a GitHub APK (e.g. `0.10.1+186`) and a build from the tagged source could disagree; `release.yml` now builds with the committed `name+code` and refuses to release a version the committed pubspec does not name. F-Droid's update bot reads the same line at each release tag.
+- CI and the release workflow pin Flutter **3.44.8** (was the range `3.44.x`): the F-Droid recipe reads `FLUTTER_VERSION` out of `release.yml` and checks it out in its Flutter source tree, which needs an exact tag.
+- The release APK no longer embeds AGP's dependency-metadata block (encrypted for Google Play only), as F-Droid asks; the AAB keeps it.
+
+### Removed
+- **Every permission except the camera.** The APK used to request `RECORD_AUDIO` and `WRITE_EXTERNAL_STORAGE` (merged from `camera_android_camerax` for video recording, which the app never does — both camera controllers disable audio) and `READ_EXTERNAL_STORAGE` (declared by the app and merged from `open_filex`, but never requested: GIF import uses the system picker and shared files arrive as content URIs). All three are stripped with `tools:node="remove"`; `test/android_manifest_test.dart` asserts that `CAMERA` is the only permission left.
+
 ### Fixed
 - **Web: no gap between the frame-delay select and the Encode button.** The select's field is the last child of its two-column wrapper, whose bottom margin was zero; the wrapper now carries the spacing.
+- **Privacy policy** was out of date: it said the web app uses no localStorage (the language choice is stored there since 0.9.1) and that the Android app uses storage permissions. It now lists exactly what each app stores and requests.
 
 ## [0.10.1] — 2026-09-18
 
@@ -182,7 +202,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flutter analyze errors, warnings, and infos
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
-[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/mezinster/cimbar/compare/v0.10.1...v0.11.0
+[0.10.1]: https://github.com/mezinster/cimbar/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/mezinster/cimbar/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/mezinster/cimbar/compare/v0.8.7...v0.9.1
 [0.8.7]: https://github.com/mezinster/cimbar/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/mezinster/cimbar/compare/v0.8.5...v0.8.6

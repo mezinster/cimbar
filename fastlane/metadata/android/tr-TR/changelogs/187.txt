@@ -1,0 +1,4 @@
+• F-Droid'deki ilk sürüm
+• Yeni uygulama kimliği com.nfcarchiver.cimbar: eski CimBar Tarayıcı sürümlerinin yanına ayrı bir uygulama olarak kurulur. Eski uygulamadan ihtiyacınız olan dosyaları kaydedin, ardından onu kaldırın
+• Yeni uygulama simgesi
+• Uygulama artık depolama iznini bildirmiyor — yalnızca kamera
