@@ -78,7 +78,7 @@ The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHu
 
 The `app/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
 
-**iOS:** the same Flutter app builds for iOS (`app/ios/`, bundle id `com.nfcarchiver.cimbar`, shown as "CimBar"), including a Share Extension for sending GIFs to it from Photos, Files or other apps. It is compile-checked in CI (*Build iOS (unsigned)*) but not signed or distributed yet. To run it on your own iPhone, open `app/ios/Runner.xcworkspace` in Xcode on a Mac, set your team for both targets (Runner and ShareExtension) and an App Group of your own, then run.
+**iOS:** the same Flutter app builds for iOS 14 or newer (`app/ios/`, bundle id `com.nfcarchiver.cimbar`, shown as "CimBar"), including a Share Extension for sending GIFs to it from Photos, Files or other apps. It is compile-checked in CI (*Build iOS (unsigned)*) but not signed or distributed yet. To run it on your own iPhone, open `app/ios/Runner.xcworkspace` in Xcode on a Mac, set your team for both targets (Runner and ShareExtension) and an App Group of your own, then run.
 
 **Install:** APKs are attached to each [GitHub release](https://github.com/mezinster/cimbar/releases); the app is being submitted to [F-Droid](https://f-droid.org/), which builds it from source with the recipe in `fdroid/com.nfcarchiver.cimbar.yml`. The only permission it requests is the camera — no internet, no storage. Up to 0.10.1 the app id was `com.cimbar.scanner`: 0.11.0 installs as a separate app next to it, so save any decoded files you need from the old one, then uninstall it.
 
