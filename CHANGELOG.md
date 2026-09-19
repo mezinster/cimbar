@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Share a photo of a barcode to CimBar.** A shared file now goes by its content: a GIF to the Import tab as before, any other image to the Camera tab's photo decoder, ready to decode a single-frame barcode. The Android `SEND` filter accepts `image/*` rather than only `image/gif`, since galleries share as `image/*` even for a GIF (seen from Google Photos on a Pixel 8 Pro, where sharing to 0.11.0 was verified on the device).
+
+### Fixed
+- The "a decode is already running" check for a share now runs after the shared file is read, against the tab that would receive it, closing a small window in which a decode started during the read could still have its file replaced.
+
 ## [0.11.0] — 2026-09-19
 
 ### Added

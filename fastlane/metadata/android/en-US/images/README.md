@@ -17,6 +17,8 @@ NODE_PATH=/path/to/node_modules node tools/gen_store_graphics.js   # needs Playw
 
 ## Screenshots
 
+Committed: `1.png`, Import after a GIF shared from the gallery decoded, and `2.png`, a live scan decoding a barcode off a monitor (Russian UI). Both come from a Pixel 8 Pro and are cropped below the status bar, scaled to 720 px wide and reduced to 256 colors. In `2.png`, the browser-tab strip of the photographed monitor is blurred.
+
 Not generated: take them on a phone (e.g. `adb exec-out screencap -p > 1.png`, or
 scrcpy's screenshot) in English, with the debug switch off. Suggested set, in order:
 

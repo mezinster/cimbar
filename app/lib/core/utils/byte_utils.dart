@@ -34,3 +34,14 @@ Uint8List writeUint32BE(int value) {
 String bytesToHex(Uint8List data) {
   return data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
 }
+
+/// Whether [bytes] start with a GIF signature (`GIF87a` or `GIF89a`).
+bool isGif(Uint8List bytes) {
+  return bytes.length >= 6 &&
+      bytes[0] == 0x47 && // G
+      bytes[1] == 0x49 && // I
+      bytes[2] == 0x46 && // F
+      bytes[3] == 0x38 && // 8
+      (bytes[4] == 0x39 || bytes[4] == 0x37) && // 9 or 7
+      bytes[5] == 0x61; // a
+}

@@ -6,6 +6,8 @@ import 'package:share_handler/share_handler.dart';
 
 import '../../app.dart';
 import '../../core/services/incoming_share.dart';
+import '../../core/utils/byte_utils.dart';
+import '../../features/camera/camera_controller.dart';
 import '../../features/import/import_controller.dart';
 import '../../l10n/generated/app_localizations.dart';
 
@@ -14,8 +16,9 @@ import '../../l10n/generated/app_localizations.dart';
 final GlobalKey<ScaffoldMessengerState> appMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 /// Receives files other apps share to CimBar — on a cold start
-/// (initialMedia) and while running (mediaStream) — selects the first one on
-/// the Import tab and switches to it.
+/// (initialMedia) and while running (mediaStream). The first readable file
+/// goes by content: a GIF to the Import tab, anything else (a photo of a
+/// barcode) to the Camera tab's photo decoder.
 class ShareIntake extends ConsumerStatefulWidget {
   final Widget child;
   const ShareIntake({super.key, required this.child});
@@ -46,25 +49,32 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
     // malformed attachment or a mid-teardown provider read must not crash
     // the app; it's simply reported as unreadable / dropped.
     try {
-      if (ref.read(importControllerProvider).isDecoding) {
-        // A running decode owns the current file; loading a new one out from
-        // under it would leave the old decode stream writing progress/result
-        // for a file that's no longer selected. Show the running decode
-        // instead of swapping it.
-        _goToImport();
-        if (!mounted) return;
-        appMessengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.shareWhileDecoding)),
-        );
-        return;
-      }
-
       final result = await firstSharedFile(media);
       if (!mounted) return;
       final file = result.file;
       if (file != null) {
-        ref.read(importControllerProvider.notifier).loadSharedFile(file.name, file.bytes);
-        _goToImport();
+        final gif = isGif(file.bytes);
+        final route = gif ? '/import' : '/camera';
+        // Checked after the (async) read, against the tab that would take
+        // the file: a running decode owns its current file, and swapping it
+        // would leave the old decode writing progress/result for a file
+        // that's no longer selected. Show the running decode instead.
+        final busy = gif
+            ? ref.read(importControllerProvider).isDecoding
+            : ref.read(cameraControllerProvider).isDecoding;
+        if (busy) {
+          _goTo(route);
+          appMessengerKey.currentState?.showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context)!.shareWhileDecoding)),
+          );
+          return;
+        }
+        if (gif) {
+          ref.read(importControllerProvider.notifier).loadSharedFile(file.name, file.bytes);
+        } else {
+          ref.read(cameraControllerProvider.notifier).setPhoto(file.bytes);
+        }
+        _goTo(route);
       } else if (result.unreadable) {
         appMessengerKey.currentState?.showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context)!.shareReadFailed)),
@@ -76,12 +86,12 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
     }
   }
 
-  /// Switches to the Import tab, first popping the root navigator back to
+  /// Switches to the tab at [location], first popping the root navigator back to
   /// the shell so a full-screen route pushed above it (Live Scan, Photo
   /// Capture) doesn't hide the switch.
-  void _goToImport() {
+  void _goTo(String location) {
     rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
-    ref.read(routerProvider).go('/import');
+    ref.read(routerProvider).go(location);
   }
 
   @override

@@ -12,7 +12,7 @@ CimBar Scanner receives files sent as CimBar barcodes — animated images in whi
 • Live scan with focus and exposure lock, an aiming guide, and hints such as "move closer" or "hold still"
 • Frames can be caught in any order: extra repair frames mean any N frames of an N-frame barcode complete the file, so there is no waiting for the one frame you missed
 • In-app photo or gallery image for single-frame barcodes
-• Import CimBar GIFs from your files
+• Import CimBar GIFs from your files, or share one to the app from any other app, such as your gallery; a shared photo of a single-frame barcode goes straight to the photo decoder
 • Reed-Solomon error correction in every frame
 • Automatic decompression of files that were compressed on encoding
 • Optional AES-256-GCM encryption, detected automatically; if a live scan turns out to be encrypted, enter the passphrase right there — no rescan

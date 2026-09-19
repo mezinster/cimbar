@@ -42,6 +42,14 @@ void main() {
 
   // The store listings and the privacy policy promise "camera only"; F-Droid
   // shows every requested permission on the app's page.
+  // Galleries share as image/* (seen from Google Photos on a Pixel 8 Pro);
+  // GIFs go to Import and other images to the photo decoder (ShareIntake).
+  test('accepts shared images of any type (SEND image/*)', () {
+    final send = RegExp(r'<intent-filter>[\s\S]*?android\.intent\.action\.SEND"[\s\S]*?</intent-filter>').firstMatch(manifest)?.group(0);
+    expect(send, isNotNull, reason: 'no SEND intent filter');
+    expect(send, contains('android:mimeType="image/*"'));
+  });
+
   test('CAMERA is the only permission the app itself requests', () {
     final kept = RegExp(r'<uses-permission\s+android:name="([^"]+)"([^>]*)/>')
         .allMatches(manifest)
