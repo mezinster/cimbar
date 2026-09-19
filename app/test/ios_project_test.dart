@@ -59,4 +59,53 @@ void main() {
     expect(read('pubspec.yaml'), contains('enable-swift-package-manager: false'));
     expect(read('ios/Podfile'), contains("target 'Runner' do"));
   });
+
+  group('localized permission prompts', () {
+    for (final lang in arbLocales()) {
+      test('$lang.lproj/InfoPlist.strings has both usage strings and is in the project', () {
+        final s = read('ios/Runner/$lang.lproj/InfoPlist.strings');
+        expect(s, contains('"NSCameraUsageDescription" = "'));
+        expect(s, contains('"NSPhotoLibraryUsageDescription" = "'));
+        expect(pbx, contains('$lang.lproj/InfoPlist.strings'));
+      });
+    }
+  });
+
+  group('Share Extension', () {
+    late String extInfo;
+    setUpAll(() => extInfo = read('ios/ShareExtension/Info.plist'));
+
+    test('target exists with its own bundle id and is embedded in Runner', () {
+      expect(pbx, contains('PRODUCT_BUNDLE_IDENTIFIER = com.nfcarchiver.cimbar.ShareExtension;'));
+      expect(pbx, contains('ShareExtension.appex in Embed Foundation Extensions'));
+    });
+
+    test('both targets share the App Group', () {
+      for (final f in ['ios/Runner/Runner.entitlements', 'ios/ShareExtension/ShareExtension.entitlements']) {
+        expect(read(f), contains('<string>group.com.nfcarchiver.cimbar</string>'), reason: f);
+      }
+      expect(pbx, contains('CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;'));
+      expect(pbx, contains('CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;'));
+    });
+
+    test('is a share extension for images and files only (no TRUEPREDICATE)', () {
+      expect(plistString(extInfo, 'NSExtensionPointIdentifier'), 'com.apple.share-services');
+      expect(extInfo, contains('NSExtensionActivationSupportsImageWithMaxCount'));
+      expect(extInfo, contains('NSExtensionActivationSupportsFileWithMaxCount'));
+      expect(extInfo, isNot(contains('TRUEPREDICATE')));
+    });
+
+    test('versions follow the app (App Store requires them to match)', () {
+      expect(plistString(extInfo, 'CFBundleShortVersionString'), r'$(FLUTTER_BUILD_NAME)');
+      expect(plistString(extInfo, 'CFBundleVersion'), r'$(FLUTTER_BUILD_NUMBER)');
+    });
+
+    test('subclasses share_handler\'s controller and gets its pod', () {
+      expect(read('ios/ShareExtension/ShareViewController.swift'),
+          contains('class ShareViewController: ShareHandlerIosViewController'));
+      final podfile = read('ios/Podfile');
+      expect(podfile, contains("target 'ShareExtension' do"));
+      expect(podfile, contains('share_handler_ios_models'));
+    });
+  });
 }

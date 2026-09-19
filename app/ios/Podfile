@@ -35,6 +35,13 @@ target 'Runner' do
   end
 end
 
+# share_handler's Share Extension (ios/ShareExtension, added by
+# tool/configure_xcode_project.rb) subclasses ShareHandlerIosViewController.
+target 'ShareExtension' do
+  use_frameworks!
+  pod 'share_handler_ios_models', :path => '.symlinks/plugins/share_handler_ios/ios/Models'
+end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
