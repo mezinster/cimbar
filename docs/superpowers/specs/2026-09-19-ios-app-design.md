@@ -1,6 +1,6 @@
 # CimBar Scanner for iOS — design
 
-**Date:** 2026-09-19 · **Status:** approved 2026-09-19; plan: `docs/superpowers/plans/2026-09-19-ios-app.md` · **Branch:** `feat/ios` (stacked on PR #14, `chore/fdroid-readiness`)
+**Date:** 2026-09-19 · **Status:** implemented (compile-checked; see app/CLAUDE.md "iOS" for the first-device checklist); plan: `docs/superpowers/plans/2026-09-19-ios-app.md` · **Branch:** `feat/ios` (stacked on PR #14, `chore/fdroid-readiness`)
 
 ## Goal
 
