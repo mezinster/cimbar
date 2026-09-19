@@ -16,7 +16,7 @@ Repo: https://github.com/mezinster/cimbar.git
 Builds:
   - versionName: 0.11.0
     versionCode: 187
-    commit: v0.11.0
+    commit: fd909b160b1e8c87c891b254c16e09bcc9cdc360
     subdir: app
     sudo:
       - echo "deb https://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/bookworm.list

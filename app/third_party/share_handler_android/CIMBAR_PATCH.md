@@ -6,6 +6,8 @@ points to it with `dependency_overrides`.
 
 ## The bug
 
+Upstream: [issue #140](https://github.com/ShoutSocial/share_handler/issues/140) (CVE-2026-38102); our fix was offered upstream as [PR #147](https://github.com/ShoutSocial/share_handler/pull/147).
+
 When another app shares a file, the plugin copies the `content://` stream into the
 app's cache directory under the stream's **display name**. That name is chosen by the
 *sending* app's content provider, and upstream used it as a path:
@@ -38,5 +40,6 @@ The commit before the patch commit is the pristine upstream copy, so
 
 ## Upgrading
 
-Re-vendor the new release, re-apply this patch, and keep both tests green. Once
-upstream fixes the bug, drop the override and this directory.
+Re-vendor the new release, re-apply this patch, and keep both tests green. Once a
+release includes PR #147 (or another fix for issue #140), drop the override and this
+directory.
