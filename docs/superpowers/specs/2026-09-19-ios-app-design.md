@@ -1,6 +1,6 @@
 # CimBar Scanner for iOS — design
 
-**Date:** 2026-09-19 · **Status:** draft for review · **Branch:** `feat/ios` (stacked on PR #14, `chore/fdroid-readiness`)
+**Date:** 2026-09-19 · **Status:** approved 2026-09-19; plan: `docs/superpowers/plans/2026-09-19-ios-app.md` · **Branch:** `feat/ios` (stacked on PR #14, `chore/fdroid-readiness`)
 
 ## Goal
 
@@ -13,7 +13,7 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
 | Distribution | **Compile-check only for now.** CI proves the iOS app (and its Share Extension) builds unsigned; no IPA artifact, no signing, no App Store/TestFlight. |
 | Layout | Flutter root renamed `android/` → `app/` (done in PR #14): `app/android/` + `app/ios/`. |
 | Scope | **Full parity including a Share Extension** for share-in. |
-| Share-in approach | `share_handler`'s own iOS integration (URL scheme + document types + Share Extension target). This keeps one Dart code path, since the same `ShareHandler` stream is already used on Android. |
+| Share-in approach | `share_handler`'s own iOS integration (URL scheme + Share Extension target), one Dart code path on both platforms. **Found while planning:** Android never had a Dart side either (the `SEND image/gif` filter opened the app and dropped the file), so share-in is implemented for both platforms here. |
 | Order | This work lands after PR #14, in its own PR stacked on it. |
 
 ## Non-goals
@@ -39,13 +39,14 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
 2. **`Runner/Info.plist`**:
    - `NSCameraUsageDescription` (live scan and in-app photo) and `NSPhotoLibraryUsageDescription` (gallery pick; `share_handler` for shared photos).
    - **No** `NSMicrophoneUsageDescription`: both `CameraController`s pass `enableAudio: false`. This mirrors the Android camera-only permission rule.
-   - `share_handler`'s block: `CFBundleURLTypes` with scheme `ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)`, `CFBundleDocumentTypes` (role Viewer, rank Alternate) for `com.compuserve.gif`, `public.image` and `public.data`, and `LSSupportsOpeningDocumentsInPlace` = `NO`. `NSUserActivityTypes` / `INSendMessageIntent` is **omitted**, since we don't use conversation suggestions.
+   - `share_handler`'s block: `CFBundleURLTypes` with scheme `ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)`. **No `CFBundleDocumentTypes`**: `share_handler_ios` 0.0.15 only handles URLs with its `ShareMedia-` scheme, so "Open in CimBar" would drop the file. `NSUserActivityTypes` / `INSendMessageIntent` is omitted (no conversation suggestions).
+   - The template's UIScene lifecycle (`SceneDelegate`) is kept unchanged: Flutter 3.44 forwards scene URL events to non-scene plugins (`sceneFallbackOpenURLContexts` / `sceneWillConnectFallback`), which is how `share_handler_ios` receives the extension's URL.
    - `CFBundleLocalizations`: `en`, `ru`, `uk`, `tr`, `ka`.
    - Orientation: portrait plus landscape for iPhone, same as Android. Live scan locks portrait itself via `SystemChrome`.
 3. **Localized permission prompts**: `Runner/<lang>.lproj/InfoPlist.strings` for the five languages (camera and photo-library texts), matching the Android app's languages.
-4. **Share Extension target** `ShareExtension`, added by a committed, re-runnable script **`app/ios/tool/add_share_extension.rb`**. It uses the `xcodeproj` gem (pure Ruby, runs on Linux; install with `gem install --user-install xcodeproj`), and the script is idempotent (it exits if the target exists). It creates:
+4. **Share Extension target** `ShareExtension`, added by a committed, re-runnable script **`app/ios/tool/configure_xcode_project.rb`**. The same script also registers the `InfoPlist.strings` variant group, which needs a project edit too. It uses the `xcodeproj` gem (pure Ruby, runs on Linux; install with `gem install --user-install xcodeproj`), and the script is idempotent (it exits if the target exists). It creates:
    - `ShareExtension/ShareViewController.swift`: `class ShareViewController: ShareHandlerIosViewController {}`, the plugin's documented subclass.
-   - `ShareExtension/Info.plist`: `NSExtensionPointIdentifier` `com.apple.share-services`, principal class `$(PRODUCT_MODULE_NAME).ShareViewController`, and an activation rule accepting **only images and files, at most 10 items** (a SUBQUERY predicate on `public.image` / `public.file-url` / `com.compuserve.gif`, no `TRUEPREDICATE`, which App Review rejects). Version keys are tied to the Flutter build variables.
+   - `ShareExtension/Info.plist`: `NSExtensionPointIdentifier` `com.apple.share-services`, principal class `$(PRODUCT_MODULE_NAME).ShareViewController`, and an activation rule accepting **only images and files, at most 10 each** (the `NSExtensionActivationSupportsImageWithMaxCount` / `…FileWithMaxCount` dictionary form, no `TRUEPREDICATE`, which App Review rejects). Version keys are tied to the Flutter build variables.
    - Entitlements files for both targets with the App Group, and `CODE_SIGN_ENTITLEMENTS` set on each.
    - The extension embedded in Runner ("Embed Foundation Extensions" build phase), plus a target dependency. The extension's `IPHONEOS_DEPLOYMENT_TARGET` matches Runner's.
    - Build settings: `SWIFT_VERSION`, `TARGETED_DEVICE_FAMILY` and `SKIP_INSTALL=YES` for the extension; the bundle id as in Identity.
@@ -56,7 +57,7 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
      pod 'share_handler_ios_models', :path => '.symlinks/plugins/share_handler_ios/ios/Models'
    end
    ```
-   If Flutter 3.44.8 scaffolds with Swift Package Manager enabled, the plugins that support it resolve through SPM and the rest through CocoaPods; the extension's models pod still needs CocoaPods. `Podfile.lock` can only be produced on macOS: the first CI run uploads it as an artifact, and it is committed from there (as NFC Archiver does), so later runs are reproducible.
+   **CocoaPods only:** SPM (on by default in Flutter 3.44 stable) is disabled per project with `flutter: config: enable-swift-package-manager: false` in `pubspec.yaml`, since `share_handler_ios` and the extension's models pod exist only as CocoaPods. `Podfile.lock` can only be produced on macOS: the first CI run uploads it as an artifact, and it is committed from there (as NFC Archiver does), so later runs are reproducible.
 6. **App icon**: `Runner/Assets.xcassets/AppIcon.appiconset` as a single 1024×1024 "universal" icon (Xcode 14+), generated by `tools/gen_store_graphics.js`. It's the same mosaic as Android, but **full-bleed and opaque** (iOS applies its own corner mask, and App Store validation rejects alpha). The generator gets a job for it that writes a PNG without an alpha channel; a test asserts the color type.
 
 ## Dart changes (all platform-neutral, tested on Linux)
@@ -66,7 +67,8 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
    - **2 planes (iOS NV12)**: `uPlane` = plane 1, `vPlane` = a one-byte-offset view of plane 1 (`Uint8List.sublistView(p1, 1)`), and `uvPixelStride` = 2, `uvRowStride` = plane 1's `bytesPerRow`. `RgbBuffer.fromYuv420` already indexes semi-planar data this way.
    - Anything else returns null (frame dropped), as the `planes.length < 3` guard does now.
 2. **Video-range luma/chroma.** iOS delivers `kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange` (Y 16–235, CbCr 16–240). Android camera frames are full range. `YuvFrame` gains `videoRange` (default false), and when it's true, `RgbBuffer.fromYuv420` and `LumaPlane.fromYPlane` expand to full range (`(y − 16)·255/219`, chroma `·255/224`). Without this, finder cores never reach full white and every luma threshold tuned on Android shifts. The plane adapter sets it for the 2-plane case.
-3. Nothing else needs platform branching. There are no `Platform.*` checks today; `file_picker.saveFile(bytes:)`, `open_filex`, `share_plus`, `image_picker` and `path_provider` all support iOS.
+3. **Share-in (both platforms):** a `ShareIntake` widget (in `MaterialApp.router`'s `builder`) reads `share_handler`'s initial and streamed `SharedMedia` through an injectable `ShareSource`, selects the first readable attachment on the Import tab (`ImportController.loadSharedFile`) and navigates there. An unreadable attachment shows a translated SnackBar (`shareReadFailed`); on Android a document-provider URI can resolve to storage the app has no permission to read.
+4. Nothing else needs platform branching. There are no `Platform.*` checks today; `file_picker.saveFile(bytes:)`, `open_filex`, `share_plus`, `image_picker` and `path_provider` all support iOS.
 
 ## CI
 
