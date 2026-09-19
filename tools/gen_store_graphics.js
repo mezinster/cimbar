@@ -18,6 +18,11 @@
  *   fastlane/metadata/android/en-US/images/featureGraphic.png                     1024x500
  *   app/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json
  *   app/ios/Runner/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png            1024x1024, opaque (App Store rejects alpha)
+ *   web-app/favicon-32.png, web-app/icon-192.png, web-app/icon-512.png            web app icons (rounded, transparent corners)
+ *   web-app/apple-touch-icon.png                                                  180x180, opaque (iOS rounds it itself)
+ *
+ * The web app's favicon.svg and manifest.webmanifest need no browser and are
+ * always written; index.html links them, and deploy-webapp.yml stages them.
  */
 'use strict';
 
@@ -30,6 +35,7 @@ const SPEC = JSON.parse(fs.readFileSync(path.join(REPO, 'spec', 'cimbar-v2.json'
 const RES = path.join(REPO, 'app', 'android', 'app', 'src', 'main', 'res');
 const IMAGES = path.join(REPO, 'fastlane', 'metadata', 'android', 'en-US', 'images');
 const IOS_ICONSET = path.join(REPO, 'app', 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset');
+const WEB = path.join(REPO, 'web-app');
 
 const TILE = 8;   // tile pixels per side
 const PITCH = 9;  // tile + 1 px black gap, as in a real frame
@@ -253,6 +259,25 @@ function pngWithoutAlpha(buf) {
   return Buffer.concat([buf.slice(0, 8), pngChunk('IHDR', hdr), pngChunk('IDAT', zlib.deflateSync(out)), pngChunk('IEND', Buffer.alloc(0))]);
 }
 
+// The web app's page background (index.html's --bg), used for the browser
+// chrome and the splash colour of an installed shortcut.
+const WEB_THEME = '#f5f3ef';
+
+const WEB_MANIFEST = JSON.stringify({
+  name: 'CimBar',
+  short_name: 'CimBar',
+  description: 'Encode any file into an animated color barcode, and decode it back, entirely in your browser.',
+  start_url: './',
+  scope: './',
+  display: 'standalone',
+  background_color: WEB_THEME,
+  theme_color: WEB_THEME,
+  icons: [
+    { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+  ],
+}, null, 2) + '\n';
+
 /** Deterministic PRNG (mulberry32) so the feature graphic is reproducible. */
 function rng(seed) {
   return () => {
@@ -355,6 +380,9 @@ async function main() {
     write(path.join(IOS_ICONSET, 'Contents.json'), IOS_ICON_CONTENTS);
   }
 
+  write(path.join(WEB, 'favicon.svg'), iconSvg(64) + '\n');
+  write(path.join(WEB, 'manifest.webmanifest'), WEB_MANIFEST);
+
   const legacy = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
   const jobs = Object.entries(legacy).map(([dpi, size]) => ({
     file: path.join(RES, `mipmap-${dpi}`, 'ic_launcher.png'), svg: iconSvg(size), width: size, height: size,
@@ -364,6 +392,10 @@ async function main() {
   if (fs.existsSync(IOS_ICONSET)) {
     jobs.push({ file: path.join(IOS_ICONSET, 'AppIcon-1024.png'), svg: iosIconSvg(1024), width: 1024, height: 1024, opaque: true });
   }
+  for (const [name, size] of [['favicon-32.png', 32], ['icon-192.png', 192], ['icon-512.png', 512]]) {
+    jobs.push({ file: path.join(WEB, name), svg: iconSvg(size), width: size, height: size });
+  }
+  jobs.push({ file: path.join(WEB, 'apple-touch-icon.png'), svg: iosIconSvg(180), width: 180, height: 180, opaque: true });
   await rasterize(jobs);
 }
 

@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           mkdir -p site
           cd web-app
-          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js i18n.js; do
+          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
             [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
             cp "$f" ../site/
           done
@@ -70,9 +70,11 @@ jobs:
       - name: Verify the staged bundle
         env:
           SHA: ${{ steps.stamp.outputs.sha }}
-        # Every <script src="X"> in the page must be staged — a script left
-        # behind would 404 on the live site while the page itself looks fine —
-        # and the marker must occur exactly once.
+        # Every <script src="X"> and local <link href="X"> in the page must be
+        # staged — a file left behind would 404 on the live site while the page
+        # itself looks fine — every staged file must have an upload
+        # Content-Type (see the type tables in the upload/rollback steps), and
+        # the marker must occur exactly once.
         run: |
           set -euo pipefail
           cd site
@@ -81,11 +83,19 @@ jobs:
           v=$(grep -c "<span id=\"buildSha\">${SHA}</span>" index.html || true)
           [ "$v" -eq 1 ] || { echo "::error::visible build stamp occurs $v times in index.html (want 1)"; exit 1; }
           missing=0
-          for src in $(grep -oE '<script src="[^"]+"' index.html | sed -E 's/.*src="([^"]+)"/\1/'); do
+          refs=$( { grep -oE '<script src="[^"]+"' index.html | sed -E 's/.*src="([^"]+)"/\1/';
+                    grep -oE '<link [^>]*href="[^"]+"' index.html | sed -E 's/.*href="([^"]+)".*/\1/'; } )
+          for src in $refs; do
             case "$src" in
-              http*) continue ;;
+              http*|//*) continue ;;
             esac
             [ -s "$src" ] || { echo "::error::index.html references $src, which is not staged"; missing=1; }
+          done
+          for f in *; do
+            case "$f" in
+              index.html|*.js|*.png|*.svg|*.webmanifest) ;;
+              *) echo "::error::$f has no upload Content-Type; add its pattern to the type tables"; missing=1 ;;
+            esac
           done
           [ "$missing" -eq 0 ] || exit 1
           echo "staged $(ls | wc -l) files, marker ok, build ${SHA}"
@@ -198,20 +208,29 @@ jobs:
           echo "snapshot taken:"
           find previous -type f | sort
 
-      - name: Upload scripts (short cache)
+      - name: Upload scripts and icons (short cache)
         id: upload_assets
         if: ${{ !inputs.dry_run }}
-        # --delete is confined to ${PREFIX}; it can never touch another app's
-        # keys. index.html is excluded here (and so exempt from --delete)
-        # because it is uploaded last, with different headers. The non-HTML
-        # tree is JavaScript only — add a pass if another type ever ships.
+        # One sync per file type, each with its own Content-Type (S3 serves
+        # whatever the upload set: a PNG uploaded as JavaScript is not an icon).
+        # --delete is confined to ${PREFIX} and to the pass's own pattern; it
+        # can never touch another app's keys. index.html matches no pattern and
+        # is uploaded last, with different headers. The verify step refuses a
+        # staged file whose type is missing from this table.
         run: |
           set -euo pipefail
-          aws s3 sync ./site/ "s3://${BUCKET}/${PREFIX}" \
-            --delete \
-            --exclude 'index.html' \
-            --content-type 'text/javascript; charset=utf-8' \
-            --cache-control 'public, max-age=3600'
+          while read -r pattern type; do
+            aws s3 sync ./site/ "s3://${BUCKET}/${PREFIX}" \
+              --delete \
+              --exclude '*' --include "$pattern" \
+              --content-type "$type" \
+              --cache-control 'public, max-age=3600'
+          done <<'TYPES'
+            *.js            text/javascript; charset=utf-8
+            *.png           image/png
+            *.svg           image/svg+xml
+            *.webmanifest   application/manifest+json
+          TYPES
 
       - name: Upload index.html last (no-cache)
         id: upload_html
@@ -253,11 +272,19 @@ jobs:
         run: |
           set -euo pipefail
           echo "::error::Deploy verification failed — restoring the previous version."
-          aws s3 sync ./previous/ "s3://${BUCKET}/${PREFIX}" \
-            --delete \
-            --exclude 'index.html' \
-            --content-type 'text/javascript; charset=utf-8' \
-            --cache-control 'public, max-age=3600'
+          # Same per-type passes as the upload step (keep the tables in sync).
+          while read -r pattern type; do
+            aws s3 sync ./previous/ "s3://${BUCKET}/${PREFIX}" \
+              --delete \
+              --exclude '*' --include "$pattern" \
+              --content-type "$type" \
+              --cache-control 'public, max-age=3600'
+          done <<'TYPES'
+            *.js            text/javascript; charset=utf-8
+            *.png           image/png
+            *.svg           image/svg+xml
+            *.webmanifest   application/manifest+json
+          TYPES
           if [ -f ./previous/index.html ]; then
             aws s3 cp ./previous/index.html "s3://${BUCKET}/${PREFIX}index.html" \
               --content-type 'text/html; charset=utf-8' \
