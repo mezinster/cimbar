@@ -157,12 +157,14 @@ def check_fdroid(version_name, version_code):
         )
 
 
-def png_size(path):
+def png_info(path):
+    """(width, height, colour type) of a PNG, or None if it isn't one."""
     with open(path, "rb") as fh:
-        head = fh.read(24)
+        head = fh.read(26)
     if head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
         return None
-    return struct.unpack(">II", head[16:24])
+    w, h = struct.unpack(">II", head[16:24])
+    return w, h, head[25]
 
 
 def check_images():
@@ -172,9 +174,24 @@ def check_images():
         if not os.path.isfile(path):
             fail("en-US: missing images/%s" % name)
             continue
-        got = png_size(path)
-        if got != size:
-            fail("en-US: images/%s is %s, expected a %dx%d PNG" % (name, got, size[0], size[1]))
+        info = png_info(path)
+        if info is None or info[:2] != size:
+            fail("en-US: images/%s is %s, expected a %dx%d PNG" % (name, info and info[:2], size[0], size[1]))
+
+
+IOS_ICON = os.path.join(REPO, "app", "ios", "Runner", "Assets.xcassets", "AppIcon.appiconset", "AppIcon-1024.png")
+
+
+def check_ios_icon():
+    """App Store validation rejects app icons with an alpha channel."""
+    if not os.path.isfile(IOS_ICON):
+        fail("missing %s (node tools/gen_store_graphics.js)" % os.path.relpath(IOS_ICON, REPO))
+        return
+    info = png_info(IOS_ICON)
+    if info is None or info[:2] != (1024, 1024):
+        fail("iOS app icon is %s, expected 1024x1024" % (info and info[:2],))
+    elif info[2] != 2:
+        fail("iOS app icon has PNG colour type %d; it must be 2 (RGB, no alpha)" % info[2])
 
 
 def check_listings(version_code):
@@ -257,6 +274,7 @@ def main():
     locales = check_listings(version_code)
     print("store locales checked: %s" % ", ".join(locales))
     check_images()
+    check_ios_icon()
     check_app_locales_have_listings(locales)
 
     if problems:
