@@ -126,7 +126,7 @@ void main() {
     expect(p.luma, [0, 255, 128, 0]);
   });
 
-  test('NV12 video-range round-trips through RgbBuffer.fromYuv420 within ±6', () {
+  test('NV12 video-range round-trips through RgbBuffer.fromYuv420 within ±8', () {
     final src = gradient(64, 48);
     final nv12 = rgbToNv12VideoRange(src, pad: 8);
     final f = YuvFrame.fromPlanes(
@@ -137,7 +137,10 @@ void main() {
       final d = (src.rgb[i] - back.rgb[i]).abs();
       if (d > worst) worst = d;
     }
-    expect(worst, lessThanOrEqualTo(6));
+    // Video range quantizes luma to 219 levels and chroma to 224 (vs. 256 full
+    // range), on top of the ±4 the full-range round-trip already allows (see
+    // roi_buffers_test.dart) — ±8 covers that extra quantization loss.
+    expect(worst, lessThanOrEqualTo(8));
   });
 
   test('a golden frame decodes from iOS-style NV12 video-range input', () {
