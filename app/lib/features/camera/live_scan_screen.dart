@@ -101,19 +101,19 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
   }
 
   void _onCameraImage(CameraImage image) {
-    if (_disposed || image.planes.length < 3) return;
+    if (_disposed) return;
     final controller = ref.read(liveScanControllerProvider.notifier);
     if (!controller.wantsFrame) return; // drop before copying anything
-    final frame = YuvFrame(
-      yPlane: Uint8List.fromList(image.planes[0].bytes),
-      uPlane: Uint8List.fromList(image.planes[1].bytes),
-      vPlane: Uint8List.fromList(image.planes[2].bytes),
+    // Android delivers 3 planes (YUV_420_888), iOS 2 (NV12, video range);
+    // fromPlanes copies the ephemeral plane bytes and returns null otherwise.
+    final frame = YuvFrame.fromPlanes(
+      planes: [for (final p in image.planes) p.bytes],
+      rowStrides: [for (final p in image.planes) p.bytesPerRow],
+      pixelStrides: [for (final p in image.planes) p.bytesPerPixel],
       width: image.width,
       height: image.height,
-      yRowStride: image.planes[0].bytesPerRow,
-      uvRowStride: image.planes[1].bytesPerRow,
-      uvPixelStride: image.planes[1].bytesPerPixel ?? 1,
     );
+    if (frame == null) return;
     controller.onCameraFrame(frame);
   }
 

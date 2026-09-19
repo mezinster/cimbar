@@ -43,7 +43,8 @@ class FrameDecoder {
 
   FrameResult decodeYuv420(YuvFrame f, {bool useDrift = true, RoiHint? hint}) {
     final diag = Diagnostics()..locateRan = true;
-    final luma = LumaPlane.fromYPlane(f.yPlane, width: f.width, height: f.height, rowStride: f.yRowStride);
+    final luma = LumaPlane.fromYPlane(f.yPlane,
+        width: f.width, height: f.height, rowStride: f.yRowStride, videoRange: f.videoRange);
     final loc = _locate(luma, hint, diag);
     if (loc == null) return FrameResult(status: DecodeStatus.notLocated, diag: diag..note = diag.locateFail);
     return _decodeLocated(loc, luma, diag, useDrift, (roi) {
