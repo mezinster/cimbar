@@ -32,17 +32,29 @@ class PluginShareSource implements ShareSource {
 
 final shareSourceProvider = Provider<ShareSource>((ref) => PluginShareSource());
 
+/// A filename from a filesystem path that can't throw — no `Uri`/`File`
+/// round trip, which can raise on a path `Uri.parse`/`toFilePath` or
+/// `File.uri.pathSegments` doesn't expect (empty path, an authority
+/// component, ...).
+String _basename(String path) {
+  final i = path.lastIndexOf(RegExp(r'[\\/]'));
+  return i == -1 ? path : path.substring(i + 1);
+}
+
 /// The first readable attachment of [media]. [unreadable] is true when it had
 /// attachments but none could be read — on Android a document-provider URI can
-/// resolve to a shared-storage path the app holds no permission for.
+/// resolve to a shared-storage path the app holds no permission for; a
+/// malformed `file://` URI (an authority component `toFilePath()` rejects) or
+/// an empty path are also treated as unreadable rather than thrown.
 Future<({SharedFile? file, bool unreadable})> firstSharedFile(SharedMedia media) async {
   final attachments = (media.attachments ?? const <SharedAttachment?>[]).whereType<SharedAttachment>().toList();
   for (final a in attachments) {
-    final path = a.path.startsWith('file://') ? Uri.parse(a.path).toFilePath() : a.path;
     try {
+      final path = a.path.startsWith('file://') ? Uri.parse(a.path).toFilePath() : a.path;
       final file = File(path);
-      return (file: SharedFile(file.uri.pathSegments.last, await file.readAsBytes()), unreadable: false);
-    } on FileSystemException {
+      final bytes = await file.readAsBytes();
+      return (file: SharedFile(_basename(path), bytes), unreadable: false);
+    } catch (_) {
       continue;
     }
   }

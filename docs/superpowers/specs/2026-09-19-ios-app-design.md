@@ -30,7 +30,7 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
 | Share Extension bundle id | `com.nfcarchiver.cimbar.ShareExtension` |
 | App Group (both targets) | `group.com.nfcarchiver.cimbar`, the default `share_handler` derives from the main bundle id |
 | Display name | `CFBundleDisplayName` = `CimBar` (the home screen truncates past ~12 characters); `CFBundleName` = `CimBar Scanner` |
-| Deployment target | the Flutter 3.44.8 template default (iOS 13), unless a plugin raises it |
+| Deployment target | iOS 14.0 (`file_picker_darwin` 2.1.0 requires it) |
 | Version | `$(FLUTTER_BUILD_NAME)` / `$(FLUTTER_BUILD_NUMBER)` from pubspec, in both targets (the extension must match the app, or App Store validation fails later) |
 
 ## iOS project (`app/ios/`)
@@ -39,7 +39,7 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
 2. **`Runner/Info.plist`**:
    - `NSCameraUsageDescription` (live scan and in-app photo) and `NSPhotoLibraryUsageDescription` (gallery pick; `share_handler` for shared photos).
    - **No** `NSMicrophoneUsageDescription`: both `CameraController`s pass `enableAudio: false`. This mirrors the Android camera-only permission rule.
-   - `share_handler`'s block: `CFBundleURLTypes` with scheme `ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)`. **No `CFBundleDocumentTypes`**: `share_handler_ios` 0.0.15 only handles URLs with its `ShareMedia-` scheme, so "Open in CimBar" would drop the file. `NSUserActivityTypes` / `INSendMessageIntent` is omitted (no conversation suggestions).
+   - `share_handler`'s block: `CFBundleURLTypes` with scheme `ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)`. **No `CFBundleDocumentTypes`**: the Share Extension already covers sharing, and "Open in CimBar" (a direct file-open registration) isn't needed yet — a possible later addition. `NSUserActivityTypes` / `INSendMessageIntent` is omitted (no conversation suggestions).
    - The template's UIScene lifecycle (`SceneDelegate`) is kept unchanged: Flutter 3.44 forwards scene URL events to non-scene plugins (`sceneFallbackOpenURLContexts` / `sceneWillConnectFallback`), which is how `share_handler_ios` receives the extension's URL.
    - `CFBundleLocalizations`: `en`, `ru`, `uk`, `tr`, `ka`.
    - Orientation: portrait plus landscape for iPhone, same as Android. Live scan locks portrait itself via `SystemChrome`.
@@ -50,10 +50,10 @@ The Flutter app in `app/` also builds for iOS, with feature parity with Android:
    - Entitlements files for both targets with the App Group, and `CODE_SIGN_ENTITLEMENTS` set on each.
    - The extension embedded in Runner ("Embed Foundation Extensions" build phase), plus a target dependency. The extension's `IPHONEOS_DEPLOYMENT_TARGET` matches Runner's.
    - Build settings: `SWIFT_VERSION`, `TARGETED_DEVICE_FAMILY` and `SKIP_INSTALL=YES` for the extension; the bundle id as in Identity.
-5. **`Podfile`**: the Flutter template's plus the plugin's documented extension target:
+5. **`Podfile`**: the Flutter template's plus the plugin's documented extension target, as a top-level target (not nested inside `target 'Runner'`):
    ```ruby
    target 'ShareExtension' do
-     inherit! :search_paths
+     use_frameworks!
      pod 'share_handler_ios_models', :path => '.symlinks/plugins/share_handler_ios/ios/Models'
    end
    ```

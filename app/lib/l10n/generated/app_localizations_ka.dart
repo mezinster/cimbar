@@ -262,6 +262,10 @@ class AppLocalizationsKa extends AppLocalizations {
       'გაზიარებული ფაილის წაკითხვა ვერ მოხერხდა. გახსენით ის „GIF იმპორტით“.';
 
   @override
+  String get shareWhileDecoding =>
+      'ჯერ დაელოდეთ მიმდინარე დეკოდირების დასრულებას, შემდეგ ფაილი ხელახლა გააზიარეთ.';
+
+  @override
   String get tabFiles => 'ფაილები';
 
   @override

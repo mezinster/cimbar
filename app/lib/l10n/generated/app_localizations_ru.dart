@@ -262,6 +262,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось прочитать отправленный файл. Откройте его через «Импорт GIF».';
 
   @override
+  String get shareWhileDecoding =>
+      'Сначала дождитесь окончания текущего декодирования, затем отправьте файл снова.';
+
+  @override
   String get tabFiles => 'Файлы';
 
   @override

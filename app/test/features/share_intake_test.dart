@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cimbar_scanner/app.dart';
 import 'package:cimbar_scanner/core/providers/shared_preferences_provider.dart';
 import 'package:cimbar_scanner/core/services/incoming_share.dart';
+import 'package:cimbar_scanner/features/camera/live_scan_screen.dart';
 import 'package:cimbar_scanner/features/import/import_controller.dart';
 
 class FakeShareSource implements ShareSource {
@@ -33,12 +34,28 @@ SharedMedia gifShare(String path) =>
 
 final fixture = File('test/fixtures/test_hello.gif').absolute.path;
 
-Future<ProviderContainer> pumpApp(WidgetTester tester, FakeShareSource source) async {
+/// An [ImportController] that starts mid-decode, as a clean seam for tests
+/// that must not start a real decode to reach `isDecoding: true`.
+class _DecodingImportController extends ImportController {
+  _DecodingImportController() {
+    state = const ImportState(
+      selectedFileName: 'existing.gif',
+      isDecoding: true,
+    );
+  }
+}
+
+Future<ProviderContainer> pumpApp(
+  WidgetTester tester,
+  FakeShareSource source, {
+  List<Override> extraOverrides = const [],
+}) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   final container = ProviderContainer(overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
     shareSourceProvider.overrideWithValue(source),
+    ...extraOverrides,
   ]);
   await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const CimBarApp()));
   await tester.pump();
@@ -79,6 +96,20 @@ void main() {
     expect(r.unreadable, isTrue);
   });
 
+  test('firstSharedFile reports an empty path as unreadable, not a throw', () async {
+    final r = await firstSharedFile(gifShare(''));
+    expect(r.file, isNull);
+    expect(r.unreadable, isTrue);
+  });
+
+  test('firstSharedFile reports a malformed file:// URI (authority component) as unreadable, not a throw', () async {
+    // Uri.parse(...).toFilePath() throws UnsupportedError for a non-Windows
+    // file URI with an authority component.
+    final r = await firstSharedFile(gifShare('file://example.com/some/path.gif'));
+    expect(r.file, isNull);
+    expect(r.unreadable, isTrue);
+  });
+
   testWidgets('a GIF shared while the app runs is selected on the Import tab', (tester) async {
     final source = FakeShareSource();
     final container = await pumpApp(tester, source);
@@ -110,5 +141,47 @@ void main() {
     await settleIo(tester);
 
     expect(find.text("Couldn't read the shared file. Open it with Import GIF instead."), findsOneWidget);
+  });
+
+  testWidgets('a share while a decode is running shows a message and leaves the file unchanged', (tester) async {
+    final source = FakeShareSource();
+    final container = await pumpApp(
+      tester,
+      source,
+      extraOverrides: [importControllerProvider.overrideWith((ref) => _DecodingImportController())],
+    );
+
+    source.controller.add(gifShare(fixture));
+    await settleIo(tester);
+
+    expect(find.text('Finish the current decode first, then share the file again.'), findsOneWidget);
+    expect(container.read(importControllerProvider).selectedFileName, 'existing.gif');
+    expect(container.read(importControllerProvider).isDecoding, isTrue);
+  });
+
+  testWidgets('sharing while Live Scan is open closes it and shows Import', (tester) async {
+    final source = FakeShareSource();
+    final container = await pumpApp(tester, source);
+
+    // Open the Camera tab, then Live Scan — a full-screen route pushed on
+    // the root navigator, above the shell.
+    await tester.tap(find.byIcon(Icons.camera_alt_outlined));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byIcon(Icons.videocam));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(LiveScanScreen), findsOneWidget);
+
+    source.controller.add(gifShare(fixture));
+    await settleIo(tester);
+    // Let the pop's exit transition finish (settleIo's own 300ms tail pump
+    // lands exactly on the default MaterialPageRoute duration and can leave
+    // it mid-transition).
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(LiveScanScreen), findsNothing);
+    expect(container.read(importControllerProvider).selectedFileName, 'test_hello.gif');
+    expect(find.text('test_hello.gif'), findsOneWidget);
   });
 }

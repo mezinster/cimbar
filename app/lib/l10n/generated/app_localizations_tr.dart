@@ -261,6 +261,10 @@ class AppLocalizationsTr extends AppLocalizations {
       'Paylaşılan dosya okunamadı. Bunun yerine GIF İçe Aktar ile açın.';
 
   @override
+  String get shareWhileDecoding =>
+      'Önce mevcut çözümlemenin bitmesini bekleyin, ardından dosyayı yeniden paylaşın.';
+
+  @override
   String get tabFiles => 'Dosyalar';
 
   @override

@@ -51,6 +51,12 @@ void main() {
     expect(info, contains(r'<string>ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)</string>'));
   });
 
+  test('deep linking is disabled, so the Share Extension\'s ShareMedia-… URL never reaches go_router', () {
+    final m = RegExp('<key>FlutterDeepLinkingEnabled</key>\\s*<(true|false)/>').firstMatch(info);
+    expect(m, isNotNull, reason: 'FlutterDeepLinkingEnabled key missing from Info.plist');
+    expect(m!.group(1), 'false');
+  });
+
   test('CFBundleLocalizations lists exactly the ARB locales', () {
     expect(plistStrings(info, 'CFBundleLocalizations')..sort(), arbLocales());
   });

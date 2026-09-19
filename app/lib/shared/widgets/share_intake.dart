@@ -42,17 +42,46 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
   }
 
   Future<void> _handle(SharedMedia media) async {
-    final result = await firstSharedFile(media);
-    if (!mounted) return;
-    final file = result.file;
-    if (file != null) {
-      ref.read(importControllerProvider.notifier).loadSharedFile(file.name, file.bytes);
-      ref.read(routerProvider).go('/import');
-    } else if (result.unreadable) {
-      appMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.shareReadFailed)),
-      );
+    // Nothing from here should escape as an unhandled zone error — a
+    // malformed attachment or a mid-teardown provider read must not crash
+    // the app; it's simply reported as unreadable / dropped.
+    try {
+      if (ref.read(importControllerProvider).isDecoding) {
+        // A running decode owns the current file; loading a new one out from
+        // under it would leave the old decode stream writing progress/result
+        // for a file that's no longer selected. Show the running decode
+        // instead of swapping it.
+        _goToImport();
+        if (!mounted) return;
+        appMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.shareWhileDecoding)),
+        );
+        return;
+      }
+
+      final result = await firstSharedFile(media);
+      if (!mounted) return;
+      final file = result.file;
+      if (file != null) {
+        ref.read(importControllerProvider.notifier).loadSharedFile(file.name, file.bytes);
+        _goToImport();
+      } else if (result.unreadable) {
+        appMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.shareReadFailed)),
+        );
+      }
+    } catch (_) {
+      // Unreadable/unexpected share payload — nothing to show, nothing to
+      // crash.
     }
+  }
+
+  /// Switches to the Import tab, first popping the root navigator back to
+  /// the shell so a full-screen route pushed above it (Live Scan, Photo
+  /// Capture) doesn't hide the switch.
+  void _goToImport() {
+    rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+    ref.read(routerProvider).go('/import');
   }
 
   @override
