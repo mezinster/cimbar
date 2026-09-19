@@ -554,6 +554,18 @@ abstract class AppLocalizations {
   /// **'No CimBar barcode found in the photo'**
   String get errorNoBarcodeFound;
 
+  /// SnackBar when another app shared a file to CimBar but it could not be read
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read the shared file. Open it with Import GIF instead.'**
+  String get shareReadFailed;
+
+  /// SnackBar when a file is shared to CimBar while a GIF is being decoded
+  ///
+  /// In en, this message translates to:
+  /// **'Finish the current decode first, then share the file again.'**
+  String get shareWhileDecoding;
+
   /// Bottom navigation tab for file explorer
   ///
   /// In en, this message translates to:

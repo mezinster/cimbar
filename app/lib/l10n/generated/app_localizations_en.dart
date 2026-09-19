@@ -258,6 +258,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
 
   @override
+  String get shareReadFailed =>
+      'Couldn\'t read the shared file. Open it with Import GIF instead.';
+
+  @override
+  String get shareWhileDecoding =>
+      'Finish the current decode first, then share the file again.';
+
+  @override
   String get tabFiles => 'Files';
 
   @override

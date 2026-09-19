@@ -11,13 +11,18 @@ import 'features/settings/settings_screen.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'shared/theme/app_theme.dart';
 import 'shared/widgets/app_shell.dart';
+import 'shared/widgets/share_intake.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+/// The root navigator (holds the shell plus anything pushed above it, like
+/// Live Scan / Photo Capture). Exposed so [ShareIntake] can pop back to the
+/// shell before navigating to a tab — otherwise `go('/import')` is invisible
+/// underneath a full-screen route pushed on this navigator.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/import',
     routes: [
       ShellRoute(
@@ -76,6 +81,8 @@ class CimBarApp extends ConsumerWidget {
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
+      scaffoldMessengerKey: appMessengerKey,
+      builder: (context, child) => ShareIntake(child: child ?? const SizedBox.shrink()),
     );
   }
 }

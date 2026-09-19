@@ -75,6 +75,8 @@
   "errorPassphraseRequired": "Bu dosya şifreli: parola gerekli",
   "errorDecoderFailed": "Decoder failed: {detail}",
   "errorNoBarcodeFound": "No CimBar barcode found in the photo",
+  "shareReadFailed": "Paylaşılan dosya okunamadı. Bunun yerine GIF İçe Aktar ile açın.",
+  "shareWhileDecoding": "Önce mevcut çözümlemenin bitmesini bekleyin, ardından dosyayı yeniden paylaşın.",
 
   "tabFiles": "Dosyalar",
   "filesTitle": "Dosyalar",

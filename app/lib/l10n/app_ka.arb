@@ -75,6 +75,8 @@
   "errorPassphraseRequired": "ფაილი დაშიფრულია: საჭიროა პაროლი",
   "errorDecoderFailed": "Decoder failed: {detail}",
   "errorNoBarcodeFound": "No CimBar barcode found in the photo",
+  "shareReadFailed": "გაზიარებული ფაილის წაკითხვა ვერ მოხერხდა. გახსენით ის „GIF იმპორტით“.",
+  "shareWhileDecoding": "ჯერ დაელოდეთ მიმდინარე დეკოდირების დასრულებას, შემდეგ ფაილი ხელახლა გააზიარეთ.",
 
   "tabFiles": "ფაილები",
   "filesTitle": "ფაილები",

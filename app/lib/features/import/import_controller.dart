@@ -69,6 +69,11 @@ class ImportController extends StateNotifier<ImportState> {
     }
   }
 
+  /// Selects a file another app shared to CimBar, as if it had been picked.
+  void loadSharedFile(String name, Uint8List bytes) {
+    state = ImportState(selectedFileName: name, selectedFileBytes: bytes);
+  }
+
   Future<void> decode(String passphrase) async {
     if (state.selectedFileBytes == null) return;
 

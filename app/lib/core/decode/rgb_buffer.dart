@@ -21,22 +21,26 @@ class RgbBuffer {
     }
   }
 
-  /// Convert a region of a YUV_420_888 frame (BT.601, integer math). The
-  /// region is clamped to the frame; the result records its origin.
+  /// Convert a region of a YUV_420_888 frame (BT.601, integer math; video-range frames are expanded to full range).
+  /// The region is clamped to the frame; the result records its origin.
   factory RgbBuffer.fromYuv420(YuvFrame f, {int x0 = 0, int y0 = 0, int? w, int? h}) {
     final rx0 = x0.clamp(0, f.width - 1), ry0 = y0.clamp(0, f.height - 1);
     final rx1 = (x0 + (w ?? f.width)).clamp(rx0 + 1, f.width);
     final ry1 = (y0 + (h ?? f.height)).clamp(ry0 + 1, f.height);
     final rw = rx1 - rx0, rh = ry1 - ry0;
     final out = Uint8List(rw * rh * 3);
+    final lumaLut = f.videoRange ? videoRangeLuma : null;
+    final chromaLut = f.videoRange ? videoRangeChroma : null;
     var o = 0;
     for (var y = ry0; y < ry1; y++) {
       final yRow = y * f.yRowStride;
       final uvRow = (y >> 1) * f.uvRowStride;
       for (var x = rx0; x < rx1; x++) {
-        final yv = f.yPlane[yRow + x];
+        final y8 = f.yPlane[yRow + x];
+        final yv = lumaLut == null ? y8 : lumaLut[y8];
         final uvIdx = uvRow + (x >> 1) * f.uvPixelStride;
-        final u = f.uPlane[uvIdx] - 128, v = f.vPlane[uvIdx] - 128;
+        final u = chromaLut == null ? f.uPlane[uvIdx] - 128 : chromaLut[f.uPlane[uvIdx]];
+        final v = chromaLut == null ? f.vPlane[uvIdx] - 128 : chromaLut[f.vPlane[uvIdx]];
         final r = yv + ((359 * v) >> 8);
         final g = yv - ((88 * u + 183 * v) >> 8);
         final b = yv + ((454 * u) >> 8);

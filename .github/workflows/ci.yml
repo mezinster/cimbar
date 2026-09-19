@@ -123,6 +123,55 @@ jobs:
       - name: Validate F-Droid recipe and fastlane listings
         run: python3 tools/validate_store_metadata.py
 
+  build-ios:
+    name: Build iOS (unsigned)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Generate localizations
+        run: flutter gen-l10n
+
+      # Builds Runner and the embedded ShareExtension; signing comes later
+      # (App Store / TestFlight needs a team id, certificates and profiles).
+      - name: Build iOS app without signing
+        run: flutter build ios --release --no-codesign
+
+      - name: Share Extension is embedded in the app
+        run: |
+          appex=build/ios/iphoneos/Runner.app/PlugIns/ShareExtension.appex
+          test -d "$appex" || { echo "::error::$appex missing"; ls -R build/ios/iphoneos/Runner.app | head -50; exit 1; }
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$appex/Info.plist"
+
+      - name: Podfile.lock must match the committed one
+        run: |
+          if [ -f ios/Podfile.lock ] && git ls-files --error-unmatch ios/Podfile.lock >/dev/null 2>&1; then
+            git diff --exit-code ios/Podfile.lock
+          else
+            echo "::warning::ios/Podfile.lock is not committed yet; download the ios-podfile-lock artifact and commit it"
+          fi
+
+      - name: Upload Podfile.lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-podfile-lock
+          path: app/ios/Podfile.lock
+          if-no-files-found: warn
+
   build-android:
     name: Build Debug APK
     needs: analyze-and-test

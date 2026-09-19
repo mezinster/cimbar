@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "CimBar Сканер использует камеру для сканирования штрих-кодов CimBar.";
+"NSPhotoLibraryUsageDescription" = "CimBar Сканер открывает выбранные вами фото, чтобы декодировать штрих-код на них.";

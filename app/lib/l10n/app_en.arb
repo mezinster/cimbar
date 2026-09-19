@@ -204,6 +204,10 @@
   },
   "errorNoBarcodeFound": "No CimBar barcode found in the photo",
   "@errorNoBarcodeFound": { "description": "Error shown when a still photo contains no locatable CimBar barcode" },
+  "shareReadFailed": "Couldn't read the shared file. Open it with Import GIF instead.",
+  "@shareReadFailed": { "description": "SnackBar when another app shared a file to CimBar but it could not be read" },
+  "shareWhileDecoding": "Finish the current decode first, then share the file again.",
+  "@shareWhileDecoding": { "description": "SnackBar when a file is shared to CimBar while a GIF is being decoded" },
 
   "tabFiles": "Files",
   "@tabFiles": { "description": "Bottom navigation tab for file explorer" },

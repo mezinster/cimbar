@@ -19,7 +19,7 @@ No npm, no compilation, no install step.
 This repo has two components:
 
 - **`web-app/`** — A single-page browser app that encodes any file into an animated GIF where each frame is a grid of colored geometric symbols (Color Icon Matrix Barcode), and decodes it back. Everything runs client-side; there is no server.
-- **`app/`** — A Flutter Android app that decodes CimBar GIFs via file import, in-app photo capture, or live camera scanning. Ports the full decode pipeline to Dart. See `app/CLAUDE.md` for Android-specific details.
+- **`app/`** — A Flutter app for Android and iOS that decodes CimBar GIFs via file import, sharing from other apps, in-app photo capture, or live camera scanning. Ports the full decode pipeline to Dart. See `app/CLAUDE.md` for app details, including the iOS project.
 
 ### Web App
 
@@ -97,6 +97,7 @@ The Android app's application id is **`com.nfcarchiver.cimbar`** (namespace too;
 - **Versioning:** the committed `app/pubspec.yaml` `version: X.Y.Z+CODE` is the single source of truth. `release.yml` builds with it and refuses to release a version name the committed pubspec disagrees with — F-Droid's `checkupdates` bot parses that line at each new tag (`UpdateCheckData`), so a pubspec left behind hides a release from F-Droid. The code goes up by one per release (v0.10.1 = 186, v0.11.0 = 187). Three version declarations must agree (tests enforce it): the newest `## [X.Y.Z]` CHANGELOG heading, pubspec, and `web-app/index.html`'s `data-version`.
 - **Permissions:** the APK requests only `CAMERA`. `AndroidManifest.xml` strips what plugins merge in — `READ_EXTERNAL_STORAGE`/`READ_MEDIA_*` (`open_filex`), `RECORD_AUDIO`/`WRITE_EXTERNAL_STORAGE` (`camera_android_camerax`; safe because both `CameraController`s pass `enableAudio: false`) — and `test/android_manifest_test.dart` asserts `CAMERA` is the only one left. F-Droid shows every permission on the app page and the listings/privacy policy promise "camera only", so check `build/app/outputs/logs/manifest-merger-release-report.txt` after adding any plugin. The APK also omits AGP's dependency-metadata block (`dependenciesInfo.includeInApk = false`).
 - **Release flow:** bump pubspec (name + code), `index.html` version, CHANGELOG heading, and write the five `changelogs/<code>.txt` → PR → merge → run the Release workflow on master (`gh workflow run release.yml --ref master -f version=X.Y.Z -f branch=master -f prerelease=false`). The fdroiddata update after that is automatic (the bot copies the previous build entry with the new tag's commit); an MR is only needed when the build steps themselves change. A failed F-Droid build is pinned to its tag commit — fixing master doesn't help it, only a new release does. Signing: GitHub APKs are signed with the CI runner's debug key (no release keystore yet); F-Droid signs its builds with its own key, so the two can't upgrade each other.
+- **iOS is not part of this yet.** `app/ios/` is compile-checked in CI (*Build iOS (unsigned)*) only — no signing, no App Store/TestFlight submission, no store metadata. See `app/CLAUDE.md`'s "iOS" section for the project layout and the first-device checklist.
 
 ## Web App Tests
 

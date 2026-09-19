@@ -75,6 +75,8 @@
   "errorPassphraseRequired": "Файл зашифрован: нужен пароль",
   "errorDecoderFailed": "Decoder failed: {detail}",
   "errorNoBarcodeFound": "No CimBar barcode found in the photo",
+  "shareReadFailed": "Не удалось прочитать отправленный файл. Откройте его через «Импорт GIF».",
+  "shareWhileDecoding": "Сначала дождитесь окончания текущего декодирования, затем отправьте файл снова.",
 
   "tabFiles": "Файлы",
   "filesTitle": "Декодированные файлы",
