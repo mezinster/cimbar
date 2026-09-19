@@ -100,7 +100,8 @@ object FileDirectory {
                     val columnIndex = cursor.getColumnIndexOrThrow(column)
                     val fileName = cursor.getString(columnIndex)
                     Log.i("FileDirectory", "File name: $fileName")
-                    targetFile = File(context.cacheDir, fileName)
+                    // CimBar patch: never trust the sender's display name as a path.
+                    targetFile = safeCacheFile(context.cacheDir, fileName)
                 }
             } finally {
                 cursor?.close()

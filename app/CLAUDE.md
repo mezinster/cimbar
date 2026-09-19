@@ -251,7 +251,7 @@ Per-frame diagnostics (`Diagnostics.toMap()`, stage keys like `locateMs`, `rsBlo
 | Storage | `path_provider`, `shared_preferences` | Save files, persist settings |
 | Open / export | `open_filex`, `file_picker` (`saveFile`), `mime` | Open a decoded file in another app, save-as picker, MIME types for share/open |
 | Permissions | `permission_handler` | Currently unused in `lib/` (the `camera` plugin requests its own permission) |
-| Sharing | `share_handler` | Declared for receiving shared GIFs, but **not wired up in Dart yet**: the manifest's `SEND image/gif` filter opens the app and the file is dropped |
+| Sharing | `share_handler` | Android side is a **vendored, security-patched copy** (`third_party/share_handler_android`, `dependency_overrides`; see its `CIMBAR_PATCH.md` — upstream wrote shared streams to `cacheDir` under the sender's display name). Declared for receiving shared GIFs, but **not wired up in Dart yet**: the manifest's `SEND image/gif` filter opens the app and the file is dropped |
 | Sharing | `share_plus` | Outbound file sharing via system share sheet |
 | Other | `url_launcher`, `intl` | Open web links, i18n formatting |
 
