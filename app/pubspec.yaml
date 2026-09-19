@@ -35,6 +35,16 @@ dependencies:
   mime: ^2.1.0
   open_filex: ^4.7.0
 
+# share_handler_android 0.0.11 copies shared streams into the cache dir under
+# the display name the SENDING app supplies, unsanitized — a path traversal
+# ("Dirty Stream") that lets any installed app overwrite CimBar's private
+# files. third_party/share_handler_android is that release with the fix
+# (SafeCacheFile.kt); see its CIMBAR_PATCH.md. Drop the override once upstream
+# ships an equivalent fix.
+dependency_overrides:
+  share_handler_android:
+    path: third_party/share_handler_android
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

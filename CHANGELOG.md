@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI and the release workflow pin Flutter **3.44.8** (was the range `3.44.x`): the F-Droid recipe reads `FLUTTER_VERSION` out of `release.yml` and checks it out in its Flutter source tree, which needs an exact tag.
 - The release APK no longer embeds AGP's dependency-metadata block (encrypted for Google Play only), as F-Droid asks; the AAB keeps it.
 
+### Security
+- **Another app could overwrite CimBar's private files by sharing a file to it (Android).** `share_handler_android` 0.0.11 copied a shared stream into the cache directory under the display name the *sending* app supplies, used unsanitized as a path; the launcher activity is exported, so any installed app could send `ACTION_SEND` with a name like `../shared_prefs/…` ("Dirty Stream" path traversal). Present since the first release. The app now builds a vendored, patched copy (`app/third_party/share_handler_android`, `dependency_overrides` in `pubspec.yaml`): `safeCacheFile` keeps only the name's last segment and requires the result to be a direct child of the cache dir. Covered by Kotlin unit tests (CI job *share_handler patch tests*) and `test/share_handler_patch_test.dart`, which fails if the patch is lost; see `CIMBAR_PATCH.md`.
+
 ### Removed
 - **Every permission except the camera.** The APK used to request `RECORD_AUDIO` and `WRITE_EXTERNAL_STORAGE` (merged from `camera_android_camerax` for video recording, which the app never does — both camera controllers disable audio) and `READ_EXTERNAL_STORAGE` (declared by the app and merged from `open_filex`, but never requested: GIF import uses the system picker and shared files arrive as content URIs). All three are stripped with `tools:node="remove"`; `test/android_manifest_test.dart` asserts that `CAMERA` is the only permission left.
 
