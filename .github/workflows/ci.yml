@@ -19,19 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.x'
+          flutter-version: '3.44.8'
           channel: stable
           cache: true
 
+      # --enforce-lockfile is what F-Droid's build recipe runs: a pubspec.yaml
+      # change without a matching pubspec.lock fails here instead of in an
+      # F-Droid build pinned to an already-pushed release tag.
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Generate localizations
         run: flutter gen-l10n
@@ -48,8 +51,8 @@ jobs:
         with:
           name: decode-reports
           path: |
-            android/build/corpus_report.txt
-            android/build/benchmark.txt
+            app/build/corpus_report.txt
+            app/build/benchmark.txt
           if-no-files-found: warn
 
   web-tests:
@@ -69,14 +72,15 @@ jobs:
       - name: Run tests
         run: sh tests/run_all.sh
 
-  build-android:
-    name: Build Debug APK
-    needs: analyze-and-test
-    if: github.event_name == 'workflow_dispatch'
+  plugin-patch-tests:
+    # Unit tests for the vendored share_handler_android security patch
+    # (app/third_party/share_handler_android/CIMBAR_PATCH.md). Gradle needs the
+    # Flutter-generated wrapper and local.properties, hence --config-only.
+    name: share_handler patch tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +92,57 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.44.x'
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Generate the Gradle project
+        run: flutter build apk --config-only
+
+      - name: Run the plugin's unit tests
+        working-directory: app/android
+        run: ./gradlew :share_handler_android:testDebugUnitTest
+
+  validate-metadata:
+    name: Validate Store Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Validate F-Droid recipe and fastlane listings
+        run: python3 tools/validate_store_metadata.py
+
+  build-android:
+    name: Build Debug APK
+    needs: analyze-and-test
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
           channel: stable
           cache: true
 
@@ -105,5 +159,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
-          path: android/build/app/outputs/flutter-apk/app-debug.apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7

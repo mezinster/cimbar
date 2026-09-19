@@ -1,0 +1,30 @@
+CimBar Tarayıcı, CimBar barkodu olarak gönderilen dosyaları — her karesi renkli şekillerden oluşan bir ızgara olan animasyonlu görüntüleri — alır ve orijinal dosyaya geri dönüştürür. Çözümleme tamamen telefonunuzda yapılır: hesap yok, sunucu yok, internet bağlantısı yok.
+
+<b>Nasıl çalışır</b>
+
+1. Herhangi bir dosyayı https://nfcarchiver.com/cimbar/ adresindeki ücretsiz web uygulamasıyla CimBar GIF'e dönüştürün — tamamen tarayıcınızda çalışır ve dosya bilgisayarınızdan hiç çıkmaz.
+2. Barkodu tam ekran gösterin veya GIF dosyasının kendisini gönderin.
+3. CimBar Tarayıcı ile alın: animasyonlu barkodu kamerayla canlı tarayın, tek kareli barkodun fotoğrafını çekin veya GIF'i içe aktarın.
+4. Kurtarılan dosyayı açın, kaydedin veya paylaşın.
+
+<b>Özellikler</b>
+
+• Odak ve pozlama kilidi, nişan kılavuzu ve "yaklaşın" ya da "sabit tutun" gibi ipuçlarıyla canlı tarama
+• Kareler herhangi bir sırayla yakalanabilir: ek onarım kareleri sayesinde N kareli bir barkodun herhangi N karesi dosyayı tamamlar — kaçırdığınız o tek kareyi beklemeniz gerekmez
+• Tek kareli barkodlar için uygulama içi fotoğraf veya galeri görüntüsü
+• CimBar GIF'lerini dosyalarınızdan içe aktarın
+• Her karede Reed-Solomon hata düzeltmesi
+• Kodlama sırasında sıkıştırılan dosyaların otomatik olarak açılması
+• İsteğe bağlı AES-256-GCM şifreleme, otomatik algılanır; canlı tarama şifreli çıkarsa parolayı hemen orada girin — yeniden tarama gerekmez
+• Çözümlenen dosyalar: başka bir uygulamada açın, İndirilenler'e veya herhangi bir klasöre kaydedin ya da paylaşın
+• 5 dil: İngilizce, Rusça, Ukraynaca, Türkçe, Gürcüce
+
+<b>Gizlilik</b>
+
+Veri toplama, analiz, izleyici veya reklam yok. Uygulamanın istediği tek izin tarama için kameradır; internet erişimi yoktur.
+
+<b>Açık kaynak</b>
+
+CimBar Tarayıcı, sz3'ün özgün Renkli Simge Matris Barkodu projeleri libcimbar ve CFC'nin (https://github.com/sz3/libcimbar) halefidir. Kendine ait, daha yeni bir biçim kullanır ve libcimbar ya da CFC barkodlarını okumaz.
+
+MIT lisanslı. Kaynak kodu, format belirtimi ve web kodlayıcı: https://github.com/mezinster/cimbar

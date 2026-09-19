@@ -19,24 +19,23 @@ __pycache__/
 *.pyc
 
 # Android / Flutter
-android/.dart_tool/
-android/.flutter-plugins
-android/.flutter-plugins-dependencies
-android/.gradle/
-android/build/
-android/app/build/
-android/android/.gradle/
-android/android/gradle/wrapper/gradle-wrapper.jar
-android/android/gradlew
-android/android/gradlew.bat
-android/android/local.properties
-android/local.properties
-android/pubspec.lock
-android/*.iml
-android/.idea/
-android/android/app/src/main/java/io/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.gradle/
+app/build/
+app/android/app/build/
+app/android/.gradle/
+app/android/gradle/wrapper/gradle-wrapper.jar
+app/android/gradlew
+app/android/gradlew.bat
+app/android/local.properties
+app/local.properties
+app/*.iml
+app/.idea/
+app/android/app/src/main/java/io/
 
 # Generated files
 *.gif
 !test-data/goldens/*.gif
-!android/test/fixtures/test_hello.gif
+!app/test/fixtures/test_hello.gif

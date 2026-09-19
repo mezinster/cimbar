@@ -1,0 +1,5 @@
+• First release on F-Droid
+• New app ID com.nfcarchiver.cimbar: this installs as a separate app next to older CimBar Scanner builds. Save any files you still need from the old app, then uninstall it
+• New app icon
+• The app no longer declares the storage permission — only the camera
+• Security fix: another app could overwrite CimBar's files by sharing a file with a crafted name to it
