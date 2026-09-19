@@ -23,7 +23,8 @@ LANGS = %w[en ru uk tr ka].freeze
 project = Xcodeproj::Project.open(File.join(IOS, 'Runner.xcodeproj'))
 runner = project.targets.find { |t| t.name == 'Runner' } or abort('no Runner target')
 runner_group = project.main_group['Runner'] or abort('no Runner group')
-deployment = project.build_configurations.first.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] || '13.0'
+# file_picker_darwin 2.x needs iOS 14; the Podfile's `platform :ios` must match.
+DEPLOYMENT = '14.0'
 
 # --- 1. localized InfoPlist.strings -------------------------------------------
 project.root_object.known_regions = (project.root_object.known_regions + LANGS).uniq
@@ -46,7 +47,7 @@ end
 
 # --- 3. ShareExtension target ---------------------------------------------------
 unless project.targets.any? { |t| t.name == EXT }
-  ext = project.new_target(:app_extension, EXT, :ios, deployment, nil, :swift)
+  ext = project.new_target(:app_extension, EXT, :ios, DEPLOYMENT, nil, :swift)
   group = project.main_group.new_group(EXT, EXT)
   swift = group.new_reference('ShareViewController.swift')
   group.new_reference('Info.plist')
@@ -70,7 +71,6 @@ unless project.targets.any? { |t| t.name == EXT }
     s['INFOPLIST_FILE'] = "#{EXT}/Info.plist"
     s['GENERATE_INFOPLIST_FILE'] = 'NO'
     s['CODE_SIGN_ENTITLEMENTS'] = "#{EXT}/#{EXT}.entitlements"
-    s['IPHONEOS_DEPLOYMENT_TARGET'] = deployment
     s['SWIFT_VERSION'] = '5.0'
     s['TARGETED_DEVICE_FAMILY'] = '1,2'
     s['SKIP_INSTALL'] = 'YES'
@@ -89,6 +89,16 @@ unless project.targets.any? { |t| t.name == EXT }
     runner.build_phases.insert(runner.build_phases.index(thin), embed)
   end
   runner.add_dependency(ext)
+end
+
+# --- 4. Deployment target -------------------------------------------------------
+# Runs every time (outside any creation guard) so an existing project is bumped
+# too: the project-level configurations plus every target that pins its own.
+(project.build_configurations + project.targets.flat_map(&:build_configurations)).each do |config|
+  s = config.build_settings
+  next unless project.build_configurations.include?(config) || s.key?('IPHONEOS_DEPLOYMENT_TARGET')
+
+  s['IPHONEOS_DEPLOYMENT_TARGET'] = DEPLOYMENT
 end
 
 project.save
