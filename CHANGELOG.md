@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-09-20
+
 ### Added
 - **Share a photo of a barcode to CimBar.** A shared file now goes by its content: a GIF to the Import tab as before, any other image to the Camera tab's photo decoder, ready to decode a single-frame barcode. The Android `SEND` filter accepts `image/*` rather than only `image/gif`, since galleries share as `image/*` even for a GIF (seen from Google Photos on a Pixel 8 Pro, where sharing to 0.11.0 was verified on the device).
 
@@ -215,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flutter analyze errors, warnings, and infos
 - Android build: bumped `compileSdk` to 35, added launcher icons
 
-[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/mezinster/cimbar/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/mezinster/cimbar/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/mezinster/cimbar/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/mezinster/cimbar/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mezinster/cimbar/compare/v0.9.1...v0.10.0

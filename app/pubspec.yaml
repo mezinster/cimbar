@@ -6,7 +6,7 @@ publish_to: 'none'
 # with it and refuses a release whose name disagrees, and F-Droid's checkupdates
 # bot parses this line at each release tag. Bump name AND code together with the
 # CHANGELOG heading and a fastlane changelogs/<code>.txt in every locale.
-version: 0.11.0+187
+version: 0.12.0+188
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
