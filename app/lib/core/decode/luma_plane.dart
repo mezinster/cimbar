@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'rgb_buffer.dart';
+import 'yuv_frame.dart';
 
 /// 8-bit luma plane. Same continuous-coordinate convention as RgbBuffer:
 /// pixel k covers [k, k+1), center at k + 0.5.
@@ -17,14 +18,19 @@ class LumaPlane {
     }
   }
 
-  /// Copy a Y plane whose rows may be padded ([rowStride] >= [width]).
-  /// When rowStride == width the returned plane's [luma] is a view over
-  /// [y] itself (no copy) — the caller's buffer must outlive the plane.
-  factory LumaPlane.fromYPlane(Uint8List y, {required int width, required int height, required int rowStride}) {
-    if (rowStride == width) return LumaPlane(width, height, Uint8List.sublistView(y, 0, width * height));
+  /// The Y plane of a camera frame as luma, dropping row padding. [videoRange]
+  /// (iOS) expands 16..235 to 0..255 so thresholds tuned on full-range frames hold.
+  factory LumaPlane.fromYPlane(Uint8List y,
+      {required int width, required int height, required int rowStride, bool videoRange = false}) {
+    if (!videoRange && rowStride == width) return LumaPlane(width, height, Uint8List.sublistView(y, 0, width * height));
     final out = Uint8List(width * height);
     for (var r = 0; r < height; r++) {
       out.setRange(r * width, (r + 1) * width, y, r * rowStride);
+    }
+    if (videoRange) {
+      for (var i = 0; i < out.length; i++) {
+        out[i] = videoRangeLuma[out[i]];
+      }
     }
     return LumaPlane(width, height, out);
   }

@@ -44,5 +44,10 @@ dev_dependencies:
   riverpod_annotation: ^2.3.5
 
 flutter:
+  # CocoaPods only on iOS: share_handler_ios (and its Share Extension pod)
+  # has no Swift Package, and one dependency manager keeps the build
+  # predictable. Remove once every iOS plugin ships a Package.swift.
+  config:
+    enable-swift-package-manager: false
   generate: true
   uses-material-design: true

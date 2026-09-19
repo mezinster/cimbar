@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "CimBar Scanner uses the camera to scan CimBar barcodes.";
+"NSPhotoLibraryUsageDescription" = "CimBar Scanner opens the photos you choose to decode the barcode in them.";

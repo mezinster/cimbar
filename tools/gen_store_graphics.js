@@ -16,16 +16,20 @@
  *   app/android/app/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png   legacy icon (API 24-25)
  *   fastlane/metadata/android/en-US/images/icon.png                               512x512
  *   fastlane/metadata/android/en-US/images/featureGraphic.png                     1024x500
+ *   app/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json
+ *   app/ios/Runner/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png            1024x1024, opaque (App Store rejects alpha)
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const REPO = path.resolve(__dirname, '..');
 const SPEC = JSON.parse(fs.readFileSync(path.join(REPO, 'spec', 'cimbar-v2.json'), 'utf8'));
 const RES = path.join(REPO, 'app', 'android', 'app', 'src', 'main', 'res');
 const IMAGES = path.join(REPO, 'fastlane', 'metadata', 'android', 'en-US', 'images');
+const IOS_ICONSET = path.join(REPO, 'app', 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset');
 
 const TILE = 8;   // tile pixels per side
 const PITCH = 9;  // tile + 1 px black gap, as in a real frame
@@ -155,6 +159,100 @@ function iconSvg(size) {
 </svg>`;
 }
 
+/** Full-bleed opaque square for iOS, which masks the corners itself. */
+function iosIconSvg(size) {
+  const side = size * 0.62;
+  const o = (size - side) / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <rect width="${size}" height="${size}" fill="${BG}"/>
+  ${svgRects(mosaicShapes(), side / ICON_EXTENT, o, o)}
+</svg>`;
+}
+
+const IOS_ICON_CONTENTS = JSON.stringify({
+  images: [{ filename: 'AppIcon-1024.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }],
+  info: { author: 'xcode', version: 1 },
+}, null, 2) + '\n';
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+}
+
+/**
+ * Re-encodes an 8-bit RGBA PNG (as Chromium writes screenshots) as RGB,
+ * dropping alpha — only valid for an image drawn fully opaque. Node 14 has no
+ * zlib.crc32, hence the table above.
+ */
+function pngWithoutAlpha(buf) {
+  let o = 8, ihdr = null;
+  const idat = [];
+  while (o < buf.length) {
+    const len = buf.readUInt32BE(o), type = buf.toString('ascii', o + 4, o + 8);
+    const data = buf.slice(o + 8, o + 8 + len);
+    if (type === 'IHDR') ihdr = data;
+    else if (type === 'IDAT') idat.push(data);
+    o += 12 + len;
+  }
+  const w = ihdr.readUInt32BE(0), h = ihdr.readUInt32BE(4);
+  if (ihdr[9] === 2) return buf; // already RGB
+  if (ihdr[8] !== 8 || ihdr[9] !== 6 || ihdr[12] !== 0) {
+    throw new Error(`unexpected PNG: depth ${ihdr[8]}, colour type ${ihdr[9]}, interlace ${ihdr[12]}`);
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const bpp = 4, stride = w * bpp;
+  const out = Buffer.alloc(h * (w * 3 + 1));
+  let prev = Buffer.alloc(stride);
+  for (let y = 0; y < h; y++) {
+    const filter = raw[y * (stride + 1)];
+    const line = Buffer.from(raw.slice(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? line[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0;
+      let p;
+      switch (filter) {
+        case 0: p = 0; break;
+        case 1: p = a; break;
+        case 2: p = b; break;
+        case 3: p = (a + b) >> 1; break;
+        case 4: {
+          const e = a + b - c, pa = Math.abs(e - a), pb = Math.abs(e - b), pc = Math.abs(e - c);
+          p = pa <= pb && pa <= pc ? a : (pb <= pc ? b : c);
+          break;
+        }
+        default: throw new Error(`bad PNG filter ${filter}`);
+      }
+      line[i] = (line[i] + p) & 0xFF;
+    }
+    const row = y * (w * 3 + 1);
+    out[row] = 0; // filter: none
+    for (let x = 0; x < w; x++) line.copy(out, row + 1 + x * 3, x * 4, x * 4 + 3);
+    prev = line;
+  }
+  const hdr = Buffer.from(ihdr);
+  hdr[9] = 2; // colour type RGB
+  return Buffer.concat([buf.slice(0, 8), pngChunk('IHDR', hdr), pngChunk('IDAT', zlib.deflateSync(out)), pngChunk('IEND', Buffer.alloc(0))]);
+}
+
 /** Deterministic PRNG (mulberry32) so the feature graphic is reproducible. */
 function rng(seed) {
   return () => {
@@ -234,11 +332,12 @@ async function rasterize(jobs) {
   const browser = await playwright.chromium.launch();
   try {
     const page = await browser.newPage();
-    for (const { file, svg, width, height } of jobs) {
+    for (const { file, svg, width, height, opaque } of jobs) {
       await page.setViewportSize({ width, height });
       await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent">${svg}</body></html>`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      await page.screenshot({ path: file, omitBackground: true, clip: { x: 0, y: 0, width, height } });
+      const png = await page.screenshot({ omitBackground: !opaque, clip: { x: 0, y: 0, width, height } });
+      fs.writeFileSync(file, opaque ? pngWithoutAlpha(png) : png);
       console.log('wrote', path.relative(REPO, file));
     }
   } finally {
@@ -251,12 +350,20 @@ async function main() {
   write(path.join(RES, 'mipmap-anydpi-v26', 'ic_launcher.xml'), ADAPTIVE_ICON);
   write(path.join(RES, 'values', 'ic_launcher_background.xml'), ICON_BACKGROUND);
 
+  if (fs.existsSync(IOS_ICONSET)) {
+    for (const f of fs.readdirSync(IOS_ICONSET)) fs.unlinkSync(path.join(IOS_ICONSET, f));
+    write(path.join(IOS_ICONSET, 'Contents.json'), IOS_ICON_CONTENTS);
+  }
+
   const legacy = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
   const jobs = Object.entries(legacy).map(([dpi, size]) => ({
     file: path.join(RES, `mipmap-${dpi}`, 'ic_launcher.png'), svg: iconSvg(size), width: size, height: size,
   }));
   jobs.push({ file: path.join(IMAGES, 'icon.png'), svg: iconSvg(512), width: 512, height: 512 });
   jobs.push({ file: path.join(IMAGES, 'featureGraphic.png'), svg: featureGraphicSvg(), width: 1024, height: 500 });
+  if (fs.existsSync(IOS_ICONSET)) {
+    jobs.push({ file: path.join(IOS_ICONSET, 'AppIcon-1024.png'), svg: iosIconSvg(1024), width: 1024, height: 1024, opaque: true });
+  }
   await rasterize(jobs);
 }
 
