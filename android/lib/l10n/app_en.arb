@@ -130,6 +130,8 @@
   "@about": { "description": "About section label" },
   "aboutDescription": "CimBar Scanner decodes Color Icon Matrix Barcodes. Compatible with the CimBar web encoder at nfcarchiver.com/cimbar.",
   "@aboutDescription": { "description": "About section description" },
+  "aboutSuccessor": "CimBar Scanner is a successor to libcimbar and CFC by sz3, the original Color Icon Matrix Barcode projects. It uses its own, newer barcode format, so it cannot read barcodes made by libcimbar or CFC, and they cannot read its barcodes.",
+  "@aboutSuccessor": { "description": "About screen: credits sz3's libcimbar and CFC as the predecessors and says the formats are not compatible" },
   "webAppLabel": "Web App",
   "@webAppLabel": { "description": "Label for the web app link" },
   "webAppUrl": "https://nfcarchiver.com/cimbar/",

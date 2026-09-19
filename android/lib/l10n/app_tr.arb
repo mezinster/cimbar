@@ -52,6 +52,7 @@
   "systemDefault": "Sistem Varsayılanı",
   "about": "Hakkında",
   "aboutDescription": "CimBar Tarayıcı, Renkli Simge Matris Barkodlarını çözümler. nfcarchiver.com/cimbar adresindeki CimBar web kodlayıcı ile uyumludur.",
+  "aboutSuccessor": "CimBar Tarayıcı, sz3'ün özgün Renkli Simge Matris Barkodu (Color Icon Matrix Barcode) projeleri libcimbar ve CFC'nin halefidir. Kendine ait, daha yeni bir barkod biçimi kullanır; bu nedenle libcimbar veya CFC ile oluşturulan barkodları okuyamaz, onlar da bu uygulamanın barkodlarını okuyamaz.",
   "webAppLabel": "Web Uygulaması",
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "Sürüm {version}",

@@ -177,6 +177,10 @@ class AppLocalizationsUk extends AppLocalizations {
       'CimBar Сканер декодує кольорові матричні штрих-коди. Сумісний з веб-кодувальником CimBar на nfcarchiver.com/cimbar.';
 
   @override
+  String get aboutSuccessor =>
+      'CimBar Сканер — наступник libcimbar і CFC від sz3, першопочаткових проєктів кольорових матричних штрих-кодів (Color Icon Matrix Barcode). Він використовує власний, новіший формат штрих-коду, тому не читає штрих-коди libcimbar і CFC, а вони не читають його штрих-коди.';
+
+  @override
   String get webAppLabel => 'Веб-додаток';
 
   @override

@@ -52,6 +52,7 @@
   "systemDefault": "Системна за замовчуванням",
   "about": "Про додаток",
   "aboutDescription": "CimBar Сканер декодує кольорові матричні штрих-коди. Сумісний з веб-кодувальником CimBar на nfcarchiver.com/cimbar.",
+  "aboutSuccessor": "CimBar Сканер — наступник libcimbar і CFC від sz3, першопочаткових проєктів кольорових матричних штрих-кодів (Color Icon Matrix Barcode). Він використовує власний, новіший формат штрих-коду, тому не читає штрих-коди libcimbar і CFC, а вони не читають його штрих-коди.",
   "webAppLabel": "Веб-додаток",
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "Версія {version}",

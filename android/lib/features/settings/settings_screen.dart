@@ -8,6 +8,11 @@ import '../../core/providers/debug_mode_provider.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 
+/// sz3's original Color Icon Matrix Barcode projects, credited on the About
+/// screen as this app's predecessors (the formats are not compatible).
+const libcimbarUrl = 'https://github.com/sz3/libcimbar';
+const cfcUrl = 'https://github.com/sz3/cfc';
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -74,7 +79,26 @@ class SettingsScreen extends ConsumerWidget {
                   label: '${l10n.webAppLabel}: ${l10n.webAppUrl}',
                   onTap: () => _openUrl(l10n.webAppUrl),
                 ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.aboutSuccessor,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 8),
+                _LinkRow(
+                  icon: Icons.history_edu,
+                  label: 'libcimbar: github.com/sz3/libcimbar',
+                  onTap: () => _openUrl(libcimbarUrl),
+                ),
+                const SizedBox(height: 8),
+                _LinkRow(
+                  icon: Icons.history_edu,
+                  label: 'CFC: github.com/sz3/cfc',
+                  onTap: () => _openUrl(cfcUrl),
+                ),
+                const SizedBox(height: 12),
                 // The release workflow rewrites pubspec's version; read it at
                 // runtime instead of hardcoding a string that goes stale.
                 FutureBuilder<PackageInfo>(

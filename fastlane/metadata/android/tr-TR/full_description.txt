@@ -25,4 +25,6 @@ Veri toplama, analiz, izleyici veya reklam yok. Uygulamanın istediği tek izin 
 
 <b>Açık kaynak</b>
 
+CimBar Tarayıcı, sz3'ün özgün Renkli Simge Matris Barkodu projeleri libcimbar ve CFC'nin (https://github.com/sz3/libcimbar) halefidir. Kendine ait, daha yeni bir biçim kullanır ve libcimbar ya da CFC barkodlarını okumaz.
+
 MIT lisanslı. Kaynak kodu, format belirtimi ve web kodlayıcı: https://github.com/mezinster/cimbar

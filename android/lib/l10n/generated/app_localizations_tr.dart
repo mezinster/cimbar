@@ -177,6 +177,10 @@ class AppLocalizationsTr extends AppLocalizations {
       'CimBar Tarayıcı, Renkli Simge Matris Barkodlarını çözümler. nfcarchiver.com/cimbar adresindeki CimBar web kodlayıcı ile uyumludur.';
 
   @override
+  String get aboutSuccessor =>
+      'CimBar Tarayıcı, sz3\'ün özgün Renkli Simge Matris Barkodu (Color Icon Matrix Barcode) projeleri libcimbar ve CFC\'nin halefidir. Kendine ait, daha yeni bir barkod biçimi kullanır; bu nedenle libcimbar veya CFC ile oluşturulan barkodları okuyamaz, onlar da bu uygulamanın barkodlarını okuyamaz.';
+
+  @override
   String get webAppLabel => 'Web Uygulaması';
 
   @override

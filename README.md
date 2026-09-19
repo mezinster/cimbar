@@ -203,7 +203,7 @@ cd android
 sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
 ```
 
-The suite (255 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
+The suite (257 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 
@@ -222,6 +222,10 @@ Neither app collects anything: no analytics, no trackers, no ads, and the files 
 ## Issues
 
 Bug reports and feature requests are welcome in [GitHub issues](https://github.com/mezinster/cimbar/issues). For a decoding problem, say which app (web or Android) and path (GIF import, photo, live scan), and attach the GIF if you can share it.
+
+## Credits
+
+CimBar is a successor to [libcimbar](https://github.com/sz3/libcimbar) and [CFC](https://github.com/sz3/cfc) by sz3, the original Color Icon Matrix Barcode projects, whose idea — files carried by animated grids of colored symbols — this project builds on with its own, independently designed v2 format. The formats are not compatible: libcimbar/CFC barcodes do not decode here, and CimBar v2 barcodes do not decode there. The Android app's About screen says the same.
 
 ## License
 
