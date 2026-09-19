@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/byte_utils.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/decode_pipeline.dart';
 import '../../core/services/file_service.dart';
@@ -69,17 +70,6 @@ class CameraController extends StateNotifier<CameraState> {
   final _gifPipeline = DecodePipeline();
   final _picker = ImagePicker();
 
-  /// Check if bytes start with GIF magic (GIF87a or GIF89a).
-  static bool _isGif(Uint8List bytes) {
-    return bytes.length >= 6 &&
-        bytes[0] == 0x47 && // G
-        bytes[1] == 0x49 && // I
-        bytes[2] == 0x46 && // F
-        bytes[3] == 0x38 && // 8
-        (bytes[4] == 0x39 || bytes[4] == 0x37) && // 9 or 7
-        bytes[5] == 0x61; // a
-  }
-
   /// Adopt bytes captured by [PhotoCaptureScreen] (no on-disk path available).
   void setPhoto(Uint8List bytes, {String? path}) {
     state = CameraState(
@@ -112,7 +102,7 @@ class CameraController extends StateNotifier<CameraState> {
     final bytes = state.capturedPhotoBytes!;
 
     // Route GIF files through the full multi-frame pipeline
-    if (_isGif(bytes)) {
+    if (isGif(bytes)) {
       await for (final progress in _gifPipeline.decodeGif(bytes, passphrase)) {
         state = state.copyWith(progress: progress);
 

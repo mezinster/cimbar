@@ -12,6 +12,8 @@ import 'package:cimbar_scanner/core/providers/shared_preferences_provider.dart';
 import 'package:cimbar_scanner/core/services/incoming_share.dart';
 import 'package:cimbar_scanner/features/camera/live_scan_screen.dart';
 import 'package:cimbar_scanner/features/import/import_controller.dart';
+import 'package:cimbar_scanner/features/camera/camera_controller.dart';
+import 'package:cimbar_scanner/features/camera/camera_screen.dart';
 
 class FakeShareSource implements ShareSource {
   final controller = StreamController<SharedMedia>.broadcast();
@@ -33,6 +35,7 @@ SharedMedia gifShare(String path) =>
     SharedMedia(attachments: [SharedAttachment(path: path, type: SharedAttachmentType.image)]);
 
 final fixture = File('test/fixtures/test_hello.gif').absolute.path;
+final photoFixture = File('test/fixtures/crop_frame_1.png').absolute.path;
 
 /// An [ImportController] that starts mid-decode, as a clean seam for tests
 /// that must not start a real decode to reach `isDecoding: true`.
@@ -42,6 +45,14 @@ class _DecodingImportController extends ImportController {
       selectedFileName: 'existing.gif',
       isDecoding: true,
     );
+  }
+}
+
+/// A [CameraController] that starts mid-decode of a photo.
+class _DecodingCameraController extends CameraController {
+  _DecodingCameraController() {
+    // A real image (the Camera tab renders it), distinct from the shared photoFixture.
+    state = CameraState(capturedPhotoBytes: File('test/fixtures/crop_frame_2.png').readAsBytesSync(), isDecoding: true);
   }
 }
 
@@ -183,5 +194,35 @@ void main() {
     expect(find.byType(LiveScanScreen), findsNothing);
     expect(container.read(importControllerProvider).selectedFileName, 'test_hello.gif');
     expect(find.text('test_hello.gif'), findsOneWidget);
+  });
+
+  testWidgets('a shared photo (not a GIF) opens on the Camera tab, ready to decode', (tester) async {
+    final source = FakeShareSource();
+    final container = await pumpApp(tester, source);
+
+    source.controller.add(SharedMedia(attachments: [SharedAttachment(path: photoFixture, type: SharedAttachmentType.image)]));
+    await settleIo(tester);
+
+    final camera = container.read(cameraControllerProvider);
+    expect(camera.capturedPhotoBytes, File(photoFixture).readAsBytesSync());
+    expect(container.read(importControllerProvider).selectedFileName, isNull,
+        reason: 'a photo must not be loaded as a GIF import');
+    expect(find.byType(CameraScreen), findsOneWidget, reason: 'the Camera tab is showing');
+    expect(find.byType(Image), findsWidgets, reason: 'with the shared photo previewed');
+  });
+
+  testWidgets('a shared photo while a photo decode runs shows a message and keeps the photo', (tester) async {
+    final source = FakeShareSource();
+    final container = await pumpApp(
+      tester,
+      source,
+      extraOverrides: [cameraControllerProvider.overrideWith((ref) => _DecodingCameraController())],
+    );
+
+    source.controller.add(SharedMedia(attachments: [SharedAttachment(path: photoFixture, type: SharedAttachmentType.image)]));
+    await settleIo(tester);
+
+    expect(find.text('Finish the current decode first, then share the file again.'), findsOneWidget);
+    expect(container.read(cameraControllerProvider).capturedPhotoBytes, File('test/fixtures/crop_frame_2.png').readAsBytesSync());
   });
 }

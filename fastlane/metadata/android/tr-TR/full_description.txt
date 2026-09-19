@@ -12,7 +12,7 @@ CimBar Tarayıcı, CimBar barkodu olarak gönderilen dosyaları — her karesi r
 • Odak ve pozlama kilidi, nişan kılavuzu ve "yaklaşın" ya da "sabit tutun" gibi ipuçlarıyla canlı tarama
 • Kareler herhangi bir sırayla yakalanabilir: ek onarım kareleri sayesinde N kareli bir barkodun herhangi N karesi dosyayı tamamlar — kaçırdığınız o tek kareyi beklemeniz gerekmez
 • Tek kareli barkodlar için uygulama içi fotoğraf veya galeri görüntüsü
-• CimBar GIF'lerini dosyalarınızdan içe aktarın
+• CimBar GIF'lerini dosyalarınızdan içe aktarın veya galeri gibi herhangi bir uygulamadan paylaşın; paylaşılan tek kareli barkod fotoğrafı doğrudan fotoğraf çözücüsüne gider
 • Her karede Reed-Solomon hata düzeltmesi
 • Kodlama sırasında sıkıştırılan dosyaların otomatik olarak açılması
 • İsteğe bağlı AES-256-GCM şifreleme, otomatik algılanır; canlı tarama şifreli çıkarsa parolayı hemen orada girin — yeniden tarama gerekmez

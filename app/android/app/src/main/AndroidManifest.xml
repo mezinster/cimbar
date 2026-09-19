@@ -47,11 +47,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Accept shared GIF files -->
+            <!-- Accept shared images: galleries share as image/* (Google Photos
+                 does, even for a GIF). ShareIntake routes by content: a GIF to
+                 Import, any other image to the photo decoder. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/gif" />
+                <data android:mimeType="image/*" />
             </intent-filter>
 
         </activity>
