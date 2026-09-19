@@ -20,12 +20,12 @@ import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_ID = "com.nfcarchiver.cimbar"
-PUBSPEC = os.path.join(REPO, "android", "pubspec.yaml")
-GRADLE = os.path.join(REPO, "android", "android", "app", "build.gradle")
+PUBSPEC = os.path.join(REPO, "app", "pubspec.yaml")
+GRADLE = os.path.join(REPO, "app", "android", "app", "build.gradle")
 RELEASE_WORKFLOW = os.path.join(REPO, ".github", "workflows", "release.yml")
 FDROID = os.path.join(REPO, "fdroid", APP_ID + ".yml")
 LISTINGS = os.path.join(REPO, "fastlane", "metadata", "android")
-ARB_DIR = os.path.join(REPO, "android", "lib", "l10n")
+ARB_DIR = os.path.join(REPO, "app", "lib", "l10n")
 
 # Limits F-Droid (and fastlane supply) enforce or truncate at.
 LIMITS = {
@@ -54,7 +54,7 @@ def read_pubspec_version():
         m = re.match(r"^version:\s*(\S+)\+(\d+)\s*$", line)
         if m:
             return m.group(1), int(m.group(2))
-    fail("android/pubspec.yaml has no 'version: <name>+<code>' line")
+    fail("app/pubspec.yaml has no 'version: <name>+<code>' line")
     return None, None
 
 
@@ -62,7 +62,7 @@ def check_app_id():
     gradle = read(GRADLE)
     m = re.search(r'applicationId\s*=\s*"([^"]+)"', gradle)
     if not m:
-        fail("no applicationId in android/android/app/build.gradle")
+        fail("no applicationId in app/android/app/build.gradle")
     elif m.group(1) != APP_ID:
         fail("applicationId is '%s' but the F-Droid recipe is for '%s'" % (m.group(1), APP_ID))
 
@@ -109,8 +109,8 @@ def check_fdroid(version_name, version_code):
                 "fdroid build %s pins commit '%s' — expected a full 40-char sha or the tag 'v%s'"
                 % (name, commit, name)
             )
-        if b.get("subdir") and b.get("subdir") != "android":
-            fail("fdroid build %s has subdir '%s', expected 'android'" % (name, b.get("subdir")))
+        if b.get("subdir") and b.get("subdir") != "app":
+            fail("fdroid build %s has subdir '%s', expected 'app'" % (name, b.get("subdir")))
 
     cur_code = meta.get("CurrentVersionCode")
     cur_name = str(meta.get("CurrentVersion"))

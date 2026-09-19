@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
@@ -51,8 +51,8 @@ jobs:
         with:
           name: decode-reports
           path: |
-            android/build/corpus_report.txt
-            android/build/benchmark.txt
+            app/build/corpus_report.txt
+            app/build/benchmark.txt
           if-no-files-found: warn
 
   web-tests:
@@ -96,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
 
     steps:
       - uses: actions/checkout@v4
@@ -125,5 +125,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
-          path: android/build/app/outputs/flutter-apk/app-debug.apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7

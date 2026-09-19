@@ -1,6 +1,6 @@
 # Android App — CLAUDE.md
 
-Flutter project in `android/` (the Flutter root; native Android config is at `android/android/`).
+Flutter project in `app/` (the Flutter root; native Android config is at `app/android/`, native iOS at `app/ios/`).
 
 ## Build
 
@@ -17,12 +17,12 @@ Note: Do not use bare `flutter test` — its `\r`-based progress animation produ
 
 Requires Flutter 3.44+ and Java 17.
 
-**Toolchain pins:** Gradle 9.1.0 (`android/android/gradle/wrapper/gradle-wrapper.properties`), AGP 9.0.1 and Kotlin 2.3.20 (`android/android/settings.gradle`), Java 17, `compileSdk`/`targetSdk` taken from the Flutter SDK — the same versions Flutter 3.44's `flutter create` template uses. CI and the release workflow pin Flutter 3.44.8 exactly (the F-Droid recipe checks out `FLUTTER_VERSION` from `release.yml`), and `pubspec.lock` is committed — resolve it with that Flutter (see the root `CLAUDE.md`'s Store Metadata section). `gradle.properties` keeps `android.newDsl=false` and `android.builtInKotlin=false` (as the Flutter template does) so the Groovy build files and the external Kotlin plugin keep working under AGP 9. Flutter's supported Gradle range is 8.7–9.x; an older Flutter (3.24) will not build against AGP 9.
+**Toolchain pins:** Gradle 9.1.0 (`app/android/gradle/wrapper/gradle-wrapper.properties`), AGP 9.0.1 and Kotlin 2.3.20 (`app/android/settings.gradle`), Java 17, `compileSdk`/`targetSdk` taken from the Flutter SDK — the same versions Flutter 3.44's `flutter create` template uses. CI and the release workflow pin Flutter 3.44.8 exactly (the F-Droid recipe checks out `FLUTTER_VERSION` from `release.yml`), and `pubspec.lock` is committed — resolve it with that Flutter (see the root `CLAUDE.md`'s Store Metadata section). `gradle.properties` keeps `android.newDsl=false` and `android.builtInKotlin=false` (as the Flutter template does) so the Groovy build files and the external Kotlin plugin keep working under AGP 9. Flutter's supported Gradle range is 8.7–9.x; an older Flutter (3.24) will not build against AGP 9.
 
 ## Project Structure
 
 ```
-android/lib/
+app/lib/
 ├── app.dart                    — Root MaterialApp.router + go_router config
 ├── main.dart                   — Entry point; initializes SharedPreferences, ProviderScope
 ├── core/
@@ -305,7 +305,7 @@ The spec target is **≤150 ms per 1080p frame on a mid-range 2022 phone** — t
 
 ## Tests
 
-Run: `sh tests/run_all.sh` from `android/` (never bare `flutter test`; see Build).
+Run: `sh tests/run_all.sh` from `app/` (never bare `flutter test`; see Build).
 
 | File | What it tests |
 |------|--------------|

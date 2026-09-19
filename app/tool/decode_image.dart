@@ -1,4 +1,4 @@
-// Offline CimBar v2 decoder. Pure Dart: `dart run tool/decode_image.dart …` from android/.
+// Offline CimBar v2 decoder. Pure Dart: `dart run tool/decode_image.dart …` from app/.
 //
 // Usage:
 //   dart run tool/decode_image.dart <image.png|jpg|gif> [--frame N] [--golden name.json]

@@ -7,13 +7,13 @@
  *   node tools/gen_store_graphics.js
  *
  * Always writes (no dependencies):
- *   android/android/app/src/main/res/drawable/ic_launcher_foreground.xml   adaptive icon foreground (vector)
- *   android/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml     adaptive icon (API 26+)
- *   android/android/app/src/main/res/values/ic_launcher_background.xml     adaptive icon background colour
+ *   app/android/app/src/main/res/drawable/ic_launcher_foreground.xml   adaptive icon foreground (vector)
+ *   app/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml     adaptive icon (API 26+)
+ *   app/android/app/src/main/res/values/ic_launcher_background.xml     adaptive icon background colour
  *
  * Also writes, when Playwright is resolvable (e.g. NODE_PATH=<dir>/node_modules
  * with its Chromium installed), the raster images:
- *   android/android/app/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png   legacy icon (API 24-25)
+ *   app/android/app/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png   legacy icon (API 24-25)
  *   fastlane/metadata/android/en-US/images/icon.png                               512x512
  *   fastlane/metadata/android/en-US/images/featureGraphic.png                     1024x500
  */
@@ -24,7 +24,7 @@ const path = require('path');
 
 const REPO = path.resolve(__dirname, '..');
 const SPEC = JSON.parse(fs.readFileSync(path.join(REPO, 'spec', 'cimbar-v2.json'), 'utf8'));
-const RES = path.join(REPO, 'android', 'android', 'app', 'src', 'main', 'res');
+const RES = path.join(REPO, 'app', 'android', 'app', 'src', 'main', 'res');
 const IMAGES = path.join(REPO, 'fastlane', 'metadata', 'android', 'en-US', 'images');
 
 const TILE = 8;   // tile pixels per side

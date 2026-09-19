@@ -7,7 +7,7 @@ Try it now at **https://nfcarchiver.com/cimbar/**
 This repo contains:
 
 - **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
-- **`android/`** — A Flutter Android app that decodes CimBar GIFs via GIF import, live camera scanning, or a photo.
+- **`app/`** — A Flutter Android app that decodes CimBar GIFs via GIF import, live camera scanning, or a photo.
 
 Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count. Files are compressed automatically when that helps, and can optionally be encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
@@ -76,7 +76,7 @@ The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHu
 
 ## Android App
 
-The `android/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
+The `app/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
 
 **Install:** APKs are attached to each [GitHub release](https://github.com/mezinster/cimbar/releases); the app is being submitted to [F-Droid](https://f-droid.org/), which builds it from source with the recipe in `fdroid/com.nfcarchiver.cimbar.yml`. The only permission it requests is the camera — no internet, no storage. Up to 0.10.1 the app id was `com.cimbar.scanner`: 0.11.0 installs as a separate app next to it, so save any decoded files you need from the old one, then uninstall it.
 
@@ -110,7 +110,7 @@ flutter build apk --debug      # debug APK
 flutter build apk --release    # release APK
 ```
 
-Note: the Android build pins Gradle 9.1 / AGP 9.0.1 to match Flutter 3.44; use Flutter 3.44 or newer (see `android/CLAUDE.md`'s Build section).
+Note: the Android build pins Gradle 9.1 / AGP 9.0.1 to match Flutter 3.44; use Flutter 3.44 or newer (see `app/CLAUDE.md`'s Build section).
 
 ### Running tests
 
@@ -121,9 +121,9 @@ sh tests/run_all.sh
 
 ### Releasing
 
-F-Droid builds each release from the committed source at its `vX.Y.Z` tag and learns about new releases by reading `android/pubspec.yaml` there, so everything below must be merged **before** the release is started:
+F-Droid builds each release from the committed source at its `vX.Y.Z` tag and learns about new releases by reading `app/pubspec.yaml` there, so everything below must be merged **before** the release is started:
 
-1. Bump the version in `android/pubspec.yaml` — name **and** `+versionCode` (the code always goes up by one) — and in `web-app/index.html` (`data-version` and the visible `vX.Y.Z`).
+1. Bump the version in `app/pubspec.yaml` — name **and** `+versionCode` (the code always goes up by one) — and in `web-app/index.html` (`data-version` and the visible `vX.Y.Z`).
 2. Move the CHANGELOG's `[Unreleased]` entries under `## [X.Y.Z] — <date>`.
 3. Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for all five locales (≤ 500 characters each).
 4. `python3 tools/validate_store_metadata.py` and both test suites pass; merge via PR.
@@ -135,7 +135,7 @@ The Android app ports the full v2.1 decode pipeline from the web app to Dart —
 
 ### Capturing a corpus sample
 
-The decode pipeline is also checked against real camera captures, not just synthetic scenes. To contribute one: enable About → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the capture button, aim at a barcode, and tap the camera icon to save a `capture_<ts>.png`/`.txt` pair to the app's documents directory. See `android/test/fixtures/corpus/README.md` for how to pull those files off the device and turn them into a corpus test case.
+The decode pipeline is also checked against real camera captures, not just synthetic scenes. To contribute one: enable About → Developer → debug switch, start Live Scan, triple-tap the status panel to turn on the capture button, aim at a barcode, and tap the camera icon to save a `capture_<ts>.png`/`.txt` pair to the app's documents directory. See `app/test/fixtures/corpus/README.md` for how to pull those files off the device and turn them into a corpus test case.
 
 ---
 
@@ -200,7 +200,7 @@ Requires the Flutter SDK:
 
 ```bash
 cd android
-sh tests/run_all.sh           # never bare `flutter test` — see android/CLAUDE.md's Build section
+sh tests/run_all.sh           # never bare `flutter test` — see app/CLAUDE.md's Build section
 ```
 
 The suite (257 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.

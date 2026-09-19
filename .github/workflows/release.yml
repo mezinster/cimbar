@@ -62,20 +62,20 @@ jobs:
             VERSION="${GITHUB_REF#refs/tags/v}"
             BRANCH=$(git branch -r --contains HEAD | head -1 | sed 's|.*origin/||' || echo "unknown")
           fi
-          # The committed android/pubspec.yaml is the single source of truth
+          # The committed app/pubspec.yaml is the single source of truth
           # for the versionCode: F-Droid's checkupdates bot parses it at the
           # release tag, so a code computed here (e.g. from the commit count)
           # would give the GitHub and F-Droid APKs different codes, and a
           # pubspec left behind would hide the release from F-Droid entirely.
-          PUBSPEC_LINE=$(grep -E '^version:' android/pubspec.yaml || true)
+          PUBSPEC_LINE=$(grep -E '^version:' app/pubspec.yaml || true)
           PUBSPEC_NAME=$(echo "$PUBSPEC_LINE" | sed -n -E 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+)[[:space:]]*$/\1/p')
           BUILD_NUMBER=$(echo "$PUBSPEC_LINE" | sed -n -E 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+)[[:space:]]*$/\2/p')
           if [ -z "$PUBSPEC_NAME" ] || [ -z "$BUILD_NUMBER" ]; then
-            echo "::error::android/pubspec.yaml has no 'version: <name>+<code>' line (found: '${PUBSPEC_LINE}')"
+            echo "::error::app/pubspec.yaml has no 'version: <name>+<code>' line (found: '${PUBSPEC_LINE}')"
             exit 1
           fi
           if [ "$PUBSPEC_NAME" != "$VERSION" ]; then
-            echo "::error::Releasing ${VERSION} but the committed android/pubspec.yaml says ${PUBSPEC_NAME}+${BUILD_NUMBER}. F-Droid reads the committed pubspec to detect releases. Bump pubspec.yaml (version AND the +versionCode), CHANGELOG.md, the fastlane changelogs and web-app/index.html's data-version, merge, then release."
+            echo "::error::Releasing ${VERSION} but the committed app/pubspec.yaml says ${PUBSPEC_NAME}+${BUILD_NUMBER}. F-Droid reads the committed pubspec to detect releases. Bump pubspec.yaml (version AND the +versionCode), CHANGELOG.md, the fastlane changelogs and web-app/index.html's data-version, merge, then release."
             exit 1
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: app
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -185,21 +185,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: android/artifacts/*.apk
+          path: app/artifacts/*.apk
           retention-days: 90
 
       - name: Upload App Bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-aab
-          path: android/artifacts/*.aab
+          path: app/artifacts/*.aab
           retention-days: 90
 
       - name: Upload checksums
         uses: actions/upload-artifact@v4
         with:
           name: checksums
-          path: android/artifacts/checksums-sha256.txt
+          path: app/artifacts/checksums-sha256.txt
           retention-days: 90
 
   create-release:

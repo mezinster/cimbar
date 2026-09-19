@@ -17,7 +17,7 @@ Builds:
   - versionName: 0.11.0
     versionCode: 187
     commit: v0.11.0
-    subdir: android
+    subdir: app
     sudo:
       - echo "deb https://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/bookworm.list
       - apt-get update
@@ -34,7 +34,7 @@ Builds:
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
     scandelete:
-      - android/.pub-cache
+      - app/.pub-cache
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter gen-l10n
@@ -42,6 +42,6 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-UpdateCheckData: android/pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+UpdateCheckData: app/pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 0.11.0
 CurrentVersionCode: 187
