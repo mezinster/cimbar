@@ -958,12 +958,11 @@ packages:
     source: hosted
     version: "0.0.25"
   share_handler_android:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: share_handler_android
-      sha256: caf555b933dc72783aa37fef75688c7b86bd6f7bc17d80fbf585bc42f123cc8d
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/share_handler_android"
+      relative: true
+    source: path
     version: "0.0.11"
   share_handler_ios:
     dependency: transitive
