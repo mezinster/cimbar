@@ -1,0 +1,3 @@
+• Share a photo of a CimBar barcode from your gallery straight to the app — it opens in the photo decoder
+• Shared GIFs open in Import from any gallery, including ones that share GIFs as generic images
+• A file shared while a decode is running no longer replaces the file being decoded

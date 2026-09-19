@@ -1,0 +1,3 @@
+• Galerinizdeki bir CimBar barkodu fotoğrafını doğrudan uygulamaya paylaşın — fotoğraf çözücüsünde açılır
+• Paylaşılan GIF'ler, GIF'leri genel görüntü olarak paylaşanlar dahil her galeriden İçe Aktar'da açılır
+• Çözümleme sürerken paylaşılan bir dosya artık çözümlenen dosyanın yerini almıyor

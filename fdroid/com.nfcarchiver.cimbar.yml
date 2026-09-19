@@ -14,9 +14,9 @@ RepoType: git
 Repo: https://github.com/mezinster/cimbar.git
 
 Builds:
-  - versionName: 0.11.0
-    versionCode: 187
-    commit: fd909b160b1e8c87c891b254c16e09bcc9cdc360
+  - versionName: 0.12.0
+    versionCode: 188
+    commit: v0.12.0
     subdir: app
     sudo:
       - echo "deb https://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/bookworm.list
@@ -26,6 +26,8 @@ Builds:
     output: build/app/outputs/flutter-apk/app-release.apk
     srclibs:
       - flutter@stable
+    rm:
+      - app/ios
     prebuild:
       - flutterVersion=$(sed -n -E "s/.*FLUTTER_VERSION:\ '(.*)'/\1/p" ../.github/workflows/release.yml)
       - '[[ $flutterVersion ]]'
@@ -43,5 +45,5 @@ Builds:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
 UpdateCheckData: app/pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 0.11.0
-CurrentVersionCode: 187
+CurrentVersion: 0.12.0
+CurrentVersionCode: 188
