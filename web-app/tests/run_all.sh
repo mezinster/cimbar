@@ -38,5 +38,8 @@ node tests/test_browser_load.js
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
+echo ""; echo "--- Icons, manifest and deploy staging ---"
+node tests/test_web_icons.js
+
 echo ""
 echo "=== All tests passed ==="

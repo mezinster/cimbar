@@ -192,7 +192,8 @@ node tests/test_pipeline_node.js  # full GIF pipeline with length prefix
 node tests/test_i18n.js           # UI strings in five languages
 node tests/test_browser_load.js   # page scripts in one shared global scope
 node tests/test_healthcheck.js    # post-deploy healthcheck tool
-python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # orchestrator (six of the eleven Node tests) + GIF structure check
+node tests/test_web_icons.js      # icons, manifest and deploy staging
+python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # orchestrator (six of the twelve Node tests) + GIF structure check
 python3 tests/test_gif.py path/to/output.gif 608                    # GIF structure (needs Pillow)
 ```
 
