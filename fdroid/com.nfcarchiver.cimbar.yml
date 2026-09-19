@@ -1,12 +1,12 @@
 Categories:
-  - File Transfer
   - File Encryption & Vault
+  - File Transfer
 License: MIT
 AuthorName: mezinster
 WebSite: https://nfcarchiver.com/cimbar/
 SourceCode: https://github.com/mezinster/cimbar
 IssueTracker: https://github.com/mezinster/cimbar/issues
-Changelog: https://github.com/mezinster/cimbar/blob/master/CHANGELOG.md
+Changelog: https://github.com/mezinster/cimbar/blob/HEAD/CHANGELOG.md
 
 AutoName: CimBar Scanner
 
@@ -16,7 +16,7 @@ Repo: https://github.com/mezinster/cimbar.git
 Builds:
   - versionName: 0.12.0
     versionCode: 188
-    commit: v0.12.0
+    commit: 0ba9c11f7e7bbb3c6e07598787f4b4ccd2712d00
     subdir: app
     sudo:
       - echo "deb https://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/bookworm.list
