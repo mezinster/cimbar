@@ -11,6 +11,7 @@ import 'features/settings/settings_screen.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'shared/theme/app_theme.dart';
 import 'shared/widgets/app_shell.dart';
+import 'shared/widgets/share_intake.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -76,6 +77,8 @@ class CimBarApp extends ConsumerWidget {
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
+      scaffoldMessengerKey: appMessengerKey,
+      builder: (context, child) => ShareIntake(child: child ?? const SizedBox.shrink()),
     );
   }
 }
