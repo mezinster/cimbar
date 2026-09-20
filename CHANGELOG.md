@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-09-20
+
+### Changed
+- **The Android build now numbers per-ABI APKs the way F-Droid needs.** `app/android/app/build.gradle` overrides a split APK's version code to `10 × versionCode + ABI` (armeabi-v7a 1, arm64-v8a 2, x86_64 3). Flutter's own Gradle plugin does the reverse — `ABI × 1000 + versionCode` — which puts the ABI digit in the high position, so arm64 of one release would outrank armeabi-v7a of every later one and arm64 users would never be offered an update. F-Droid builds one APK per ABI from this (~17–21 MB each, against 59 MB for the universal APK, which is almost entirely three copies of the Flutter engine). Requested by F-Droid maintainer linsui on the inclusion MR.
+- The universal APK and the AAB published on GitHub are unchanged: without `--split-per-abi` there is no ABI filter, so they keep the plain pubspec version code.
+
 ## [0.12.0] — 2026-09-20
 
 ### Added

@@ -19,6 +19,8 @@ Requires Flutter 3.44+ and Java 17.
 
 **Toolchain pins:** Gradle 9.1.0 (`app/android/gradle/wrapper/gradle-wrapper.properties`), AGP 9.0.1 and Kotlin 2.3.20 (`app/android/settings.gradle`), Java 17, `compileSdk`/`targetSdk` taken from the Flutter SDK — the same versions Flutter 3.44's `flutter create` template uses. CI and the release workflow pin Flutter 3.44.8 exactly (the F-Droid recipe checks out `FLUTTER_VERSION` from `release.yml`), and `pubspec.lock` is committed — resolve it with that Flutter (see the root `CLAUDE.md`'s Store Metadata section). `gradle.properties` keeps `android.newDsl=false` and `android.builtInKotlin=false` (as the Flutter template does) so the Groovy build files and the external Kotlin plugin keep working under AGP 9. Flutter's supported Gradle range is 8.7–9.x; an older Flutter (3.24) will not build against AGP 9.
 
+**Per-ABI version codes:** `app/android/app/build.gradle` ends with an `android.applicationVariants.configureEach` block that sets `versionCodeOverride = 10 * versionCode + abi` (armeabi-v7a 1, arm64-v8a 2, x86_64 3) on every output carrying an ABI filter. It exists to *undo* Flutter's own override — `FlutterPlugin.kt` sets `abi * 1000 + versionCode` for `--split-per-abi` builds, which puts the ABI digit in the high position, so arm64 of one release (2189) outranks armeabi-v7a of every later one (1190, 1191, …) and arm64 users would never be offered an update. F-Droid requires the ABI digit lowest and builds one APK per ABI from this. A build without `--split-per-abi` has no ABI filter, so the universal APK and the AAB are untouched and keep the plain pubspec code.
+
 ## Project Structure
 
 ```

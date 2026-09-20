@@ -1,0 +1,2 @@
+• Smaller download on F-Droid: one APK per processor architecture, about 18 MB instead of 59 MB
+• No changes to the app itself
