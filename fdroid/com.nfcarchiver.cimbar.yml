@@ -40,7 +40,8 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter gen-l10n
-      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform android-arm
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform
+        android-arm
 
   - versionName: 0.12.1
     versionCode: 1892
@@ -68,7 +69,8 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter gen-l10n
-      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform android-arm64
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform
+        android-arm64
 
   - versionName: 0.12.1
     versionCode: 1893
@@ -96,7 +98,8 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter gen-l10n
-      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform android-x64
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform
+        android-x64
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
