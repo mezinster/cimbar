@@ -205,9 +205,11 @@ it failed.
 
 ### 7.2 Assembler rejections
 
-`rateless.js` already emits eight reasons (`rs`, `short`, `total`, `flags`,
-`uncoded`, `duplicate`, `dependent`). All eight get i18n keys, closing the
-"untranslated reason tokens" item deferred from the v2.1 work.
+`rateless.js` emits seven reasons (`rs`, `short`, `total`, `flags`,
+`uncoded`, `duplicate`, `dependent`), and `decodeHeader` adds `version` and
+`seq` (its `short`, `flags` and `total` share names with the above). All get
+i18n keys, closing the "untranslated reason tokens" item deferred from the
+v2.1 work.
 
 Two must not be presented as failures: `duplicate` ("you already have this
 frame") and `dependent` ("no new information"). Both are the normal result of
@@ -324,7 +326,7 @@ All are enforced by existing tests and are not optional.
 4. **`test_web_icons.js`** — asserts every staged file is linked and typed.
 5. **`i18n.js`** — every new string in all five languages (en, ru, uk, tr, ka)
    or `test_i18n.js` fails. New keys: the camera button, "frame N of M
-   accepted", the five statuses in §7.1, the eight reasons in §7.2, the
+   accepted", the five statuses in §7.1, the reasons in §7.2, the
    wrong-file prompt, and "start over".
 
 ## 11. Decisions
