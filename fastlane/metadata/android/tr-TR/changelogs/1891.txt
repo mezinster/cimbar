@@ -1,0 +1,2 @@
+• F-Droid'de daha küçük indirme: her işlemci mimarisi için ayrı APK — 59 MB yerine yaklaşık 18 MB
+• Uygulamanın kendisinde değişiklik yok

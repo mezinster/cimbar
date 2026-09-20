@@ -80,16 +80,38 @@ def check_flutter_pin():
         print("release.yml Flutter: %s" % found[0])
 
 
+def expected_version_codes(meta, base_code):
+    """The versionCodes one release of `base_code` publishes.
+
+    Without VercodeOperation that is just the upstream code. With it — the ABI
+    split F-Droid asked for — each expression is applied to the upstream code
+    ('%c * 10 + 1' and friends), giving one APK, and one versionCode, per ABI.
+    """
+    ops = meta.get("VercodeOperation")
+    if base_code is None:
+        return []
+    if not ops:
+        return [base_code]
+    codes = []
+    for op in ops:
+        expr = str(op).replace("%c", str(base_code))
+        if not re.fullmatch(r"[\d\s()+*-]+", expr):
+            fail("fdroid VercodeOperation '%s' is not a plain arithmetic expression" % op)
+            continue
+        codes.append(int(eval(expr, {"__builtins__": {}}, {})))  # noqa: S307 - regex-gated arithmetic
+    return codes
+
+
 def check_fdroid(version_name, version_code):
     if not os.path.isfile(FDROID):
         fail("missing F-Droid recipe %s" % os.path.relpath(FDROID, REPO))
-        return
+        return []
     meta = yaml.safe_load(read(FDROID))
 
     builds = meta.get("Builds") or []
     if not builds:
         fail("fdroid recipe has no Builds entries")
-        return
+        return []
 
     codes = [b.get("versionCode") for b in builds]
     dupes = {c for c in codes if codes.count(c) > 1}
@@ -115,13 +137,32 @@ def check_fdroid(version_name, version_code):
     cur_code = meta.get("CurrentVersionCode")
     cur_name = str(meta.get("CurrentVersion"))
 
-    # checkupdates reads the versionCode out of the committed pubspec. A
-    # CurrentVersionCode ahead of it names a build that does not exist.
-    if cur_code is not None and version_code is not None and cur_code > version_code:
+    expected = expected_version_codes(meta, version_code)
+
+    # checkupdates reads the versionCode out of the committed pubspec and runs
+    # VercodeOperation over it. A CurrentVersionCode above the highest code that
+    # produces names a build that does not exist.
+    if cur_code is not None and expected and cur_code > max(expected):
         fail(
-            "fdroid CurrentVersionCode (%s) is ahead of pubspec versionCode (%s)"
-            % (cur_code, version_code)
+            "fdroid CurrentVersionCode (%s) is ahead of what pubspec versionCode %s yields (%s)"
+            % (cur_code, version_code, sorted(expected))
         )
+
+    # With VercodeOperation every release must carry one build entry per ABI.
+    # AutoUpdateMode copies the whole group forward at the next tag, so a group
+    # that is short one entry silently drops that ABI from the next release too.
+    if meta.get("VercodeOperation") and cur_name == version_name:
+        group = sorted(b.get("versionCode") for b in builds if str(b.get("versionName")) == cur_name)
+        if group != sorted(expected):
+            fail(
+                "fdroid has versionCodes %s for %s, but VercodeOperation over pubspec %s yields %s"
+                % (group, cur_name, version_code, sorted(expected))
+            )
+        if cur_code != max(expected):
+            fail(
+                "fdroid CurrentVersionCode is %s; with an ABI split it must be the highest of %s"
+                % (cur_code, sorted(expected))
+            )
     if cur_code is not None and cur_code not in codes:
         fail(
             "fdroid CurrentVersionCode (%s) has no matching build entry (have %s)"
@@ -140,12 +181,12 @@ def check_fdroid(version_name, version_code):
     parts = ucd.split("|")
     if len(parts) != 4:
         fail("fdroid UpdateCheckData '%s' is not '<file>|<code re>|.|<name re>'" % ucd)
-        return
+        return expected
     path, code_re, _, name_re = parts
     target = os.path.join(REPO, path)
     if not os.path.isfile(target):
         fail("fdroid UpdateCheckData names '%s', which does not exist" % path)
-        return
+        return expected
     text = read(target)
     code_m, name_m = re.search(code_re, text), re.search(name_re, text)
     if not code_m or not name_m:
@@ -155,6 +196,8 @@ def check_fdroid(version_name, version_code):
             "fdroid UpdateCheckData reads %s+%s from %s, pubspec says %s+%s"
             % (name_m.group(1), code_m.group(1), path, version_name, version_code)
         )
+
+    return expected
 
 
 def png_info(path):
@@ -194,7 +237,7 @@ def check_ios_icon():
         fail("iOS app icon has PNG colour type %d; it must be 2 (RGB, no alpha)" % info[2])
 
 
-def check_listings(version_code):
+def check_listings(version_codes):
     if not os.path.isdir(LISTINGS):
         fail("missing fastlane listings directory: %s" % LISTINGS)
         return []
@@ -219,24 +262,25 @@ def check_listings(version_code):
             elif len(text) > limit:
                 fail("%s: %s is %d chars, over the %d limit" % (loc, name, len(text), limit))
 
-        if version_code is None:
-            continue
-
-        changelog = os.path.join(base, "changelogs", "%d.txt" % version_code)
-        if not os.path.isfile(changelog):
-            fail(
-                "%s: no changelog for versionCode %d (expected changelogs/%d.txt)"
-                % (loc, version_code, version_code)
-            )
-            continue
-        text = read(changelog)
-        if not text.strip():
-            fail("%s: changelogs/%d.txt is empty" % (loc, version_code))
-        elif len(text) > CHANGELOG_MAX_CHARS:
-            fail(
-                "%s: changelogs/%d.txt is %d chars, over F-Droid's %d limit"
-                % (loc, version_code, len(text), CHANGELOG_MAX_CHARS)
-            )
+        # F-Droid looks the changelog up by the versionCode of the APK it
+        # publishes, so an ABI split needs one file per split code, not one for
+        # the upstream code (which no published APK carries).
+        for version_code in version_codes:
+            changelog = os.path.join(base, "changelogs", "%d.txt" % version_code)
+            if not os.path.isfile(changelog):
+                fail(
+                    "%s: no changelog for versionCode %d (expected changelogs/%d.txt)"
+                    % (loc, version_code, version_code)
+                )
+                continue
+            text = read(changelog)
+            if not text.strip():
+                fail("%s: changelogs/%d.txt is empty" % (loc, version_code))
+            elif len(text) > CHANGELOG_MAX_CHARS:
+                fail(
+                    "%s: changelogs/%d.txt is %d chars, over F-Droid's %d limit"
+                    % (loc, version_code, len(text), CHANGELOG_MAX_CHARS)
+                )
 
     return locales
 
@@ -270,8 +314,10 @@ def main():
 
     check_app_id()
     check_flutter_pin()
-    check_fdroid(version_name, version_code)
-    locales = check_listings(version_code)
+    version_codes = check_fdroid(version_name, version_code)
+    if version_codes:
+        print("published versionCodes: %s" % ", ".join(str(c) for c in sorted(version_codes)))
+    locales = check_listings(version_codes)
     print("store locales checked: %s" % ", ".join(locales))
     check_images()
     check_ios_icon()
