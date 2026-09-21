@@ -213,7 +213,15 @@ class LiveScan {
       this.o.onPaused();
       return false;
     }
-    if (!this.worker) this._spawn();
+    if (!this.worker) {
+      try {
+        this._spawn();
+      } catch (e) {
+        this.o.onError('scanDecoderFailed');
+        this.stop('error');
+        return false;
+      }
+    }
     this.policy.reset();
     this.lastLocatedMs = this.o.now();
     this.state = 'scanning';
@@ -305,7 +313,16 @@ class LiveScan {
       this.stop('decoderFailed');
       return;
     }
-    if (this.state === 'scanning') { this._spawn(); this._schedule(); }
+    if (this.state === 'scanning') {
+      try {
+        this._spawn();
+      } catch (e) {
+        this.o.onError('scanDecoderFailed');
+        this.stop('error');
+        return;
+      }
+      this._schedule();
+    }
   }
 
   async _onReply(w, msg) {
@@ -360,9 +377,11 @@ class LiveScan {
       ? lockConstraints(this.support, this.track.getSettings ? this.track.getSettings() : {})
       : unlockConstraints(this.support);
     if (!advanced.length) return;
+    const epoch = this._epoch;
     try {
       await this.track.applyConstraints({ advanced });
     } catch (e) {
+      if (this._epoch !== epoch) return;   // pause/stop/failure landed while the constraint was pending: not a real rejection
       this.lockEnabled = false;
       this._lockDisabledPermanently = true;
       this._debug(`lock failed (${action}): ${e && e.message}; locking disabled`);

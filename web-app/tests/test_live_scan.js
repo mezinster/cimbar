@@ -69,6 +69,13 @@ function rig(opts) {
     postMessage(m, transfer) { this.posted.push(m); log.posts.push(m); log.transfers.push(transfer); }
     terminate() { this.terminated = true; }
   }
+  let spawnCalls = 0;
+  const spawnFailOn = o.spawnFailOn || [];   // 1-based createWorker() call numbers that throw instead of constructing
+  const createWorker = () => {
+    spawnCalls++;
+    if (spawnFailOn.indexOf(spawnCalls) >= 0) throw new Error('Worker construction failed');
+    return new FakeWorker();
+  };
   let clock = 0;
   const doc = eventTarget({ visibilityState: 'visible' });
   const win = eventTarget();
@@ -91,7 +98,7 @@ function rig(opts) {
   };
   const scan = new LiveScan({
     video, overlay: null, mediaDevices, doc, win, debug: true,
-    createWorker: () => new FakeWorker(), nextFrame,
+    createWorker, nextFrame,
     grabFrame: () => ({ width: 2, height: 2, data: new Uint8ClampedArray(16) }),
     now: () => clock, setTimeout: setT, clearTimeout: clearT,
     onFrame: o.onFrame || (async (r) => { log.frames.push(r); return { kind: 'accepted', complete: false, rank: 1, total: 5 }; }),
@@ -235,6 +242,28 @@ test('worker failures respawn; three in a row stop the scan; a success resets th
   assertJson(r.log.errors, ['scanDecoderFailed'], 'error reported');
   assertEq(r.log.stopped[0].reason, 'decoderFailed', 'stop reason');
   assertEq(r.track.stopped, true, 'camera released');
+});
+
+test('a Worker() constructor that throws during start() releases the camera instead of leaving it live', async () => {
+  const r = rig({ spawnFailOn: [1] });
+  assertEq(await r.scan.start(), false, 'start resolves false');
+  assertJson(r.log.errors, ['scanDecoderFailed'], 'error reported');
+  assertEq(r.log.stopped.length, 1, 'stopped once');
+  assertEq(r.log.stopped[0].reason, 'error', 'stop reason');
+  assertEq(r.track.stopped, true, 'camera released');
+  assertEq(r.scan.state, 'stopped', 'state is stopped, not stuck starting');
+});
+
+test('a Worker() constructor that throws on respawn (inside _fail) stops cleanly with the camera released', async () => {
+  const r = rig({ spawnFailOn: [2] });                    // first spawn (during start()) succeeds; the respawn throws
+  await r.scan.start();
+  r.fireFrame();
+  r.worker().onerror({ preventDefault() {} });             // triggers _fail -> respawn attempt -> throws
+  await flush();
+  assertJson(r.log.errors, ['scanDecoderFailed'], 'error reported');
+  assertEq(r.scan.state, 'stopped', 'stopped');
+  assertEq(r.track.stopped, true, 'camera released');
+  assertEq(r.log.stopped[r.log.stopped.length - 1].reason, 'error', 'stop reason');
 });
 
 test('a late reply from a timed-out request is ignored', async () => {
@@ -441,6 +470,23 @@ test('minor: a rejected lock stays disabled across pause and resume, not recompu
   assertEq(await r.scan.resume(), true, 'resume reopens the camera');
   r.fireFrame(); await r.reply(located());
   assertEq(r.log.applied.length, 1, 'no further lock attempt after resume: locking stayed disabled for this LiveScan');
+});
+
+test('race5: a pause landing while applyConstraints is pending does not permanently disable locking once it rejects', async () => {
+  const r = rig({ caps: { focusMode: ['manual', 'continuous'] }, settings: { focusDistance: 1 }, holdLock: true });
+  await r.scan.start();
+  r.fireFrame();
+  await r.reply(located('ok'));                 // reply arrived; lock's applyConstraints is held pending
+  assertEq(r.log.applied.length, 1, 'lock attempted');
+  r.doc.visibilityState = 'hidden';
+  r.doc.fire('visibilitychange');
+  assertEq(r.scan.state, 'paused', 'paused while the lock await is outstanding');
+  r.rejectLockNow();                            // the pending constraint rejects only after the pause landed
+  await flush();
+
+  assertEq(await r.scan.resume(), true, 'resume reopens the camera');
+  r.fireFrame(); await r.reply(located());
+  assertEq(r.log.applied.length, 2, 'applyConstraints is attempted again: locking was not permanently disabled');
 });
 
 test('minor: a rejected onFrame is logged and the scan keeps going instead of hanging', async () => {
