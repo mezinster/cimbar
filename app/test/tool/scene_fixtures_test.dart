@@ -34,7 +34,9 @@ void main() {
       final want = (side['cells'] as List).cast<int>();
       expect(res.cells!.length, want.length, reason: side['name'] as String);
       var wrong = 0;
-      for (var i = 0; i < want.length; i++) if (res.cells![i] != want[i]) wrong++;
+      for (var i = 0; i < want.length; i++) {
+        if (res.cells![i] != want[i]) wrong++;
+      }
       // Same tolerance as the JS-side fixture test: a little per-cell noise
       // from degradation (blur, noise, etc.) is expected and is what these
       // fixtures are meant to exercise -- RS is what must correct it cleanly.

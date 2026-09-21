@@ -45,7 +45,17 @@ function clampInt(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 /** Dart's `%` on doubles is a Euclidean modulo — always >= 0 for a positive divisor. */
 function dartMod(a, m) { const r = a % m; return r < 0 ? r + m : r; }
 
-/** Local-mean binarization (integral image). dark = v < mean - 8 || v < 24. */
+/**
+ * Local-mean binarization (integral image). dark = v < mean - 8 || v < 24.
+ *
+ * Caller-side precondition: the integral image is an Int32Array holding the
+ * running sum of 0..255 luma, so it overflows past 2^31 at ~8.4 megapixels
+ * (w*h*255). `index.html`'s toImageData caps a photo's long edge at 1920 px
+ * before it ever reaches CimbarPhoto.decode (peak ~1.3e8, 16x under the
+ * limit), but nothing in this file enforces it — a second caller (a live
+ * camera path, a direct CimbarPhoto.decode on a full-resolution ImageData)
+ * must apply the same cap or widen these sums to Float64Array.
+ */
 function binarize(p) {
   const w = p.width, h = p.height, luma = p.luma;
   const win = Math.max(15, Math.floor(Math.min(w, h) / 10));

@@ -11,7 +11,10 @@ flutter gen-l10n
 flutter build apk --debug
 sh tests/run_all.sh           # recommended: clean summary via JSON reporter
 sh tests/run_all.sh --verbose  # list each test name
+flutter analyze               # CI runs this bare -> info-level lints are FATAL
 ```
+
+Note: `tests/run_all.sh` does not run the analyzer, and CI's *Analyze & Test* job (`.github/workflows/ci.yml`) runs bare `flutter analyze`, which fails the build on `info` lints too (e.g. `curly_braces_in_flow_control_structures`). Run `flutter analyze` alongside the suite before pushing, and expect literally "No issues found!" — fix the lint rather than excluding it or passing `--no-fatal-infos`.
 
 Note: Do not use bare `flutter test` — its `\r`-based progress animation produces a single huge line that triggers output truncation in CLI tools. The wrapper parses the JSON reporter into clean output.
 

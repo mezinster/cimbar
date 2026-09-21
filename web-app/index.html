@@ -668,7 +668,7 @@ footer {
       </div>
 
       <button class="btn btn-danger" id="decBtn" onclick="startDecode()" data-i18n="decodeBtn">
-        Decode GIF
+        Decode
       </button>
 
       <div class="progress-section" id="progDec">
@@ -684,10 +684,12 @@ footer {
       </div>
 
       <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
-        <strong>How decoding works:</strong> The GIF is parsed frame-by-frame in your browser,
-        pixels are decoded back to bytes via color + symbol detection,
-        Reed-Solomon error correction is applied per block. If the data was encrypted,
-        AES-256-GCM decryption restores the original file. Nothing leaves your device.
+        <strong>How decoding works:</strong> A GIF is parsed frame-by-frame in your browser;
+        a photo is located, straightened and read one frame at a time, so you can photograph a
+        looping animation shot by shot until every frame is in. Pixels are decoded back to bytes
+        via color + symbol detection, Reed-Solomon error correction is applied per block, and the
+        frames are reassembled. If the data was encrypted, AES-256-GCM decryption restores the
+        original file. Nothing leaves your device.
       </div>
 
     </div>
@@ -828,6 +830,15 @@ async function handleDecFile(file) {
   try {
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
     if (isGifBytes(head)) {
+      // Choosing a GIF throws away a live photo session (the two are
+      // mutually exclusive). Ask first, the same way a photo of a foreign
+      // file does — accumulated frames are expensive to re-photograph.
+      if (photoSession && !photoSession.done && photoSession.asm.rank > 0) {
+        if (!confirm(t('gifDiscardsSession', { n: photoSession.asm.rank }))) {
+          log(t('photoProgressKept'), 'info', 'logDec');
+          return;
+        }
+      }
       resetPhotoSession();
       decFile = file;
       showPill('pillDec', 'pillDecText', file.name, file.size);
@@ -1100,13 +1111,35 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePrese
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
-  // A photo session may still be live (progDec/logDec showing its state,
-  // photoSession tracking an in-progress assembler) — pressing "Decode GIF"
-  // is an unrelated operation and must not write into that half-overwritten
-  // UI, even if the user forgot to pick a file (the early return below).
-  resetPhotoSession();
+  // The Decode button means "decode what I have given you", and a GIF and a
+  // photo session can never both be staged (handleDecFile clears decFile the
+  // moment a photo is chosen, and staging a GIF resets the session), so the
+  // button dispatches on whichever one exists:
+  //   * a GIF          -> decode it (and drop any session, they are exclusive)
+  //   * a complete session -> retry finishDecode against the intact assembler.
+  //     This is the recovery route for a completion that threw (missing or
+  //     wrong passphrase, inflate failure): the passphrase is only read at
+  //     completion time, so typing it and pressing Decode finishes the file
+  //     without re-photographing anything.
+  //   * an incomplete session -> say how far along it is; do NOT destroy it.
+  if (!decFile) {
+    if (!photoSession) { alert(t('selectGifFirst')); return; }
+    const asm = photoSession.asm;
+    if (!asm.isComplete()) {
+      log(t('photoKeepGoing', { rank: asm.rank, total: asm.total }), 'info', 'logDec');
+      return;
+    }
+    const retryBtn = document.getElementById('decBtn');
+    retryBtn.disabled = true;
+    retryBtn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
+    try { await completePhotoSession(); }
+    finally { retryBtn.disabled = false; retryBtn.innerHTML = t('decodeBtn'); }
+    return;
+  }
 
-  if (!decFile) { alert(t('selectGifFirst')); return; }
+  // A stale photo session cannot coexist with a staged GIF, but reset anyway
+  // so the GIF path never writes into a half-overwritten photo-session UI.
+  resetPhotoSession();
 
   const btn = document.getElementById('decBtn');
   btn.disabled = true;
@@ -1218,7 +1251,7 @@ async function finishDecode(asm) {
 }
 
 // ── PHOTO DECODE (accumulate frames across several photos) ───
-let photoSession = null;   // { asm, photos, accepted }
+let photoSession = null;   // { asm, photos, accepted, done, finishing }
 
 function resetPhotoSession() {
   photoSession = null;
@@ -1242,13 +1275,38 @@ async function toImageData(file) {
   }
 }
 
+// Runs finishDecode against a complete photo session. `done` is set ONLY
+// after finishDecode resolves, so a failed completion (no passphrase typed
+// yet, wrong passphrase, inflate error) leaves the session and its assembler
+// intact and recoverable — the user fixes the passphrase field and presses
+// Decode, which lands back here (see startDecode). The separate `finishing`
+// flag is what stops a repeat download: it is set for the whole attempt and
+// makes addPhoto ignore photos taken while decrypt/inflate is still running.
+async function completePhotoSession() {
+  if (!photoSession || photoSession.finishing) return;
+  const session = photoSession;          // resetPhotoSession() may run while we await
+  session.finishing = true;
+  try {
+    await finishDecode(session.asm);
+    session.done = true;
+  } catch (err) {
+    logDecodeError(err);
+  } finally {
+    session.finishing = false;
+  }
+}
+
 async function addPhoto(file) {
-  // Once a session has completed (successfully or not), further photos are
-  // ignored until "Start over" — otherwise every subsequent photo (almost
-  // certainly a duplicate, since the user has no way to know the previous
-  // one just completed the file) re-enters the completion branch below and
-  // re-fires decrypt/inflate/download.
-  if (photoSession && photoSession.done) return;
+  // A finished session ignores further photos until "Start over" — otherwise
+  // every later photo (almost certainly a duplicate, since the user has no
+  // way to know the previous one just completed the file) would re-enter the
+  // completion branch below and re-fire decrypt/inflate/download. Say so,
+  // rather than swallowing the photo silently.
+  if (photoSession && photoSession.done) { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  // A completion attempt is still running (PBKDF2 + decrypt can take a
+  // while); its outcome decides whether this session is done. Transient, so
+  // no log line.
+  if (photoSession && photoSession.finishing) return;
 
   document.getElementById('progDec').style.display = 'block';
   log(t('decoding'), 'info', 'logDec');
@@ -1269,7 +1327,7 @@ async function addPhoto(file) {
     return;
   }
 
-  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false };
+  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
 
   // Wrong-file guard: rateless.js's add() silently resets the whole
   // collection when a frame carries a different fileId (harmless for a GIF —
@@ -1281,7 +1339,7 @@ async function addPhoto(file) {
       log(t('photoWrongFileKept'), 'info', 'logDec');
       return;
     }
-    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false };
+    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
   }
 
   document.getElementById('photoStartOverBtn').style.display = 'inline-flex';
@@ -1304,14 +1362,7 @@ async function addPhoto(file) {
   const asm = photoSession.asm;
   setProgress(Math.round(100 * asm.rank / asm.total), t('photoKeepGoing', { rank: asm.rank, total: asm.total }),
               'progDecFill', 'progDecPct', 'progDecLabel');
-  if (asm.rank === asm.total) {
-    // Mark the session done before attempting completion, not just on
-    // success: rank stays == total forever afterwards, so without this every
-    // later photo (duplicate or not) would re-enter this branch and re-fire
-    // decrypt/inflate/download (or re-show the encryptedNeedPass alert).
-    photoSession.done = true;
-    try { await finishDecode(asm); } catch (err) { logDecodeError(err); }
-  }
+  if (asm.rank === asm.total) await completePhotoSession();
 }
 
 // ── Utilities ─────────────────────────────────────────────
