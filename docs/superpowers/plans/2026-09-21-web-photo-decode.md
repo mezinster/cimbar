@@ -570,7 +570,7 @@ Create `web-app/tests/test_cell_decode.js`:
 'use strict';
 const Fmt = require('../format.js');
 const Cimbar = require('../cimbar.js');
-const MockCanvas = require('./mock_canvas.js');
+const { MockCanvas } = require('./mock_canvas.js');
 const { RgbBuffer } = require('../rgb-buffer.js');
 const { LumaPlane } = require('../luma-plane.js');
 const { ExactGridModel } = require('../homography.js');
@@ -746,7 +746,7 @@ Create `web-app/tests/test_drift.js`:
 'use strict';
 const Fmt = require('../format.js');
 const Cimbar = require('../cimbar.js');
-const MockCanvas = require('./mock_canvas.js');
+const { MockCanvas } = require('./mock_canvas.js');
 const { RgbBuffer } = require('../rgb-buffer.js');
 const { LumaPlane } = require('../luma-plane.js');
 const { ExactGridModel } = require('../homography.js');
@@ -881,7 +881,7 @@ const fs = require('fs');
 const path = require('path');
 const Fmt = require('../format.js');
 const Cimbar = require('../cimbar.js');
-const MockCanvas = require('./mock_canvas.js');
+const { MockCanvas } = require('./mock_canvas.js');
 const { PNG } = require('./png.js');
 const { CimbarPhoto } = require('../photo-decoder.js');
 
