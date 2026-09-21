@@ -78,5 +78,53 @@ test('crop keeps an origin so reads stay in absolute coordinates', () => {
   assertNear(c.bilinear(1.5, 1.5), l.bilinear(1.5, 1.5), 1e-6, 'absolute read matches');
 });
 
+const { Homography, HomographyGridModel, ExactGridModel } = require('../homography.js');
+
+const unit = [[0,0],[1,0],[0,1],[1,1]];
+
+test('identity homography maps points to themselves', () => {
+  const h = Homography.solve(unit, unit);
+  assert(h !== null, 'solve returned null');
+  for (const [x, y] of [[0,0],[0.5,0.5],[1,1],[2,-3]]) {
+    const [mx, my] = h.map(x, y);
+    assertNear(mx, x, 1e-9); assertNear(my, y, 1e-9);
+  }
+});
+
+test('scale-and-translate homography maps corners exactly', () => {
+  const to = [[10,20],[30,20],[10,60],[30,60]];   // x*20+10, y*40+20
+  const h = Homography.solve(unit, to);
+  assert(h !== null);
+  const [mx, my] = h.map(0.5, 0.5);
+  assertNear(mx, 20, 1e-9); assertNear(my, 40, 1e-9);
+});
+
+test('a rotated, keystoned quad maps its four corners exactly', () => {
+  const to = [[100,50],[300,90],[70,250],[330,300]];
+  const h = Homography.solve(unit, to);
+  assert(h !== null);
+  unit.forEach(([x, y], i) => {
+    const [mx, my] = h.map(x, y);
+    assertNear(mx, to[i][0], 1e-6, `corner ${i} x`);
+    assertNear(my, to[i][1], 1e-6, `corner ${i} y`);
+  });
+});
+
+test('solve returns null for a degenerate (collinear) quad', () => {
+  assertEq(Homography.solve(unit, [[0,0],[1,1],[2,2],[3,3]]), null);
+});
+
+test('fromFinders on an exact frame reproduces ExactGridModel', () => {
+  const ex = new ExactGridModel();
+  const c = HomographyGridModel.finderCells.map(([cx, cy]) => ex.toSource(cx, cy));
+  const g = HomographyGridModel.fromFinders({ tl: c[0], tr: c[1], bl: c[2], br: c[3] });
+  assert(g !== null, 'fromFinders returned null');
+  for (const [cx, cy] of [[0,0],[31.5,31.5],[63,63],[8,0],[55,63]]) {
+    const [gx, gy] = g.toSource(cx, cy), [exx, exy] = ex.toSource(cx, cy);
+    assertNear(gx, exx, 1e-6, `cell ${cx},${cy} x`);
+    assertNear(gy, exy, 1e-6, `cell ${cx},${cy} y`);
+  }
+});
+
 console.log(`Results: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
