@@ -44,13 +44,13 @@ final cases = <String, Case>{
   'rot90_s18':    Case(1700, 1700, SceneSpec()..scale = 1.8..rotationDeg = 90..centerX = 850..centerY = 850),
   'rot271_s18':   Case(1700, 1700, SceneSpec()..scale = 1.8..rotationDeg = 271..centerX = 850..centerY = 850),
   'keystone_s16': Case(1600, 1600, SceneSpec()..scale = 1.6..keystone = 0.12..rotationDeg = 8..centerX = 800..centerY = 800),
-  // blurSigma = 2 (camera_path_test.dart's value, right at its documented RS
-  // tolerance edge) leaves 5 of 3840 cells misclassified before RS correction
-  // -- fine for that test's RS-corrected-data assertion, but this fixture's
-  // test compares raw per-cell values with no RS credit. 1.8 keeps the same
-  // "blurred camera photo" degradation intent with a hair more margin, and
-  // decodes to zero cell mismatches.
-  'blur_s20':     Case(1600, 1600, SceneSpec()..scale = 2.0..blurSigma = 1.8..centerX = 800..centerY = 800),
+  // blurSigma = 2 matches camera_path_test.dart's known-good blur case
+  // exactly. It leaves a handful of the 3840 cells misclassified before RS
+  // correction (RS still recovers the frame cleanly) -- the fixture test
+  // tolerates a small fraction of raw-cell mismatches for exactly this
+  // reason (see scene_fixtures_test.dart) rather than requiring zero, so the
+  // "blur" case stays a real blur test instead of a trivial one.
+  'blur_s20':     Case(1600, 1600, SceneSpec()..scale = 2.0..blurSigma = 2..centerX = 800..centerY = 800),
   'dim_s15':      Case(1500, 1500, SceneSpec()..scale = 1.5..brightness = 0.7..centerX = 750..centerY = 750),
   'noise_s15':    Case(1500, 1500, SceneSpec()..scale = 1.5..noiseSigma = 8..seed = 7..centerX = 750..centerY = 750),
 };
