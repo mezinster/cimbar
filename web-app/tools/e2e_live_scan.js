@@ -75,7 +75,14 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 function serve() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+      let rel;
+      try {
+        rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+      } catch (e) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
       const file = path.join(root, rel);
       const relToRoot = path.relative(root, file);
       const inRoot = relToRoot === '' || (!relToRoot.startsWith('..') && !path.isAbsolute(relToRoot));
