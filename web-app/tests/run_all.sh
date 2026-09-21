@@ -35,6 +35,9 @@ node tests/test_i18n.js
 echo ""; echo "--- Browser script load (shared global scope) ---"
 node tests/test_browser_load.js
 
+echo ""; echo "--- Page logic (photo-decode glue: addPhoto/startDecode/handleDecFile) ---"
+node tests/test_page_logic.js
+
 echo ""; echo "--- Photo decode geometry (RgbBuffer, LumaPlane, Homography) ---"
 node tests/test_photo_geometry.js
 
