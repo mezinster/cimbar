@@ -160,6 +160,11 @@ class LiveScan {
     this.busy = false; this.inflight = null; this.seq = 0; this.timer = null; this.cancelFrame = null;
     this.failures = 0; this.frames = 0; this.accepted = 0;
     this.lastLocatedMs = 0; this.quadMs = -Infinity;
+    // Bumped by pause()/stop()/_fail(): _onReply captures it before its awaits
+    // (the lock, then onFrame) and abandons a stale continuation if it moved.
+    this._epoch = 0;
+    this._pendingPause = false;           // pause() landed while state was 'starting'
+    this._lockDisabledPermanently = false; // a rejected applyConstraints disables locking for this LiveScan's life
     this._onVisibility = () => { if (this.o.doc && this.o.doc.visibilityState === 'hidden') this.pause(); };
     this._onPageHide = () => this.pause();
     this._listening = false;
@@ -168,6 +173,7 @@ class LiveScan {
   async start() {
     if (this.state !== 'idle' && this.state !== 'paused') return false;
     this.state = 'starting';
+    this._pendingPause = false;
     this._listen(true);
     let stream;
     try {
@@ -184,16 +190,29 @@ class LiveScan {
     this.track = stream.getVideoTracks()[0];
     const caps = this.track && typeof this.track.getCapabilities === 'function' ? this.track.getCapabilities() : {};
     this.support = lockSupport(caps);
-    this.lockEnabled = this.support.focus || this.support.exposure;
+    this.lockEnabled = !this._lockDisabledPermanently && (this.support.focus || this.support.exposure);
     try {
       this.o.video.srcObject = stream;
       await this.o.video.play();
     } catch (e) {
-      this.o.onError('camFailed');
-      this.stop('error');
+      if (this.state === 'starting') {
+        this.o.onError('camFailed');
+        this.stop('error');
+      } else {
+        stopStream(stream);           // pause()/stop() already landed; just release what we opened
+      }
       return false;
     }
-    if (this.state !== 'starting') return false;
+    if (this.state !== 'starting') return false;             // closed while play() was resolving
+    if (this._pendingPause) {                                 // pause() landed while starting: honor it now
+      this._pendingPause = false;
+      stopStream(this.stream);
+      this.stream = null; this.track = null;
+      this.o.video.srcObject = null;
+      this.state = 'paused';
+      this.o.onPaused();
+      return false;
+    }
     if (!this.worker) this._spawn();
     this.policy.reset();
     this.lastLocatedMs = this.o.now();
@@ -206,8 +225,10 @@ class LiveScan {
   resume() { return this.state === 'paused' ? this.start() : Promise.resolve(false); }
 
   pause() {
+    if (this.state === 'starting') { this._pendingPause = true; return; }
     if (this.state !== 'scanning') return;
     this.state = 'paused';
+    this._epoch++;
     this._cancelPending();
     stopStream(this.stream);
     this.stream = null; this.track = null;
@@ -218,6 +239,7 @@ class LiveScan {
   stop(reason) {
     if (this.state === 'stopped') return;
     this.state = 'stopped';
+    this._epoch++;
     this._cancelPending();
     this._listen(false);
     if (this.worker) { this.worker.terminate(); this.worker = null; }
@@ -271,6 +293,7 @@ class LiveScan {
   }
 
   _fail(reason) {
+    this._epoch++;
     if (this.timer) { this.o.clearTimeout(this.timer); this.timer = null; }
     this.inflight = null;
     this.busy = false;
@@ -293,16 +316,30 @@ class LiveScan {
     if (msg.status === 'error') { this._fail('error: ' + msg.message); return; }
     this.failures = 0;
 
+    const epoch = this._epoch;
     const now = this.o.now();
     const decision = this.policy.update(msg, now);
     await this._applyLock(decision.lockAction);
+    if (this._epoch !== epoch) return;   // pause/stop/failure landed during the lock await: abandon, no onFrame call
 
     let res = null;
     if (msg.status === 'ok') {
-      res = await this.o.onFrame(msg);
+      try {
+        res = await this.o.onFrame(msg);
+      } catch (e) {
+        this._debug(`onFrame failed: ${e && e.message}`);
+        res = null;
+      }
       if (res && res.kind === 'accepted') this.accepted++;
     }
-    if (this.state !== 'scanning') return;              // closed or paused while we awaited
+
+    if (this._epoch !== epoch) {
+      // pause/stop/failure landed during the onFrame await: abandon (no onStatus/overlay, no busy
+      // reset, no reschedule) — except a completing frame must still end the scan; stop() is
+      // idempotent, so this is a no-op if the scan was already stopped during that same await.
+      if (res && res.complete) this.stop('complete');
+      return;
+    }
 
     const loc = isLocated(msg);
     if (loc) this.lastLocatedMs = now;
@@ -327,6 +364,7 @@ class LiveScan {
       await this.track.applyConstraints({ advanced });
     } catch (e) {
       this.lockEnabled = false;
+      this._lockDisabledPermanently = true;
       this._debug(`lock failed (${action}): ${e && e.message}; locking disabled`);
     }
   }

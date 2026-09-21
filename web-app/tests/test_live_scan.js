@@ -35,12 +35,18 @@ function notLocated() { return { status: 'notLocated', corners: null, module: 0,
 function rig(opts) {
   const o = opts || {};
   const log = { posts: [], transfers: [], applied: [], errors: [], debug: [], stopped: [], paused: 0, statuses: [], workers: [], frames: [], gum: 0 };
+  let lockResolve = null, lockReject = null;
   const track = {
     stopped: false,
     stop() { this.stopped = true; },
     getCapabilities: () => o.caps || {},
     getSettings: () => o.settings || {},
-    applyConstraints: async (c) => { log.applied.push(c); if (o.rejectLock) throw new Error('not allowed'); },
+    applyConstraints: (c) => {
+      log.applied.push(c);
+      if (o.holdLock) return new Promise((res, rej) => { lockResolve = res; lockReject = rej; });
+      if (o.rejectLock) return Promise.reject(new Error('not allowed'));
+      return Promise.resolve();
+    },
   };
   const stream = { getVideoTracks: () => [track], getTracks: () => [track] };
   const mediaDevices = {
@@ -66,7 +72,23 @@ function rig(opts) {
   let clock = 0;
   const doc = eventTarget({ visibilityState: 'visible' });
   const win = eventTarget();
-  const video = { videoWidth: 1280, videoHeight: 720, srcObject: null, play: async () => {} };
+  let playResolve = null, playReject = null;
+  const video = {
+    videoWidth: 1280, videoHeight: 720, _src: null,
+    get srcObject() { return this._src; },
+    set srcObject(v) {
+      this._src = v;
+      // Mirrors real browsers: clearing srcObject while play() is pending rejects it (AbortError).
+      if (v === null && playReject) {
+        const rej = playReject; playReject = null; playResolve = null;
+        const e = new Error('interrupted'); e.name = 'AbortError'; rej(e);
+      }
+    },
+    play: () => {
+      if (!o.holdPlay) return Promise.resolve();
+      return new Promise((res, rej) => { playResolve = res; playReject = rej; });
+    },
+  };
   const scan = new LiveScan({
     video, overlay: null, mediaDevices, doc, win, debug: true,
     createWorker: () => new FakeWorker(), nextFrame,
@@ -83,7 +105,12 @@ function rig(opts) {
     target.onmessage({ data: Object.assign({ id: last.id }, msg) });
     await flush();
   };
-  return { scan, track, video, log, fireFrame, fireTimeouts, reply, worker, doc, win, setClock: (v) => { clock = v; } };
+  return {
+    scan, track, video, log, fireFrame, fireTimeouts, reply, worker, doc, win, setClock: (v) => { clock = v; },
+    resolveLock: () => { if (lockResolve) { const r = lockResolve; lockResolve = null; lockReject = null; r(); } },
+    rejectLockNow: () => { if (lockReject) { const r = lockReject; lockResolve = null; lockReject = null; r(new Error('not allowed')); } },
+    resolvePlay: () => { if (playResolve) { const r = playResolve; playResolve = null; playReject = null; r(); } },
+  };
 }
 
 test('start requests the rear camera at ideal 1080p, no audio, and reports resolution and lock support', async () => {
@@ -304,6 +331,126 @@ test('drawOverlay maps corners through the cover transform in tl-tr-br-bl order'
   ops.length = 0;
   drawOverlay(canvas, 1280, 720, null, null);
   assertJson(ops, [['clear', 0, 0, 640, 360]], 'no corners -> cleared only');
+});
+
+// --- Regression tests: races found in review round 1 (fix round 1) ---
+// Each test pins one race from the review against a generation/epoch token:
+// pause(), stop() and a worker failure all bump it, and _onReply abandons a
+// stale continuation (no onFrame, no onStatus/overlay, no busy reset, no
+// reschedule) if the epoch moved under it while awaiting the lock or onFrame.
+
+test('race1: pause landing during the lock await abandons the reply before onFrame runs', async () => {
+  const r = rig({ caps: { focusMode: ['manual', 'continuous'] }, settings: { focusDistance: 1 }, holdLock: true });
+  await r.scan.start();
+  r.fireFrame();
+  await r.reply(located('ok'));                 // reply arrived; the lock's applyConstraints is held pending
+  assertEq(r.log.frames.length, 0, 'onFrame not yet called: lock still pending');
+  r.doc.visibilityState = 'hidden';
+  r.doc.fire('visibilitychange');
+  assertEq(r.scan.state, 'paused', 'paused while the lock await is outstanding');
+  r.resolveLock();
+  await flush();
+  assertEq(r.log.frames.length, 0, 'onFrame is never called once paused mid-lock');
+  assertEq(r.log.stopped.length, 0, 'a pause does not itself stop the scan');
+});
+
+test('race1b: stop landing during the lock await abandons the reply; onFrame never runs after close', async () => {
+  const r = rig({ caps: { focusMode: ['manual', 'continuous'] }, settings: { focusDistance: 1 }, holdLock: true });
+  await r.scan.start();
+  r.fireFrame();
+  await r.reply(located('ok'));
+  r.scan.stop('closed');
+  assertEq(r.log.stopped.length, 1, 'stop reported once, immediately');
+  assertJson(r.log.stopped[0], { reason: 'closed', frames: 1, accepted: 0 }, 'accepted stays 0: onFrame never ran');
+  r.resolveLock();
+  await flush();
+  assertEq(r.log.frames.length, 0, 'onFrame never runs for a reply abandoned by stop');
+  assertEq(r.log.stopped.length, 1, 'stop is not reported a second time');
+});
+
+test('race2: stop landing during video.play() does not report a false camFailed', async () => {
+  const r = rig({ holdPlay: true });
+  const p = r.scan.start();
+  await flush();
+  r.scan.stop('closed');
+  assertEq(await p, false, 'start resolves false');
+  assertJson(r.log.errors, [], 'no camFailed reported: this was a stop, not a camera failure');
+  assertJson(r.log.stopped, [{ reason: 'closed', frames: 0, accepted: 0 }], 'stop reported once, with reason closed');
+});
+
+test('race3: a hidden tab during "starting" pauses once the camera finishes opening, not scanning', async () => {
+  const r = rig({ holdPlay: true });
+  const p = r.scan.start();
+  await flush();
+  assertEq(r.scan.state, 'starting', 'still starting: play() has not resolved yet');
+  r.doc.visibilityState = 'hidden';
+  r.doc.fire('visibilitychange');
+  assertEq(r.scan.state, 'starting', 'the pause is recorded, not applied while still starting');
+  r.resolvePlay();
+  assertEq(await p, false, 'start resolves false: the pending pause wins over entering "scanning"');
+  assertEq(r.scan.state, 'paused', 'paused once the camera finished opening');
+  assertEq(r.log.paused, 1, 'onPaused fired exactly once');
+  assertEq(r.track.stopped, true, 'the camera opened only to be released again');
+  const resumeP = r.scan.resume();
+  await flush();
+  r.resolvePlay();                              // resume() re-opens the camera: play() holds again
+  assertEq(await resumeP, true, 'resume reopens the camera');
+  assertEq(r.scan.state, 'scanning', 'scanning after resume');
+});
+
+test('race3b: stop during "starting" still wins over a pending pause', async () => {
+  const r = rig({ holdPlay: true });
+  const p = r.scan.start();
+  await flush();
+  r.doc.visibilityState = 'hidden';
+  r.doc.fire('visibilitychange');
+  r.scan.stop('closed');
+  r.resolvePlay();
+  assertEq(await p, false, 'start resolves false');
+  assertEq(r.scan.state, 'stopped', 'stop wins over the pending pause');
+  assertJson(r.log.stopped, [{ reason: 'closed', frames: 0, accepted: 0 }], 'stopped once, with the stop reason');
+});
+
+test('race4: a worker error landing during a lock await does not create a second frame in flight', async () => {
+  const r = rig({
+    caps: { focusMode: ['manual', 'continuous'] }, settings: { focusDistance: 1 }, holdLock: true,
+    onFrame: async () => ({ kind: 'accepted', complete: false, rank: 1, total: 5 }),
+  });
+  await r.scan.start();
+  r.fireFrame();
+  const w1 = r.worker();
+  await r.reply(located('ok'), w1);             // reply received; the lock await is held pending
+  w1.onerror({ preventDefault() {} });           // an unrelated worker failure while frame 1's reply is still in flight
+  assertEq(r.log.workers.length, 2, 'the failed worker is respawned');
+  assertEq(r.fireFrame(), true, 'the respawn schedules one legitimate replacement frame');
+  assertEq(r.log.posts.length, 2, 'frame 1 (stale) and frame 2 (replacement) — nothing extra yet');
+  r.resolveLock();
+  await flush();
+  assertEq(r.log.posts.length, 2, "frame 1's stale continuation resumes but posts nothing new");
+  assertEq(r.fireFrame(), false, 'no third frame is scheduled while frame 2 is still in flight');
+});
+
+test('minor: a rejected lock stays disabled across pause and resume, not recomputed from capabilities', async () => {
+  const r = rig({ caps: { focusMode: ['manual', 'continuous'] }, settings: { focusDistance: 1 }, rejectLock: true });
+  await r.scan.start();
+  r.fireFrame(); await r.reply(located());
+  assertEq(r.log.applied.length, 1, 'lock attempted once, rejected');
+  r.doc.visibilityState = 'hidden';
+  r.doc.fire('visibilitychange');
+  assertEq(r.scan.state, 'paused', 'paused');
+  assertEq(await r.scan.resume(), true, 'resume reopens the camera');
+  r.fireFrame(); await r.reply(located());
+  assertEq(r.log.applied.length, 1, 'no further lock attempt after resume: locking stayed disabled for this LiveScan');
+});
+
+test('minor: a rejected onFrame is logged and the scan keeps going instead of hanging', async () => {
+  const r = rig({ onFrame: async () => { throw new Error('boom'); } });
+  await r.scan.start();
+  r.fireFrame();
+  await r.reply(located('ok'));
+  assertEq(r.scan.state, 'scanning', 'still scanning after a rejected onFrame');
+  assert(r.log.debug.some((l) => l.includes('onFrame failed')), 'the rejection is in the debug log');
+  assertEq(r.fireFrame(), true, 'the loop continues: a new frame is requested');
 });
 
 (async () => {
