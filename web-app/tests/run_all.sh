@@ -56,6 +56,9 @@ node tests/test_photo_decode.js
 echo ""; echo "--- Capture policy (live scan hints and focus lock) ---"
 node tests/test_capture_policy.js
 
+echo ""; echo "--- Scan worker (decode chain inside a Web Worker) ---"
+node tests/test_scan_worker.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
