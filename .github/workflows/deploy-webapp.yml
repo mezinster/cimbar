@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           mkdir -p site
           cd web-app
-          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
+          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js rgb-buffer.js luma-plane.js homography.js finder-locator.js white-point.js cell-sampler.js cell-classifier.js drift-solver.js photo-decoder.js i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
             [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
             cp "$f" ../site/
           done
