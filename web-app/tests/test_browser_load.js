@@ -61,8 +61,8 @@ function loadLikeABrowser() {
   return window;
 }
 
-test('index.html lists the nineteen local scripts in dependency order', () => {
-  assert(scripts.length === 19, `expected 19 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
+test('index.html lists the twenty-one local scripts in dependency order', () => {
+  assert(scripts.length === 21, `expected 21 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
   assert(scripts.indexOf('format-data.js') < scripts.indexOf('format.js'), 'format-data.js must precede format.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('cimbar.js'), 'format.js must precede cimbar.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('gif-encoder.js'), 'format.js must precede gif-encoder.js');
@@ -78,6 +78,12 @@ test('index.html lists the nineteen local scripts in dependency order', () => {
   assert(scripts.indexOf('rs.js') < scripts.indexOf('photo-decoder.js'), 'rs.js must precede photo-decoder.js');
   assert(scripts.indexOf('cimbar.js') < scripts.indexOf('photo-decoder.js'), 'cimbar.js must precede photo-decoder.js');
   assert(scripts.indexOf('photo-decoder.js') < scripts.indexOf('i18n.js'), 'photo-decoder.js must precede i18n.js');
+  // live scan (spec §4): capture-policy.js before live-scan.js (which reads
+  // CimbarCapturePolicy at load), both after the photo chain and before i18n.js.
+  assert(scripts.indexOf('photo-decoder.js') < scripts.indexOf('capture-policy.js'), 'photo-decoder.js must precede capture-policy.js');
+  assert(scripts.indexOf('capture-policy.js') < scripts.indexOf('live-scan.js'), 'capture-policy.js must precede live-scan.js');
+  assert(scripts.indexOf('live-scan.js') < scripts.indexOf('i18n.js'), 'live-scan.js must precede i18n.js');
+  assert(!scripts.includes('scan-worker.js'), 'scan-worker.js is a worker script and must not be a page <script>');
   assert(scripts[scripts.length - 1] === 'i18n.js', 'i18n.js is loaded last, right before the page script');
 });
 
@@ -89,7 +95,7 @@ test('the globals the inline page script uses are all defined', () => {
   const w = loadLikeABrowser();
   for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'CimbarRateless', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder',
                     'CimbarRgbBuffer', 'CimbarLumaPlane', 'CimbarHomography', 'CimbarFinderLocator', 'CimbarWhitePoint', 'CimbarCellSampler', 'CimbarCellClassifier', 'CimbarDriftSolver', 'CimbarPhoto',
-                    'CimbarI18n']) {
+                    'CimbarCapturePolicy', 'CimbarLiveScan', 'CimbarI18n']) {
     assert(w[g] !== undefined, `window.${g} is not defined after loading the page scripts`);
   }
   for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'repairFrame', 'frameBodies', 'gifRepairCount', 'RatelessAssembler', 'buildPayload', 'parsePayload']) {
@@ -99,6 +105,8 @@ test('the globals the inline page script uses are all defined', () => {
   // CimbarPhoto.decode(...)), unlike every sibling module which exports an
   // API object — do not normalise this asymmetry away.
   assert(typeof w.CimbarPhoto.decode === 'function', 'CimbarPhoto.decode missing');
+  assert(typeof w.CimbarLiveScan.LiveScan === 'function', 'CimbarLiveScan.LiveScan missing');
+  assert(typeof w.CimbarCapturePolicy.CapturePolicy === 'function', 'CimbarCapturePolicy.CapturePolicy missing');
 });
 
 test('addPhoto compares a decoded fileId against the assembler before add() (wrong-file guard)', () => {

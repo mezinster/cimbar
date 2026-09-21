@@ -50,6 +50,28 @@ test('the deploy workflow stages every local file the page links to', () => {
   for (const href of localLinks) assert(staged.includes(href), `deploy-webapp.yml does not stage ${href}`);
 });
 
+test('the deploy workflow stages the live-scan worker and every script it imports', () => {
+  // The workflow's verify step checks <script src> and <link href> only; a
+  // worker is created from JS (new Worker('…')) and pulls its own files with
+  // importScripts, so a missing one would 404 only once someone scans.
+  const staged = stagedFiles();
+  const sources = ['live-scan.js', 'index.html'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
+  const workers = [...sources.matchAll(/new Worker\('([^']+)'\)/g)].map((m) => m[1]);
+  assert(workers.includes('scan-worker.js'), `expected new Worker('scan-worker.js'), found ${workers.join(', ') || 'none'}`);
+  for (const w of workers) {
+    assert(staged.includes(w), `deploy-webapp.yml does not stage the worker ${w}`);
+    const src = fs.readFileSync(path.join(root, w), 'utf8');
+    const call = src.match(/importScripts\(([\s\S]*?)\);/);
+    assert(call, `${w} has no importScripts(...) call`);
+    const files = [...call[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    assert(files.length >= 10, `${w} imports only ${files.length} files`);
+    for (const f of files) {
+      assert(fs.existsSync(path.join(root, f)), `${w} imports ${f}, which does not exist`);
+      assert(staged.includes(f), `deploy-webapp.yml does not stage ${f}, which ${w} imports`);
+    }
+  }
+});
+
 test('the deploy verify step checks <link href> as well as <script src>', () => {
   assert(/<link\b[^\n]*href/.test(workflow.split('Verify the staged bundle')[1] || ''),
     'the "Verify the staged bundle" step must check local <link href> files');
