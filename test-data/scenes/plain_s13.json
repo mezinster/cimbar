@@ -59,6 +59,15 @@
       ]
     }
   },
+  "decode": {
+    "wrong": 0,
+    "wrongIndices": [],
+    "blocksFailed": 0,
+    "hammingMean": 0.9375,
+    "hammingMax": 4,
+    "driftMeanAbs": 0.2525249914769209,
+    "driftMaxAbs": 1.0
+  },
   "cells": [
     0,
     32,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cimbar_scanner/core/decode/diagnostics.dart';
 import 'package:cimbar_scanner/core/decode/finder_locator.dart';
 import 'package:cimbar_scanner/core/decode/frame_decoder.dart';
 import 'package:cimbar_scanner/core/decode/homography.dart';
@@ -41,6 +42,46 @@ void main() {
           reason: '${side['name']}: $wrong of ${want.length} cells wrong (>1%)');
       expect(res.diag.rsFailed, 0,
           reason: '${side['name']}: RS reported ${res.diag.rsFailed} failed block(s) ($wrong of ${want.length} cells wrong)');
+    }
+  });
+
+  // The `decode` block records what THIS decoder's full camera path
+  // (FrameDecoder.decode) produced from these exact pixels, as an exact
+  // wrong-cell index set against the `cells` ground truth plus the hamming
+  // and drift diagnostics. web-app/tests/test_photo_decode.js asserts the
+  // same block, so it is the Dart <-> JS parity contract for everything
+  // BELOW the locator -- homography, white point, drift field, sampler and
+  // classifier -- which the `locate` block alone cannot pin. An index set
+  // rather than a percentage: 1% of 3840 is 38 cells, inside RS's
+  // 32-byte-per-block budget, so a genuine divergence would still decode.
+  // This test is the other half: it stops Dart drifting out from under the
+  // recorded values, which would otherwise only surface as a JS failure.
+  test('each fixture reproduces its recorded camera-path decode digest', () {
+    for (final f in dir.listSync().where((f) => f.path.endsWith('.json'))) {
+      final side = jsonDecode(File(f.path).readAsStringSync()) as Map<String, dynamic>;
+      final name = side['name'] as String;
+      final rec = side['decode'] as Map<String, dynamic>?;
+      expect(rec, isNotNull,
+          reason: '$name has no `decode` block -- rerun: dart run tool/gen_scene_fixtures.dart');
+      final image = img.decodeImage(File(f.path.replaceAll('.json', '.png')).readAsBytesSync())!;
+      final r = FrameDecoder().decode(RgbBuffer.fromImage(image));
+      expect(r.status, DecodeStatus.ok, reason: '$name: ${r.diag.note}');
+      final truth = (side['cells'] as List).cast<int>();
+      expect(r.cells!.length, truth.length, reason: '$name cell count');
+      final wrong = <int>[];
+      for (var i = 0; i < truth.length; i++) {
+        if (r.cells![i] != truth[i]) wrong.add(i);
+      }
+      expect(wrong.length, rec!['wrong'], reason: '$name wrong count ($wrong)');
+      expect(wrong, (rec['wrongIndices'] as List).cast<int>(), reason: '$name wrong-cell index set');
+      expect(r.diag.rsFailed, rec['blocksFailed'], reason: '$name blocksFailed');
+      expect(r.diag.hammingMax, rec['hammingMax'], reason: '$name hammingMax');
+      // The observed delta between the Dart and JS runtimes on these
+      // fixtures is exactly 0; the epsilon only guards the last ulp.
+      const eps = 1e-12;
+      expect(r.diag.hammingMean, closeTo((rec['hammingMean'] as num).toDouble(), eps), reason: '$name hammingMean');
+      expect(r.diag.driftMeanAbs, closeTo((rec['driftMeanAbs'] as num).toDouble(), eps), reason: '$name driftMeanAbs');
+      expect(r.diag.driftMaxAbs, closeTo((rec['driftMaxAbs'] as num).toDouble(), eps), reason: '$name driftMaxAbs');
     }
   });
 

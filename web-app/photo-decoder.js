@@ -43,6 +43,11 @@ const GRID_TOLERANCE = 10;
  * 2x-downscaled plane) is lower and guards against photo texture aliasing
  * into false candidates — a different threshold for a different purpose, but
  * both mean "the barcode is too small", so both map to status 'tooSmall'.
+ * Note this gate is unreachable from the current test fixtures: shrinking a
+ * rendered frame to 1/2, 1/3 or 1/4 makes the locator fail earlier with
+ * failReason 'candidates' (it finds nothing at all) before its module
+ * estimate could come back under 6. It is reachable in the field, where a
+ * small barcode sits in a large, sharp photo and locates cleanly.
  */
 const MIN_MODULE_PX = 6;
 

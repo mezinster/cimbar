@@ -15,11 +15,13 @@ function test(name, fn) {
 }
 function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
 function assertEq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'assertEq'}: expected ${b}, got ${a}`); }
+function assertClose(a, b, msg, eps) {
+  if (!(Math.abs(a - b) <= (eps === undefined ? EPS : eps))) throw new Error(`${msg || 'assertClose'}: expected ${b}, got ${a} (delta ${Math.abs(a - b)})`);
+}
 
 console.log('\ntest_photo_decode.js');
 
 const SCENES = path.join(__dirname, '..', '..', 'test-data', 'scenes');
-const GOLDENS = path.join(__dirname, '..', '..', 'test-data', 'goldens');
 
 // A real RS-encoded frame, not arbitrary cell values: the equivalence
 // invariant is about pixels, but the photo chain also RS-decodes and reads
@@ -32,7 +34,7 @@ function exactFrameImageData() {
   const raw = Cimbar.encodeRSFrame(data, rs);
   const canvas = new MockCanvas(Fmt.SPEC.gif.framePx, Fmt.SPEC.gif.framePx);
   Cimbar.renderFrame(canvas.getContext('2d'), raw);
-  return { imageData: canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height), cells: Fmt.packCells(raw) };
+  return { imageData: canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height) };
 }
 
 // THE equivalence invariant: the camera chain must be a no-op on a perfect frame.
@@ -54,15 +56,33 @@ test('a pristine frame round-trips to the same raw bytes as the exact path', () 
   assertEq(Buffer.compare(Buffer.from(a), Buffer.from(b)), 0, 'packed bytes differ');
 });
 
+// The sidecar's `decode` block is what the Dart FrameDecoder's camera path
+// produced from these exact committed pixels (written by
+// app/tool/gen_scene_fixtures.dart, asserted from the Dart side by
+// app/test/tool/scene_fixtures_test.dart). Asserting the exact wrong-cell
+// INDEX SET, not a percentage, is the point: 1% of 3840 is 38 cells, which
+// fits inside RS's 32-byte-per-block correction budget, so a real divergence
+// between the two ports (a transposed drift index, a sign flip on dx/dy)
+// would decode fine and never show up. The observed float delta between the
+// two runtimes is exactly 0 on every fixture; EPS only guards the last ulp.
+const EPS = 1e-12;
 for (const name of ['plain_s13', 'rot37_s18', 'rot90_s18', 'rot271_s18', 'keystone_s16', 'blur_s20', 'dim_s15', 'noise_s15']) {
-  test(`decodes the ${name} scene fixture to its recorded cells`, () => {
+  test(`decodes the ${name} scene fixture exactly as the Dart camera path does`, () => {
     const side = JSON.parse(fs.readFileSync(path.join(SCENES, `${name}.json`), 'utf8'));
+    const want = side.decode;
+    assert(want, `${name} has no \`decode\` block -- rerun: cd app && dart run tool/gen_scene_fixtures.dart`);
     const r = CimbarPhoto.decode(PNG.decode(fs.readFileSync(path.join(SCENES, `${name}.png`))));
     assertEq(r.status, 'ok', `status (${JSON.stringify(r.diag)})`);
-    let wrong = 0;
-    for (let i = 0; i < side.cells.length; i++) if (r.cells[i] !== side.cells[i]) wrong++;
-    assert(wrong / side.cells.length < 0.01, `${wrong} of ${side.cells.length} cells wrong (>1%)`);
-    assertEq(r.blocksFailed, 0, 'RS blocks failed');
+    assertEq(r.cells.length, side.cells.length, 'cell count');
+    const wrong = [];
+    for (let i = 0; i < side.cells.length; i++) if (r.cells[i] !== side.cells[i]) wrong.push(i);
+    assertEq(wrong.length, want.wrong, `wrong cells vs Dart (${JSON.stringify(wrong)})`);
+    assertEq(wrong.join(','), want.wrongIndices.join(','), 'wrong-cell index set vs Dart');
+    assertEq(r.blocksFailed, want.blocksFailed, 'RS blocks failed vs Dart');
+    assertEq(r.diag.hammingMax, want.hammingMax, 'hammingMax vs Dart');
+    assertClose(r.diag.hammingMean, want.hammingMean, 'hammingMean vs Dart');
+    assertClose(r.diag.driftMean, want.driftMeanAbs, 'driftMeanAbs vs Dart');
+    assertClose(r.diag.driftMax, want.driftMaxAbs, 'driftMaxAbs vs Dart');
   });
 }
 

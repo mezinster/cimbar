@@ -8,7 +8,9 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../test/test_utils/synthetic_scene.dart';
+import 'package:cimbar_scanner/core/decode/diagnostics.dart';
 import 'package:cimbar_scanner/core/decode/finder_locator.dart';
+import 'package:cimbar_scanner/core/decode/frame_decoder.dart';
 import 'package:cimbar_scanner/core/decode/luma_plane.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
 
@@ -89,6 +91,42 @@ Map<String, dynamic> locateRecord(RgbBuffer buffer) {
   };
 }
 
+/// Runs the full Dart camera path (`FrameDecoder.decode`: locate ->
+/// homography -> grid gate -> white point -> drift -> sample/classify -> RS)
+/// over the fixture's committed pixels and records the outcome. Where
+/// `locateRecord` pins the Dart <-> JS contract at the *locate* stage, this
+/// pins it end to end: the drift field, the white point and the classifier
+/// wiring could all diverge between the two ports with both suites still
+/// green if the only shared assertion were "fewer than 1% of cells wrong".
+/// `wrong`/`wrongIndices` are measured against the `cells` ground truth, and
+/// both suites assert the exact index set -- 1% of 3840 is 38 cells, which
+/// fits inside RS's 32-byte-per-block correction budget, so a real regression
+/// (a transposed drift index, a sign flip on dx/dy) would otherwise stay
+/// invisible.
+Map<String, dynamic> decodeRecord(RgbBuffer buffer, List<int> truth) {
+  final r = FrameDecoder().decode(buffer);
+  if (r.status != DecodeStatus.ok) {
+    throw StateError('camera path failed on a fixture: ${r.status} ${r.diag.note}');
+  }
+  final cells = r.cells!;
+  if (cells.length != truth.length) {
+    throw StateError('cell count ${cells.length} != truth ${truth.length}');
+  }
+  final wrong = <int>[];
+  for (var i = 0; i < truth.length; i++) {
+    if (cells[i] != truth[i]) wrong.add(i);
+  }
+  return {
+    'wrong': wrong.length,
+    'wrongIndices': wrong,
+    'blocksFailed': r.diag.rsFailed,
+    'hammingMean': r.diag.hammingMean,
+    'hammingMax': r.diag.hammingMax,
+    'driftMeanAbs': r.diag.driftMeanAbs,
+    'driftMaxAbs': r.diag.driftMaxAbs,
+  };
+}
+
 List<int> goldenCells(String name, int index) {
   final m = jsonDecode(File('../test-data/goldens/$name.json').readAsStringSync()) as Map<String, dynamic>;
   return ((m['frames'] as List)[index] as Map<String, dynamic>)['cells'].cast<int>();
@@ -105,6 +143,7 @@ void main() {
     // numbers must describe the bytes that are committed and that both test
     // suites read back, not an in-memory buffer nobody else sees.
     final decoded = RgbBuffer.fromImage(img.decodePng(png)!);
+    final cells = goldenCells('hello', 0);
     File('${out.path}/${e.key}.json').writeAsStringSync(const JsonEncoder.withIndent('  ').convert({
       'name': e.key,
       'golden': 'hello',
@@ -119,7 +158,8 @@ void main() {
       },
       'homography': scene.frameToScene.h.toList(),
       'locate': locateRecord(decoded),
-      'cells': goldenCells('hello', 0),
+      'decode': decodeRecord(decoded, cells),
+      'cells': cells,
     }));
     stdout.writeln('wrote ${e.key}.png + .json');
   }
