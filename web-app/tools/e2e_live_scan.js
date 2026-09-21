@@ -77,7 +77,9 @@ function serve() {
     const server = http.createServer((req, res) => {
       const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
       const file = path.join(root, rel);
-      if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+      const relToRoot = path.relative(root, file);
+      const inRoot = relToRoot === '' || (!relToRoot.startsWith('..') && !path.isAbsolute(relToRoot));
+      if (!inRoot || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
       fs.createReadStream(file).pipe(res);
     });
@@ -93,7 +95,8 @@ function serve() {
   }
   const golden = JSON.parse(fs.readFileSync(path.join(goldens, `${name}.json`), 'utf8'));
   const frames = new GifDecoder(new Uint8Array(fs.readFileSync(path.join(goldens, `${name}.gif`)))).decode();
-  const y4m = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cimbar-e2e-')), `${name}.y4m`);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cimbar-e2e-'));
+  const y4m = path.join(tmpDir, `${name}.y4m`);
   writeY4m(y4m, frames);
   console.log(`${name}: ${frames.length} frames -> ${y4m}`);
 
@@ -123,6 +126,7 @@ function serve() {
   } finally {
     await browser.close();
     server.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
   process.exit(ok ? 0 : 1);
 })();
