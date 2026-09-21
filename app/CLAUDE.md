@@ -5,11 +5,11 @@ Flutter project in `app/` (the Flutter root; native Android config is at `app/an
 ## Build
 
 ```bash
-cd android
+cd app                        # the Flutter root, from the repo root
 flutter pub get
 flutter gen-l10n
 flutter build apk --debug
-sh tests/run_all.sh           # recommended: clean summary via JSON reporter
+sh tests/run_all.sh           # app/tests/run_all.sh: clean summary via JSON reporter
 sh tests/run_all.sh --verbose  # list each test name
 flutter analyze               # CI runs this bare -> info-level lints are FATAL
 ```
