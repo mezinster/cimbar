@@ -5,13 +5,16 @@ Flutter project in `app/` (the Flutter root; native Android config is at `app/an
 ## Build
 
 ```bash
-cd android
+cd app                        # the Flutter root, from the repo root
 flutter pub get
 flutter gen-l10n
 flutter build apk --debug
-sh tests/run_all.sh           # recommended: clean summary via JSON reporter
+sh tests/run_all.sh           # app/tests/run_all.sh: clean summary via JSON reporter
 sh tests/run_all.sh --verbose  # list each test name
+flutter analyze               # CI runs this bare -> info-level lints are FATAL
 ```
+
+Note: `tests/run_all.sh` does not run the analyzer, and CI's *Analyze & Test* job (`.github/workflows/ci.yml`) runs bare `flutter analyze`, which fails the build on `info` lints too (e.g. `curly_braces_in_flow_control_structures`). Run `flutter analyze` alongside the suite before pushing, and expect literally "No issues found!" — fix the lint rather than excluding it or passing `--no-fatal-infos`.
 
 Note: Do not use bare `flutter test` — its `\r`-based progress animation produces a single huge line that triggers output truncation in CLI tools. The wrapper parses the JSON reporter into clean output.
 
@@ -152,6 +155,8 @@ Exit 0 iff the frame decodes (`status=ok`); non-GIF images default to `--mode ca
 ## Synthetic scenes
 
 `test/test_utils/synthetic_scene.dart` composites a golden GIF frame into a camera-like scene with known ground-truth geometry, so the locator, homography, white point and drift solver can be tested against exact expected finder positions instead of only real captures. `loadGoldenFrame(name, frameIndex)` loads a frame from `test-data/goldens/`; `loadPhoto(path)` loads a background photo. `SceneSpec` fields: `scale`, `rotationDeg`, `keystone` (top edge shrunk / bottom edge widened by this fraction before rotation, simulating tilt), `centerX`/`centerY` (frame placement in the output canvas), `blurSigma` (destination-pixel Gaussian blur), `brightness`, `noiseSigma`, `barrelK` (scene-space barrel distortion the homography can't model), `seed`. `renderScene(frame, outW, outH, spec, {background})` returns a `Scene{image, finderCenters, frameToScene}` — `finderCenters` and the `Homography` are exact, derived from `sceneQuad(spec)`, not estimated. Degradation suites built on it: `camera_path_test.dart` (full `FrameDecoder.decode` through the degradation matrix — scale, rotation, keystone, blur, brightness, noise, photo composites, negative cases), `finder_locator_test.dart` (the locator alone across the same matrix plus photo backgrounds and v1-barcode/blank negatives), `drift_solver_test.dart` (drift correctness including barrel distortion, which only decodes with drift on, and a timing report).
+
+`tool/gen_scene_fixtures.dart` (`cd app && dart run tool/gen_scene_fixtures.dart`; test-only, ships in neither APK) renders a subset of that same degradation matrix to `test-data/scenes/<name>.png` + `<name>.json`, so the JS port of the camera decode layer (`web-app/finder-locator.js`, `web-app/photo-decoder.js`, etc.) can be tested against the exact pixels this suite uses, not a re-implementation of scene rendering in JS. Each sidecar carries the analytic `finderCenters`/`homography` (geometric ground truth) plus what **this** `FinderLocator` and `FrameDecoder.decode` actually produced from the rendered PNG (`locate`/`decode` blocks) and the frame's true per-cell values (`cells`) — see `test-data/scenes/README.md` for the full shape. `test/tool/scene_fixtures_test.dart` asserts the committed fixtures still reproduce their recorded `locate`/`decode` blocks; `web-app/tests/test_finder_locator.js`/`test_photo_decode.js` assert the same recorded blocks from the JS side. Because both suites assert the exact same recorded numbers, a genuine improvement to either decoder — Dart or JS — makes it disagree with the frozen sidecar and fails both suites until the fixtures are regenerated; regeneration needs the Flutter toolchain, so it cannot be done from the web app alone.
 
 ## Corpus benchmark
 
@@ -342,6 +347,7 @@ Run: `sh tests/run_all.sh` from `app/` (never bare `flutter test`; see Build).
 | `decode/yuv_decode_test.dart` | `FrameDecoder.decodeYuv420`: planar and semi-planar frames decode with an ROI; a correct `RoiHint` decodes and a wrong one falls back to the full frame; a frame without a barcode is `notLocated`. |
 | `decode/benchmark_test.dart` | Two benchmarks, both appending to `build/benchmark.txt` with loose desktop-JIT bounds (order-of-magnitude regressions only, not real targets): renders a 1920×1080 camera-like scene and times `FrameDecoder.decodeYuv420` (see Performance, `< 1500 ms`); and times `RatelessAssembler` elimination over N = 2048 repair-only rows (`perRowMs < 100`) — see Performance for why N is 2048, not the 4096 ceiling. |
 | `decode/corpus_benchmark_test.dart` | Decodes every case in `test/fixtures/corpus/` (see its `README.md`), asserts each case's `expect` block, writes `build/corpus_report.txt`. |
+| `tool/scene_fixtures_test.dart` | `test-data/scenes/` fixtures (generated by `tool/gen_scene_fixtures.dart`, shared with the web app's photo-decode tests): at least eight PNGs, each with a sidecar; each fixture decodes to its recorded `cells` (within 1% wrong, RS reporting zero failed blocks) through a grid built from its recorded `finderCenters`; each fixture reproduces its recorded camera-path `decode` digest exactly — the Dart↔JS parity contract for the photo decode layer. |
 | `shared/corners_overlay_painter_test.dart` | `CornersOverlayPainter.mapPoint`: a 1280×720 landscape frame on a 720×1280 portrait canvas maps its corners as expected for `sensorOrientation` 90 (frame origin → preview top-right) and 270 (the point-symmetric mirror); orientation 0 is identity with contain letterboxing; `isRotated` agrees with the mapping. |
 | `features/camera_navigation_test.dart` | Live Scan and Photo Capture are pushed on the **root** navigator, not the shell's nested one, so the bottom tab bar keeps working after a scan. |
 | `features/live_scan_controller_test.dart` | `LiveScanController` without a camera or isolate (`onOutcomeForTest`/`onIsolateErrorForTest`): an `ok` outcome carrying a golden frame fills its slot and completes; a `notLocated` outcome clears the corners and reports no hint; three consecutive isolate errors surface `decoder_failed:` and the next outcome clears the panel; `'DecodeIsolate disposed'` errors are ignored; the first located outcome asks for a focus/exposure lock exactly once (`consumeLockAction` resets it); rateless assembly — feeding source and repair frames from a coded golden in mixed order climbs `state.rank` to completion, then further duplicate/dependent/already-seen frames leave `rank` unchanged. |

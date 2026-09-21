@@ -568,7 +568,7 @@ footer {
 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(event,'encode')" data-i18n="tabEncode">Encode</button>
-    <button class="tab-btn" onclick="switchTab(event,'decode')" data-i18n="tabDecode">Decode GIF</button>
+    <button class="tab-btn" onclick="switchTab(event,'decode')" data-i18n="tabDecode">Decode</button>
     <button class="tab-btn" onclick="switchTab(event,'about')" data-i18n="tabAbout">About</button>
   </div>
 
@@ -649,12 +649,14 @@ footer {
     <div class="card">
 
       <div class="field">
-        <label data-i18n="encodedGif">Encoded GIF</label>
+        <label data-i18n="choosePhotoOrGif">Choose a GIF or a photo of a barcode</label>
         <div class="drop-zone" id="dropDec">
-          <input type="file" id="fileDec" accept="image/gif,.gif" onchange="onFileSelect(this,'dec')">
+          <input type="file" id="fileDec" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
           <div class="drop-icon">🎞️</div>
-          <div class="drop-text" data-i18n-html="dropGifHtml">Drop your <strong>.gif</strong> here, or click to browse</div>
+          <div class="drop-text" data-i18n-html="dropGifHtml">Drop a <strong>GIF or photo</strong> here, or click to browse</div>
         </div>
+        <input type="file" id="photoDec" accept="image/*" capture="environment" style="display:none" onchange="onFileSelect(this,'dec')">
+        <button type="button" class="btn btn-outline" style="margin-top:12px;" data-i18n="takePhoto" onclick="document.getElementById('photoDec').click()">Take a photo</button>
         <div class="file-pill" id="pillDec">
           <span>✓</span><span id="pillDecText"></span>
         </div>
@@ -666,7 +668,7 @@ footer {
       </div>
 
       <button class="btn btn-danger" id="decBtn" onclick="startDecode()" data-i18n="decodeBtn">
-        Decode GIF
+        Decode
       </button>
 
       <div class="progress-section" id="progDec">
@@ -678,13 +680,16 @@ footer {
           <div class="progress-fill" id="progDecFill" style="background:var(--warn)"></div>
         </div>
         <div class="log" id="logDec"></div>
+        <button type="button" class="btn btn-outline" id="photoStartOverBtn" style="display:none;margin-top:10px;" data-i18n="photoStartOver" onclick="resetPhotoSession()">Start over</button>
       </div>
 
       <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
-        <strong>How decoding works:</strong> The GIF is parsed frame-by-frame in your browser,
-        pixels are decoded back to bytes via color + symbol detection,
-        Reed-Solomon error correction is applied per block. If the data was encrypted,
-        AES-256-GCM decryption restores the original file. Nothing leaves your device.
+        <strong>How decoding works:</strong> A GIF is parsed frame-by-frame in your browser;
+        a photo is located, straightened and read one frame at a time, so you can photograph a
+        looping animation shot by shot until every frame is in. Pixels are decoded back to bytes
+        via color + symbol detection, Reed-Solomon error correction is applied per block, and the
+        frames are reassembled. If the data was encrypted, AES-256-GCM decryption restores the
+        original file. Nothing leaves your device.
       </div>
 
     </div>
@@ -780,6 +785,15 @@ footer {
 <script src="compress.js"></script>
 <script src="gif-encoder.js"></script>
 <script src="gif-decoder.js"></script>
+<script src="rgb-buffer.js"></script>
+<script src="luma-plane.js"></script>
+<script src="homography.js"></script>
+<script src="finder-locator.js"></script>
+<script src="white-point.js"></script>
+<script src="cell-sampler.js"></script>
+<script src="cell-classifier.js"></script>
+<script src="drift-solver.js"></script>
+<script src="photo-decoder.js"></script>
 <script src="i18n.js"></script>
 
 <script>
@@ -800,8 +814,45 @@ let encFile = null, decFile = null;
 function onFileSelect(input, side) {
   const file = input.files[0];
   if (!file) return;
-  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); }
-  else if (side === 'dec') { decFile = file; showPill('pillDec','pillDecText', file.name, file.size); }
+  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); return; }
+  handleDecFile(file);
+  input.value = '';   // allow re-selecting/re-shooting the same file
+}
+
+// A gallery or the camera can hand over a photo labelled with any MIME type
+// (or none), so a GIF is identified by its magic bytes, not file.type — the
+// Android share intake (share_intake.dart's isGif) learned the same lesson.
+function isGifBytes(u8) {
+  return u8.length >= 4 && u8[0] === 0x47 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x38;
+}
+
+async function handleDecFile(file) {
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    if (isGifBytes(head)) {
+      // Choosing a GIF throws away a live photo session (the two are
+      // mutually exclusive). Ask first, the same way a photo of a foreign
+      // file does — accumulated frames are expensive to re-photograph.
+      if (photoSession && !photoSession.done && photoSession.asm.rank > 0) {
+        if (!confirm(t('gifDiscardsSession', { n: photoSession.asm.rank }))) {
+          log(t('photoProgressKept'), 'info', 'logDec');
+          return;
+        }
+      }
+      resetPhotoSession();
+      decFile = file;
+      showPill('pillDec', 'pillDecText', file.name, file.size);
+    } else {
+      // Stale GIF state must not survive into a photo session: clear the
+      // previously staged GIF file and its pill so #pillDec doesn't keep
+      // showing "foo.gif (12 KB)" while a photo accumulation runs.
+      decFile = null;
+      document.getElementById('pillDec').classList.remove('show');
+      await addPhoto(file);
+    }
+  } catch (err) {
+    logDecodeError(err);
+  }
 }
 
 function showPill(pillId, textId, name, size) {
@@ -827,7 +878,7 @@ function fmtBytes(b) {
     const f = e.dataTransfer.files[0];
     if (!f) return;
     if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); }
-    else if (id === 'dropDec') { decFile = f; showPill('pillDec','pillDecText', f.name, f.size); }
+    else if (id === 'dropDec') { handleDecFile(f); }
   });
 });
 
@@ -1060,8 +1111,35 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePrese
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
-  if (!decFile) { alert(t('selectGifFirst')); return; }
-  const pass = document.getElementById('passDec').value.trim();
+  // The Decode button means "decode what I have given you", and a GIF and a
+  // photo session can never both be staged (handleDecFile clears decFile the
+  // moment a photo is chosen, and staging a GIF resets the session), so the
+  // button dispatches on whichever one exists:
+  //   * a GIF          -> decode it (and drop any session, they are exclusive)
+  //   * a complete session -> retry finishDecode against the intact assembler.
+  //     This is the recovery route for a completion that threw (missing or
+  //     wrong passphrase, inflate failure): the passphrase is only read at
+  //     completion time, so typing it and pressing Decode finishes the file
+  //     without re-photographing anything.
+  //   * an incomplete session -> say how far along it is; do NOT destroy it.
+  if (!decFile) {
+    if (!photoSession) { alert(t('selectGifFirst')); return; }
+    const asm = photoSession.asm;
+    if (!asm.isComplete()) {
+      log(t('photoKeepGoing', { rank: asm.rank, total: asm.total }), 'info', 'logDec');
+      return;
+    }
+    const retryBtn = document.getElementById('decBtn');
+    retryBtn.disabled = true;
+    retryBtn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
+    try { await completePhotoSession(); }
+    finally { retryBtn.disabled = false; retryBtn.innerHTML = t('decodeBtn'); }
+    return;
+  }
+
+  // A stale photo session cannot coexist with a staged GIF, but reset anyway
+  // so the GIF path never writes into a half-overwritten photo-session UI.
+  resetPhotoSession();
 
   const btn = document.getElementById('decBtn');
   btn.disabled = true;
@@ -1108,50 +1186,183 @@ async function startDecode() {
     setProgress(75, t('rankInfo', { rank: asm.rank, n: asm.total }), 'progDecFill', 'progDecPct', 'progDecLabel');
     if (!asm.isComplete()) throw new Error(t('incomplete', { filled: asm.rank, total: asm.total, rejected }));
     log(t('assembled', { n: asm.total }), 'ok', 'logDec');
-    const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
 
-    // Auto-detect encryption: CimBar encrypted format starts with magic CB 42
-    const isEncrypted = payloadBytes[0] === 0xCB && payloadBytes[1] === 0x42;
-
-    let decrypted;
-    if (isEncrypted) {
-      if (!pass) { alert(t('encryptedNeedPass')); throw new Error(t('passRequired')); }
-      log(t('decrypting'), 'info', 'logDec');
-      setProgress(80, t('decryptingShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
-      decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
-    } else {
-      log(t('unencrypted'), 'info', 'logDec');
-      setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
-      decrypted = payloadBytes;
-    }
-
-    if (asm.compressed) {
-      log(t('inflating'), 'info', 'logDec');
-      decrypted = await CimbarCompress.inflateBytes(decrypted);
-    }
-
-    const { fileName: filename, fileBytes: fileData } = Cimbar.parsePayload(decrypted);
-
-    log(t('decryptedFile', { name: filename, size: fmtBytes(fileData.length) }), 'ok', 'logDec');
-    setProgress(100, t('done'), 'progDecFill', 'progDecPct', 'progDecLabel');
-
-    // Download the file
-    const blob = new Blob([fileData]);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    log(t('savedDownloads'), 'ok', 'logDec');
+    await finishDecode(asm);
 
   } catch (err) {
-    if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
-    else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
-    else log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
-    console.error(err);
+    logDecodeError(err);
   }
 
   btn.disabled = false;
   btn.innerHTML = t('decodeBtn');
+}
+
+// Shared error logging for both the GIF path (startDecode's own try/catch)
+// and the photo path (addPhoto wraps its finishDecode call separately, since
+// there is no decBtn spinner to reset there).
+function logDecodeError(err) {
+  if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
+  else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
+  else log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
+  console.error(err);
+}
+
+// The tail shared by the GIF path (startDecode, once its frame loop
+// completes the assembler) and the photo path (addPhoto, once enough photos
+// have been accumulated): strip the length prefix, auto-detect encryption,
+// inflate if compressed, parse the container and offer the file for
+// download.
+async function finishDecode(asm) {
+  const pass = document.getElementById('passDec').value.trim();
+  const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
+
+  // Auto-detect encryption: CimBar encrypted format starts with magic CB 42
+  const isEncrypted = payloadBytes[0] === 0xCB && payloadBytes[1] === 0x42;
+
+  let decrypted;
+  if (isEncrypted) {
+    if (!pass) { alert(t('encryptedNeedPass')); throw new Error(t('passRequired')); }
+    log(t('decrypting'), 'info', 'logDec');
+    setProgress(80, t('decryptingShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
+    decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
+  } else {
+    log(t('unencrypted'), 'info', 'logDec');
+    setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
+    decrypted = payloadBytes;
+  }
+
+  if (asm.compressed) {
+    log(t('inflating'), 'info', 'logDec');
+    decrypted = await CimbarCompress.inflateBytes(decrypted);
+  }
+
+  const { fileName: filename, fileBytes: fileData } = Cimbar.parsePayload(decrypted);
+
+  log(t('decryptedFile', { name: filename, size: fmtBytes(fileData.length) }), 'ok', 'logDec');
+  setProgress(100, t('done'), 'progDecFill', 'progDecPct', 'progDecLabel');
+
+  // Download the file
+  const blob = new Blob([fileData]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  log(t('savedDownloads'), 'ok', 'logDec');
+}
+
+// ── PHOTO DECODE (accumulate frames across several photos) ───
+let photoSession = null;   // { asm, photos, accepted, done, finishing }
+
+function resetPhotoSession() {
+  photoSession = null;
+  document.getElementById('progDec').style.display = 'none';
+  document.getElementById('logDec').innerHTML = '';
+  document.getElementById('photoStartOverBtn').style.display = 'none';
+}
+
+async function toImageData(file) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  try {
+    const long = Math.max(bitmap.width, bitmap.height);
+    const k = long > 1920 ? 1920 / long : 1;          // downscale during draw, never after
+    const w = Math.round(bitmap.width * k), h = Math.round(bitmap.height * k);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    return canvas.getContext('2d').getImageData(0, 0, w, h);
+  } finally {
+    bitmap.close();
+  }
+}
+
+// Runs finishDecode against a complete photo session. `done` is set ONLY
+// after finishDecode resolves, so a failed completion (no passphrase typed
+// yet, wrong passphrase, inflate error) leaves the session and its assembler
+// intact and recoverable — the user fixes the passphrase field and presses
+// Decode, which lands back here (see startDecode). The separate `finishing`
+// flag is what stops a repeat download: it is set for the whole attempt and
+// makes addPhoto ignore photos taken while decrypt/inflate is still running.
+async function completePhotoSession() {
+  if (!photoSession || photoSession.finishing) return;
+  const session = photoSession;          // resetPhotoSession() may run while we await
+  session.finishing = true;
+  try {
+    await finishDecode(session.asm);
+    session.done = true;
+  } catch (err) {
+    logDecodeError(err);
+  } finally {
+    session.finishing = false;
+  }
+}
+
+async function addPhoto(file) {
+  // A finished session ignores further photos until "Start over" — otherwise
+  // every later photo (almost certainly a duplicate, since the user has no
+  // way to know the previous one just completed the file) would re-enter the
+  // completion branch below and re-fire decrypt/inflate/download. Say so,
+  // rather than swallowing the photo silently.
+  if (photoSession && photoSession.done) { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  // A completion attempt is still running (PBKDF2 + decrypt can take a
+  // while); its outcome decides whether this session is done. Transient, so
+  // no log line.
+  if (photoSession && photoSession.finishing) return;
+
+  document.getElementById('progDec').style.display = 'block';
+  log(t('decoding'), 'info', 'logDec');
+  await sleep(0); // let the browser paint the log line before the synchronous decode below blocks it
+
+  let r;
+  try {
+    r = CimbarPhoto.decode(await toImageData(file));
+  } catch (err) {
+    logDecodeError(err);
+    return;
+  }
+  if (r.status !== 'ok') {
+    const key = { notLocated: 'errNotLocated', tooSmall: 'errTooSmall',
+                  unsupportedGrid: 'errUnsupportedGrid', rsFailed: 'errRsFailed',
+                  badHeader: 'errBadHeader' }[r.status];
+    log(t(key), 'err', 'logDec');
+    return;
+  }
+
+  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
+
+  // Wrong-file guard: rateless.js's add() silently resets the whole
+  // collection when a frame carries a different fileId (harmless for a GIF —
+  // one file, one fileId — but destructive across a photo session). Decode
+  // the header ourselves and ask before that reset would happen.
+  const h = CimbarFormat.decodeHeader(r.data);
+  if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
+    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
+      log(t('photoWrongFileKept'), 'info', 'logDec');
+      return;
+    }
+    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
+  }
+
+  document.getElementById('photoStartOverBtn').style.display = 'inline-flex';
+
+  photoSession.photos++;
+  const res = photoSession.asm.add(r.data, r.blocksFailed);
+  if (res.accepted) {
+    photoSession.accepted++;
+    log(t('photoAccepted', { seq: res.header.seq, rank: photoSession.asm.rank, total: photoSession.asm.total }), 'ok', 'logDec');
+  } else {
+    // duplicate/dependent are the normal result of re-photographing a
+    // looping animation — not errors.
+    const key = { duplicate: 'photoDuplicate', dependent: 'photoDependent', rs: 'rejRs',
+                  short: 'rejShort', total: 'rejTotal', flags: 'rejFlags', uncoded: 'rejUncoded',
+                  version: 'rejVersion', seq: 'rejSeq' }[res.reason];
+    const isInfo = res.reason === 'duplicate' || res.reason === 'dependent';
+    log(key ? t(key) : res.reason, isInfo ? 'info' : 'err', 'logDec');
+  }
+
+  const asm = photoSession.asm;
+  setProgress(Math.round(100 * asm.rank / asm.total), t('photoKeepGoing', { rank: asm.rank, total: asm.total }),
+              'progDecFill', 'progDecPct', 'progDecLabel');
+  if (asm.rank === asm.total) await completePhotoSession();
 }
 
 // ── Utilities ─────────────────────────────────────────────

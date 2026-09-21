@@ -35,6 +35,24 @@ node tests/test_i18n.js
 echo ""; echo "--- Browser script load (shared global scope) ---"
 node tests/test_browser_load.js
 
+echo ""; echo "--- Page logic (photo-decode glue: addPhoto/startDecode/handleDecFile) ---"
+node tests/test_page_logic.js
+
+echo ""; echo "--- Photo decode geometry (RgbBuffer, LumaPlane, Homography) ---"
+node tests/test_photo_geometry.js
+
+echo ""; echo "--- Finder locator (camera path) ---"
+node tests/test_finder_locator.js
+
+echo ""; echo "--- Cell decode (white point, sampler, classifier) ---"
+node tests/test_cell_decode.js
+
+echo ""; echo "--- Drift solver (flood-fill sub-pixel alignment) ---"
+node tests/test_drift.js
+
+echo ""; echo "--- Photo decode chain (locate to header) ---"
+node tests/test_photo_decode.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
