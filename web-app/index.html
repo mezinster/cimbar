@@ -653,7 +653,7 @@ footer {
         <div class="drop-zone" id="dropDec">
           <input type="file" id="fileDec" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
           <div class="drop-icon">🎞️</div>
-          <div class="drop-text" data-i18n-html="dropGifHtml">Drop your <strong>.gif</strong> here, or click to browse</div>
+          <div class="drop-text" data-i18n-html="dropGifHtml">Drop a <strong>GIF or photo</strong> here, or click to browse</div>
         </div>
         <input type="file" id="photoDec" accept="image/*" capture="environment" style="display:none" onchange="onFileSelect(this,'dec')">
         <button type="button" class="btn btn-outline" style="margin-top:12px;" data-i18n="takePhoto" onclick="document.getElementById('photoDec').click()">Take a photo</button>
@@ -825,13 +825,22 @@ function isGifBytes(u8) {
 }
 
 async function handleDecFile(file) {
-  const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-  if (isGifBytes(head)) {
-    resetPhotoSession();
-    decFile = file;
-    showPill('pillDec', 'pillDecText', file.name, file.size);
-  } else {
-    await addPhoto(file);
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    if (isGifBytes(head)) {
+      resetPhotoSession();
+      decFile = file;
+      showPill('pillDec', 'pillDecText', file.name, file.size);
+    } else {
+      // Stale GIF state must not survive into a photo session: clear the
+      // previously staged GIF file and its pill so #pillDec doesn't keep
+      // showing "foo.gif (12 KB)" while a photo accumulation runs.
+      decFile = null;
+      document.getElementById('pillDec').classList.remove('show');
+      await addPhoto(file);
+    }
+  } catch (err) {
+    logDecodeError(err);
   }
 }
 
@@ -1091,6 +1100,12 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePrese
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
+  // A photo session may still be live (progDec/logDec showing its state,
+  // photoSession tracking an in-progress assembler) — pressing "Decode GIF"
+  // is an unrelated operation and must not write into that half-overwritten
+  // UI, even if the user forgot to pick a file (the early return below).
+  resetPhotoSession();
+
   if (!decFile) { alert(t('selectGifFirst')); return; }
 
   const btn = document.getElementById('decBtn');
@@ -1214,17 +1229,31 @@ function resetPhotoSession() {
 
 async function toImageData(file) {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const long = Math.max(bitmap.width, bitmap.height);
-  const k = long > 1920 ? 1920 / long : 1;          // downscale during draw, never after
-  const w = Math.round(bitmap.width * k), h = Math.round(bitmap.height * k);
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
-  return canvas.getContext('2d').getImageData(0, 0, w, h);
+  try {
+    const long = Math.max(bitmap.width, bitmap.height);
+    const k = long > 1920 ? 1920 / long : 1;          // downscale during draw, never after
+    const w = Math.round(bitmap.width * k), h = Math.round(bitmap.height * k);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    return canvas.getContext('2d').getImageData(0, 0, w, h);
+  } finally {
+    bitmap.close();
+  }
 }
 
 async function addPhoto(file) {
+  // Once a session has completed (successfully or not), further photos are
+  // ignored until "Start over" — otherwise every subsequent photo (almost
+  // certainly a duplicate, since the user has no way to know the previous
+  // one just completed the file) re-enters the completion branch below and
+  // re-fires decrypt/inflate/download.
+  if (photoSession && photoSession.done) return;
+
+  document.getElementById('progDec').style.display = 'block';
+  log(t('decoding'), 'info', 'logDec');
+  await sleep(0); // let the browser paint the log line before the synchronous decode below blocks it
+
   let r;
   try {
     r = CimbarPhoto.decode(await toImageData(file));
@@ -1236,12 +1265,11 @@ async function addPhoto(file) {
     const key = { notLocated: 'errNotLocated', tooSmall: 'errTooSmall',
                   unsupportedGrid: 'errUnsupportedGrid', rsFailed: 'errRsFailed',
                   badHeader: 'errBadHeader' }[r.status];
-    document.getElementById('progDec').style.display = 'block';
     log(t(key), 'err', 'logDec');
     return;
   }
 
-  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0 };
+  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false };
 
   // Wrong-file guard: rateless.js's add() silently resets the whole
   // collection when a frame carries a different fileId (harmless for a GIF —
@@ -1249,11 +1277,13 @@ async function addPhoto(file) {
   // the header ourselves and ask before that reset would happen.
   const h = CimbarFormat.decodeHeader(r.data);
   if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
-    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) return;
-    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0 };
+    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
+      log(t('photoWrongFileKept'), 'info', 'logDec');
+      return;
+    }
+    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false };
   }
 
-  document.getElementById('progDec').style.display = 'block';
   document.getElementById('photoStartOverBtn').style.display = 'inline-flex';
 
   photoSession.photos++;
@@ -1275,6 +1305,11 @@ async function addPhoto(file) {
   setProgress(Math.round(100 * asm.rank / asm.total), t('photoKeepGoing', { rank: asm.rank, total: asm.total }),
               'progDecFill', 'progDecPct', 'progDecLabel');
   if (asm.rank === asm.total) {
+    // Mark the session done before attempting completion, not just on
+    // success: rank stays == total forever afterwards, so without this every
+    // later photo (duplicate or not) would re-enter this branch and re-fire
+    // decrypt/inflate/download (or re-show the encryptedNeedPass alert).
+    photoSession.done = true;
     try { await finishDecode(asm); } catch (err) { logDecodeError(err); }
   }
 }
