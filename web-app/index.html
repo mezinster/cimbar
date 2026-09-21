@@ -1298,17 +1298,62 @@ async function completePhotoSession() {
   }
 }
 
+function newPhotoSession() {
+  return { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
+}
+
+// Why a frame cannot be added right now: 'done' — the session completed and
+// ignores further frames until "Start over" (otherwise every later frame,
+// almost certainly a duplicate, would re-fire decrypt/inflate/download);
+// 'busy' — a completion attempt (PBKDF2 + decrypt) is still running and its
+// outcome decides whether the session is done.
+function photoSessionGate() {
+  if (photoSession && photoSession.done) return 'done';
+  if (photoSession && photoSession.finishing) return 'busy';
+  return null;
+}
+
+// Adds one decoded `ok` frame to the photo session — shared by photos
+// (addPhoto) and live scan. Reports what happened; the caller decides what to
+// tell the user and runs completePhotoSession() when `complete` is true (a
+// live scan closes the scanner first so the passphrase field is visible).
+function addFrame(r) {
+  const gate = photoSessionGate();
+  if (gate) return { kind: gate };
+  if (!photoSession) photoSession = newPhotoSession();
+
+  // Wrong-file guard: rateless.js's add() silently resets the whole
+  // collection when a frame carries a different fileId (harmless for a GIF —
+  // one file, one fileId — but destructive across a photo session). Decode
+  // the header ourselves and ask before that reset would happen.
+  const h = CimbarFormat.decodeHeader(r.data);
+  if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
+    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
+      return { kind: 'kept', fileId: h.fileId, rank: photoSession.asm.rank, total: photoSession.asm.total, complete: false };
+    }
+    photoSession = newPhotoSession();
+  }
+
+  document.getElementById('progDec').style.display = 'block';
+  document.getElementById('photoStartOverBtn').style.display = 'inline-flex';
+
+  photoSession.photos++;
+  const res = photoSession.asm.add(r.data, r.blocksFailed);
+  if (res.accepted) photoSession.accepted++;
+  const asm = photoSession.asm;
+  setProgress(Math.round(100 * asm.rank / asm.total), t('photoKeepGoing', { rank: asm.rank, total: asm.total }),
+              'progDecFill', 'progDecPct', 'progDecLabel');
+  const kind = res.accepted ? 'accepted'
+    : (res.reason === 'duplicate' || res.reason === 'dependent') ? res.reason
+    : 'rejected';
+  return { kind, reason: res.reason, header: res.header, fileId: h.valid ? h.fileId : null,
+           rank: asm.rank, total: asm.total, complete: asm.isComplete() };
+}
+
 async function addPhoto(file) {
-  // A finished session ignores further photos until "Start over" — otherwise
-  // every later photo (almost certainly a duplicate, since the user has no
-  // way to know the previous one just completed the file) would re-enter the
-  // completion branch below and re-fire decrypt/inflate/download. Say so,
-  // rather than swallowing the photo silently.
-  if (photoSession && photoSession.done) { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
-  // A completion attempt is still running (PBKDF2 + decrypt can take a
-  // while); its outcome decides whether this session is done. Transient, so
-  // no log line.
-  if (photoSession && photoSession.finishing) return;
+  const gate = photoSessionGate();
+  if (gate === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  if (gate === 'busy') return;   // transient, so no log line
 
   document.getElementById('progDec').style.display = 'block';
   log(t('decoding'), 'info', 'logDec');
@@ -1329,42 +1374,21 @@ async function addPhoto(file) {
     return;
   }
 
-  if (!photoSession) photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
-
-  // Wrong-file guard: rateless.js's add() silently resets the whole
-  // collection when a frame carries a different fileId (harmless for a GIF —
-  // one file, one fileId — but destructive across a photo session). Decode
-  // the header ourselves and ask before that reset would happen.
-  const h = CimbarFormat.decodeHeader(r.data);
-  if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
-    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
-      log(t('photoWrongFileKept'), 'info', 'logDec');
-      return;
-    }
-    photoSession = { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
-  }
-
-  document.getElementById('photoStartOverBtn').style.display = 'inline-flex';
-
-  photoSession.photos++;
-  const res = photoSession.asm.add(r.data, r.blocksFailed);
-  if (res.accepted) {
-    photoSession.accepted++;
-    log(t('photoAccepted', { seq: res.header.seq, rank: photoSession.asm.rank, total: photoSession.asm.total }), 'ok', 'logDec');
+  const res = addFrame(r);
+  if (res.kind === 'kept') { log(t('photoWrongFileKept'), 'info', 'logDec'); return; }
+  if (res.kind === 'done' || res.kind === 'busy') return;
+  if (res.kind === 'accepted') {
+    log(t('photoAccepted', { seq: res.header.seq, rank: res.rank, total: res.total }), 'ok', 'logDec');
   } else {
     // duplicate/dependent are the normal result of re-photographing a
     // looping animation — not errors.
     const key = { duplicate: 'photoDuplicate', dependent: 'photoDependent', rs: 'rejRs',
                   short: 'rejShort', total: 'rejTotal', flags: 'rejFlags', uncoded: 'rejUncoded',
                   version: 'rejVersion', seq: 'rejSeq' }[res.reason];
-    const isInfo = res.reason === 'duplicate' || res.reason === 'dependent';
+    const isInfo = res.kind === 'duplicate' || res.kind === 'dependent';
     log(key ? t(key) : res.reason, isInfo ? 'info' : 'err', 'logDec');
   }
-
-  const asm = photoSession.asm;
-  setProgress(Math.round(100 * asm.rank / asm.total), t('photoKeepGoing', { rank: asm.rank, total: asm.total }),
-              'progDecFill', 'progDecPct', 'progDecLabel');
-  if (asm.rank === asm.total) await completePhotoSession();
+  if (res.complete) await completePhotoSession();
 }
 
 // ── Utilities ─────────────────────────────────────────────

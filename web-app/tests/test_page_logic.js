@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -153,7 +153,19 @@ function freshPage() {
       );
     }
   }
-  return { ctx, elements, calls };
+  // Tests read elements the page under test never touched (e.g. asserting
+  // addFrame — unlike addPhoto — leaves 'logDec' untouched: elements['logDec']
+  // must read as an untouched default, not throw). Auto-vivify on read the
+  // same way getEl() does on the page's own document.getElementById() calls,
+  // so a not-yet-touched id reads as a fresh default element instead of
+  // undefined; an id the page DID touch is unaffected.
+  const elementsView = new Proxy(elements, {
+    get(target, prop) {
+      if (typeof prop === 'string' && !(prop in target)) return getEl(prop);
+      return target[prop];
+    },
+  });
+  return { ctx, elements: elementsView, calls };
 }
 
 /** A syntactically valid frame: HEADER_LEN + fileBytesPerFrame() bytes, header only meaningful part. */
@@ -399,6 +411,46 @@ test('declining the wrong-file prompt leaves the assembler untouched and never c
   } finally {
     proto.add = originalAdd; // restore — RatelessAssembler is a module-cached singleton shared across this file's tests
   }
+});
+
+test('addFrame reports what happened without logging or completing — kinds', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const f0 = makeFrame({ fileId: 4, seq: 0, total: 3 });
+  let r = ctx.addFrame(okResult(f0));
+  assertEq(r.kind, 'accepted', 'first frame accepted');
+  assertEq(r.rank, 1, 'rank'); assertEq(r.total, 3, 'total'); assertEq(r.complete, false, 'not complete');
+  r = ctx.addFrame(okResult(f0));
+  assertEq(r.kind, 'duplicate', 'same frame again');
+  r = ctx.addFrame(okResult(makeFrame({ fileId: 4, seq: 1, total: 3, compressed: true })));   // new seq, so not a duplicate
+  assertEq(r.kind, 'rejected', 'flags mismatch is a plain rejection');
+  assertEq(elements['logDec'].innerHTML, '', 'addFrame never logs');
+  assertEq(elements['progDec'].style.display, 'block', 'progress shown');
+  assertEq(elements['photoStartOverBtn'].style.display, 'inline-flex', 'start-over shown');
+
+  calls.confirmResult = false;
+  r = ctx.addFrame(okResult(makeFrame({ fileId: 9, seq: 0, total: 2 })));
+  assertEq(r.kind, 'kept', 'foreign file, user keeps the session');
+  assertEq(r.fileId, 9, 'foreign fileId reported');
+  assertEq(r.rank, 1, 'session untouched');
+});
+
+test('addFrame returns complete: true and leaves completion to the caller', async () => {
+  const { ctx, calls } = freshPage();
+  const r = ctx.addFrame(okResult(makeCompletingFrame({ fileId: 2, seq: 0, total: 1 })));
+  assertEq(r.kind, 'accepted', 'accepted');
+  assertEq(r.complete, true, 'complete');
+  await new Promise((res) => setTimeout(res, 0));
+  assertEq(calls.anchorClicks, 0, 'addFrame itself must not start finishDecode');
+  assertEq(calls.parsePayload, 0, 'no completion attempted');
+});
+
+test('addFrame on a finished session returns "done"', async () => {
+  const { ctx } = freshPage();
+  const data = makeCompletingFrame({ fileId: 7, seq: 0, total: 1 });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});                                  // completes and downloads
+  assertEq(ctx.addFrame(okResult(data)).kind, 'done', 'done');
 });
 
 (async () => {

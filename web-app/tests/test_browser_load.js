@@ -109,23 +109,23 @@ test('the globals the inline page script uses are all defined', () => {
   assert(typeof w.CimbarCapturePolicy.CapturePolicy === 'function', 'CimbarCapturePolicy.CapturePolicy missing');
 });
 
-test('addPhoto compares a decoded fileId against the assembler before add() (wrong-file guard)', () => {
+test('addFrame compares a decoded fileId against the assembler before add() (wrong-file guard)', () => {
   // This is a source-level invariant, not a behavioral one: there is no DOM
   // harness in this repo for index.html's inline script, so this reads the
   // page's own source rather than executing it. It is crude (brace-counted
   // function extraction, regex over the body) and will need updating if
-  // addPhoto is refactored — that is the right trade for an invariant whose
+  // addFrame is refactored — that is the right trade for an invariant whose
   // silent failure destroys a user's accumulated photo progress with no
   // error message at all (see rateless.js:104 and CLAUDE.md's rateless.js
   // description: "resets the entire collection when a frame carries a
   // different fileId" — harmless for a GIF, one file, one fileId, but
   // destructive across a multi-photo session).
-  const body = extractFunctionBody(html, 'addPhoto');
-  assert(body, 'addPhoto() not found in index.html — this test (and the wrong-file guard it checks for) needs updating if the photo path was renamed or restructured');
+  const body = extractFunctionBody(html, 'addFrame');
+  assert(body, 'addFrame() not found in index.html — this test (and the wrong-file guard it checks for) needs updating if the photo path was renamed or restructured');
 
   const decodeIdx = body.search(/CimbarFormat\.decodeHeader\(/);
   assert(decodeIdx >= 0,
-    'addPhoto must decode the frame header itself (CimbarFormat.decodeHeader) before handing the frame ' +
+    'addFrame must decode the frame header itself (CimbarFormat.decodeHeader) before handing the frame ' +
     'to the assembler. Without this, there is no way to detect a foreign fileId before rateless.js\'s ' +
     'add() silently RESETS the whole collection — discarding every photo the user has taken so far — ' +
     'the moment a stray or wrong photo is added.');
@@ -134,16 +134,16 @@ test('addPhoto compares a decoded fileId against the assembler before add() (wro
   // `photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId`.
   const guardIdx = body.search(/\.fileId\s*!==\s*null\s*&&[\s\S]{0,120}?\.fileId\s*!==[\s\S]{0,120}?\.fileId/);
   assert(guardIdx >= 0,
-    'addPhoto must compare the newly decoded header\'s fileId against the in-progress assembler\'s ' +
+    'addFrame must compare the newly decoded header\'s fileId against the in-progress assembler\'s ' +
     'fileId (something like `photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId`) ' +
     'before calling add(). This is the ONLY thing standing between a wrong photo and rateless.js ' +
     'silently wiping a user\'s accumulated frames (rateless.js:104) — deleting the guard breaks no other ' +
     'test in this suite, which is exactly why this assertion exists.');
 
   const addIdx = body.search(/\.asm\.add\(/);
-  assert(addIdx >= 0, 'addPhoto must call <assembler>.add(...) on the photo session');
-  assert(decodeIdx < addIdx, 'addPhoto must decode the header before calling add() — deciding after add() has already run is too late');
-  assert(guardIdx < addIdx, 'addPhoto must compare fileId BEFORE calling add() — rateless.js\'s add() will have already reset the collection on a foreign fileId by the time a post-hoc check could run');
+  assert(addIdx >= 0, 'addFrame must call <assembler>.add(...) on the photo session');
+  assert(decodeIdx < addIdx, 'addFrame must decode the header before calling add() — deciding after add() has already run is too late');
+  assert(guardIdx < addIdx, 'addFrame must compare fileId BEFORE calling add() — rateless.js\'s add() will have already reset the collection on a foreign fileId by the time a post-hoc check could run');
 });
 
 test('the About tab declares the app version and matches the newest CHANGELOG release', () => {
