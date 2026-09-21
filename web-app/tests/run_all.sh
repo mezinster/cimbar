@@ -53,6 +53,15 @@ node tests/test_drift.js
 echo ""; echo "--- Photo decode chain (locate to header) ---"
 node tests/test_photo_decode.js
 
+echo ""; echo "--- Capture policy (live scan hints and focus lock) ---"
+node tests/test_capture_policy.js
+
+echo ""; echo "--- Scan worker (decode chain inside a Web Worker) ---"
+node tests/test_scan_worker.js
+
+echo ""; echo "--- Live scan controller (camera loop, lock, worker lifecycle) ---"
+node tests/test_live_scan.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
