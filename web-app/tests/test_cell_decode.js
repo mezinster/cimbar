@@ -34,6 +34,44 @@ function everyCombination() {
   return cells;
 }
 
+// Builds a CellPatch directly from a symbol's tile bits and a solid color,
+// scaled uniformly (port of app/test/core/decode/cell_classifier_test.dart's
+// patchFor) — no rendering/sampling round trip needed to exercise classify().
+function patchFor(sym, color, scale = 1.0) {
+  const p = newPatch();
+  const t = Fmt.tileBits(sym);
+  for (let i = 0; i < 64; i++) {
+    const lit = t[i] === 1;
+    const r = lit ? color[0] * scale : 0.0;
+    const g = lit ? color[1] * scale : 0.0;
+    const b = lit ? color[2] * scale : 0.0;
+    p.rgb[i * 3] = r;
+    p.rgb[i * 3 + 1] = g;
+    p.rgb[i * 3 + 2] = b;
+    p.luma[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+  return p;
+}
+
+// A frame-sized RgbBuffer with a single symbol's tile painted (cyan) at cell
+// (8,0), everything else black — port of the frame luma_plane_test.dart
+// builds to exercise sampleLuma's no-luma-plane RGB fallback.
+function singleTileFrame(sym) {
+  const framePx = Fmt.SPEC.gif.framePx;
+  const rgb = new Uint8Array(framePx * framePx * 3);
+  const t = Fmt.tileBits(sym);
+  const [ox, oy] = Fmt.cellOrigin(8, 0);
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (t[y * 8 + x] === 1) {
+        const idx = ((oy + y) * framePx + (ox + x)) * 3;
+        rgb[idx] = 0; rgb[idx + 1] = 255; rgb[idx + 2] = 255;
+      }
+    }
+  }
+  return new RgbBuffer(framePx, framePx, rgb);
+}
+
 test('white point of an exact frame is pure white', () => {
   const rgb = renderKnownFrame(everyCombination());
   const wp = WhitePoint.fromFinders(rgb, new ExactGridModel());
@@ -124,6 +162,65 @@ test('bestSymbol is exact on a clean tile', () => {
   sampler.sampleLuma(pos[5][0], pos[5][1], out);
   const [, h] = classifier.bestSymbol(out);
   assertEq(h, 0, 'hamming on a clean tile');
+});
+
+test('white point rescales channels before chroma', () => {
+  // A strong blue deficit (blue x0.3) turns cyan (0,255,255) into (0,255,77),
+  // whose chroma is closer to green than to cyan without white balance.
+  const classifier = new CellClassifier();
+  const p = patchFor(7, [0, 255, 77]);
+  const withoutWB = classifier.classify(p, null);
+  assertEq(withoutWB.color, 0, 'without WB the cast reads as green');
+  const withWB = classifier.classify(p, [255, 255, 77]);
+  assertEq(withWB.color, 1, 'with WB it reads as cyan');
+  assertEq(withWB.symbol, 7, 'symbol unaffected by white point');
+});
+
+test('sampleLuma without a luma plane matches the luma-plane-backed path', () => {
+  const rgb = singleTileFrame(11);
+  const luma = LumaPlane.fromRgb(rgb);
+  const grid = new ExactGridModel();
+  const viaLuma = new CellSampler(rgb, grid, luma);
+  const viaRgb = new CellSampler(rgb, grid); // no luma plane: exercises the RGB fallback branch
+  const a = new Float32Array(64), b = new Float32Array(64);
+  viaLuma.sampleLuma(8, 0, a);
+  viaRgb.sampleLuma(8, 0, b);
+  const t = Fmt.tileBits(11);
+  for (let p = 0; p < 64; p++) {
+    assertEq(a[p] > 100, t[p] === 1, `luma path pixel ${p}`);
+    assert(Math.abs(a[p] - b[p]) < 2, `paths agree within rounding at ${p}`);
+  }
+  const classifier = new CellClassifier();
+  const [sym, ham] = classifier.bestSymbol(a);
+  assertEq(sym, 11, 'symbol from luma path');
+  assertEq(ham, 0, 'hamming from luma path');
+  // shifting by one pixel must raise the distance (drift search relies on this)
+  viaLuma.sampleLuma(8, 0, a, 1, 0);
+  const [, ham2] = classifier.bestSymbol(a);
+  assert(ham2 > 0, `shifted hamming ${ham2}`);
+});
+
+test('colorMargin is brightness-invariant (scale-invariance, not just color-preservation)', () => {
+  const cells = everyCombination();
+  const rgbFull = renderKnownFrame(cells);
+  const rgbDim = renderKnownFrame(cells);
+  for (let i = 0; i < rgbDim.rgb.length; i++) rgbDim.rgb[i] = Math.floor(rgbDim.rgb[i] * 0.45);
+  const grid = new ExactGridModel();
+  const samplerFull = new CellSampler(rgbFull, grid);
+  const samplerDim = new CellSampler(rgbDim, grid);
+  const classifier = new CellClassifier();
+  const patchFull = newPatch(), patchDim = newPatch();
+  const pos = Fmt.usableCellPositions();
+  for (let i = 0; i < pos.length; i++) {
+    samplerFull.sample(pos[i][0], pos[i][1], patchFull);
+    samplerDim.sample(pos[i][0], pos[i][1], patchDim);
+    const cFull = classifier.classify(patchFull, null);
+    const cDim = classifier.classify(patchDim, null);
+    assert(cFull.colorMargin > 0.3, `cell ${i}: full-brightness colorMargin ${cFull.colorMargin} should exceed 0.3`);
+    const ratio = cDim.colorMargin / cFull.colorMargin;
+    assert(Math.abs(ratio - 1) <= 0.2,
+      `cell ${i}: colorMargin ratio ${ratio} (full=${cFull.colorMargin}, dim=${cDim.colorMargin}) not within 20% of 1`);
+  }
 });
 
 console.log(`Results: ${passed} passed, ${failed} failed`);
