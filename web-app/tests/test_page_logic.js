@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -85,7 +85,7 @@ function freshPage() {
   const elements = {};
   function getEl(id) { if (!elements[id]) elements[id] = makeEl(id); return elements[id]; }
 
-  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [] };
+  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [], liveScans: [] };
 
   const documentStub = {
     getElementById: getEl,
@@ -103,6 +103,7 @@ function freshPage() {
     },
     createTextNode: () => ({}),
     addEventListener() {},
+    body: makeEl('body'),
   };
 
   const sandbox = {
@@ -129,6 +130,18 @@ function freshPage() {
     CimbarPhoto: { decode: () => { throw new Error('CimbarPhoto.decode was not stubbed for this test'); } },
     createImageBitmap: async () => ({ width: 10, height: 10, close() {} }),
     innerWidth: 800, innerHeight: 600,
+    navigator: { mediaDevices: { getUserMedia: async () => ({}) } },
+    location: { search: '' },
+    history: { state: null, pushState(s) { this.state = s; calls.pushes = (calls.pushes || 0) + 1; }, back() { this.state = null; calls.backs = (calls.backs || 0) + 1; } },
+    Worker: class { constructor(u) { this.url = u; } },
+    CimbarLiveScan: {
+      LiveScan: class {
+        constructor(o) { this.o = o; this.state = 'idle'; calls.liveScans.push(this); }
+        async start() { this.state = 'scanning'; return true; }
+        stop(reason) { if (this.state === 'stopped') return; this.state = 'stopped'; this.o.onStopped({ reason, frames: 0, accepted: 0 }); }
+        async resume() { this.state = 'scanning'; return true; }
+      },
+    },
   };
   sandbox.window = sandbox;
   sandbox.self = sandbox;
@@ -451,6 +464,99 @@ test('addFrame on a finished session returns "done"', async () => {
   ctx.toImageData = async () => ({});
   await ctx.addPhoto({});                                  // completes and downloads
   assertEq(ctx.addFrame(okResult(data)).kind, 'done', 'done');
+});
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test('live-scan frames and photos build ONE session', async () => {
+  const { ctx, calls } = freshPage();
+  const payload = Core.withLengthPrefix(Core.buildPayload('x.bin', new Uint8Array([1, 2, 3])));
+  const f0 = makeFrameWithPayload(payload, { fileId: 6, seq: 0, total: 2 });
+  const f1 = makeFrame({ fileId: 6, seq: 1, total: 2 });
+
+  await ctx.openScanner();
+  const scan = calls.liveScans[0];
+  assert(scan, 'openScanner constructs a LiveScan');
+  const r = await scan.o.onFrame(okResult(f0));
+  assertEq(r.kind, 'accepted', 'live frame accepted');
+  ctx.closeScanner();
+  await tick();
+
+  ctx.CimbarPhoto.decode = () => okResult(f1);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});                                   // the photo completes the SAME session
+  assertEq(calls.anchorClicks, 1, 'the photo completed the file started by the live scan');
+});
+
+test('a wrong-file live frame prompts once; after "keep" that file is ignored silently', async () => {
+  const { ctx, calls } = freshPage();
+  await ctx.openScanner();
+  const scan = calls.liveScans[0];
+  await scan.o.onFrame(okResult(makeFrame({ fileId: 1, seq: 0, total: 3 })));
+  calls.confirmResult = false;
+  const foreign = okResult(makeFrame({ fileId: 2, seq: 0, total: 4 }));
+  assertEq((await scan.o.onFrame(foreign)).kind, 'kept', 'first foreign frame: kept');
+  assertEq(calls.confirmPrompts.length, 1, 'prompted once');
+  assertEq((await scan.o.onFrame(okResult(makeFrame({ fileId: 2, seq: 1, total: 4 })))).kind, 'kept', 'second foreign frame: kept');
+  assertEq(calls.confirmPrompts.length, 1, 'not prompted again for the same foreign file');
+});
+
+test('completion during a scan closes the scanner, then completes the session (encrypted retry intact)', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 8, seq: 0, total: 1, encrypted: true });
+  await ctx.openScanner();
+  const scan = calls.liveScans[0];
+  const r = await scan.o.onFrame(okResult(data));
+  assertEq(r.complete, true, 'complete');
+  scan.stop('complete');                                     // what LiveScan does on complete
+  await tick();
+  assert(!elements['scanner'].classList.contains('open'), 'scanner view closed');
+  assert(calls.alerts.includes('encryptedNeedPass'), 'completion ran after the close (and failed: no passphrase)');
+
+  elements['passDec'].value = 'pw';
+  await ctx.startDecode();                                   // the existing recovery route
+  assertEq(calls.decrypt, 1, 'retry decrypts from the intact assembler');
+  assertEq(calls.anchorClicks, 1, 'file delivered');
+});
+
+test('opening the scanner clears a staged GIF; closing logs a summary and pops the history entry', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const gifBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0, 0, 0, 0]);
+  await ctx.handleDecFile({ name: 'a.gif', size: 8, slice: () => ({ arrayBuffer: async () => gifBytes.buffer }) });
+  assert(elements['pillDec'].classList.contains('show'), 'setup: GIF staged');
+  await ctx.openScanner();
+  assert(!elements['pillDec'].classList.contains('show'), 'GIF pill cleared');
+  assert(elements['scanner'].classList.contains('open'), 'scanner open');
+  assertEq(calls.pushes, 1, 'history entry pushed');
+  ctx.closeScanner();
+  await tick();
+  assertEq(calls.backs, 1, 'history entry consumed on close');
+  assert(elements['logDec'].innerHTML.includes('scanSummary'), 'summary logged');
+  await ctx.startDecode();
+  assertEq(calls.alerts[calls.alerts.length - 1], 'selectGifFirst', 'decFile itself was cleared');
+});
+
+test('a camera error closes the scanner and explains in the Decode log', async () => {
+  const { ctx, elements, calls } = freshPage();
+  await ctx.openScanner();
+  const scan = calls.liveScans[0];
+  scan.o.onError('camDenied');
+  scan.stop('error');
+  await tick();
+  assert(!elements['scanner'].classList.contains('open'), 'closed');
+  assert(elements['logDec'].innerHTML.includes('camDenied'), 'error explained');
+});
+
+test('a completing frame followed by a non-"complete" close still delivers the file', async () => {
+  const { ctx, calls } = freshPage();
+  const data = makeCompletingFrame({ fileId: 11, seq: 0, total: 1 });
+  await ctx.openScanner();
+  const scan = calls.liveScans[0];
+  const r = await scan.o.onFrame(okResult(data));
+  assertEq(r.complete, true, 'complete');
+  scan.stop('closed');                                       // the user closed, not LiveScan noticing completion
+  await tick();
+  assertEq(calls.anchorClicks, 1, 'the file is still delivered even though the stop reason was not "complete"');
 });
 
 (async () => {
