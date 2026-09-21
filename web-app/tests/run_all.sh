@@ -44,6 +44,9 @@ node tests/test_finder_locator.js
 echo ""; echo "--- Cell decode (white point, sampler, classifier) ---"
 node tests/test_cell_decode.js
 
+echo ""; echo "--- Drift solver (flood-fill sub-pixel alignment) ---"
+node tests/test_drift.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
