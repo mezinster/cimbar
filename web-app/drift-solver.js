@@ -56,8 +56,8 @@ class DriftSolver {
     const sampler = this.sampler, classifier = this.classifier;
     const clampPx = this.clampPx, wideThreshold = this.wideThreshold;
 
-    const dx = new Int8Array(n * n);
-    const dy = new Int8Array(n * n);
+    const dx = new Float32Array(n * n);
+    const dy = new Float32Array(n * n);
     let widened = 0;
 
     const visited = new Uint8Array(n * n);
@@ -142,12 +142,14 @@ class DriftSolver {
 
       bestX = Math.max(-clampPx, Math.min(clampPx, bestX));
       bestY = Math.max(-clampPx, Math.min(clampPx, bestY));
-      // dx/dy are Int8Array: round to the nearest integer explicitly rather
-      // than let the typed-array store truncate toward zero (the same trap
-      // as `| 0` — it would bias every negative fractional drift toward 0
-      // instead of away from it).
-      dx[k] = Math.round(bestX);
-      dy[k] = Math.round(bestY);
+      // dx/dy are Float32Array, matching Dart's Float32List: drift stays
+      // fractional, not rounded to an integer. This matters beyond output
+      // precision — a cell's initial drift is the mean of its already-decided
+      // neighbours' stored dx/dy (read back a few lines up), so rounding here
+      // would change the starting point every later cell in the flood fill
+      // hill-climbs from, compounding across the BFS.
+      dx[k] = bestX;
+      dy[k] = bestY;
       visited[k] = 2;
       const a = (Math.abs(bestX) + Math.abs(bestY)) / 2;
       sumAbs += a;
