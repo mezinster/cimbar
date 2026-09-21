@@ -376,29 +376,42 @@ import 'package:image/image.dart' as img;
 
 import '../test/test_utils/synthetic_scene.dart';
 
-const cases = <String, SceneSpec>{
-  'plain_s15':      SceneSpec(scale: 1.5),
-  'rot37_s18':      SceneSpec(scale: 1.8, rotationDeg: 37),
-  'rot90_s18':      SceneSpec(scale: 1.8, rotationDeg: 90),
-  'rot271_s18':     SceneSpec(scale: 1.8, rotationDeg: 271),
-  'keystone_s16':   SceneSpec(scale: 1.6, keystone: 0.12),
-  'blur_s20':       SceneSpec(scale: 2.0, blurSigma: 1.0),
-  'dim_s15':        SceneSpec(scale: 1.5, brightness: 0.7),
-  'noise_s15':      SceneSpec(scale: 1.5, noiseSigma: 8, seed: 7),
+// SceneSpec has NO named constructor -- it is default-constructed and mutated
+// with cascade syntax, exactly as camera_path_test.dart does it.
+// centerX/centerY default to 0, which would put the barcode at the canvas
+// corner, so every case sets them. Canvas size is per case because a 608 px
+// frame at scale 1.8 rotated 37 degrees spans ~1533 px and does not fit a
+// 1080 px tall canvas; only the unrotated case is true 1080p (and it is the
+// one the JS performance guard uses).
+class Case {
+  final int w, h;
+  final SceneSpec spec;
+  const Case(this.w, this.h, this.spec);
+}
+
+final cases = <String, Case>{
+  'plain_s13':    Case(1920, 1080, SceneSpec()..scale = 1.3..centerX = 960..centerY = 540),
+  'rot37_s18':    Case(1700, 1700, SceneSpec()..scale = 1.8..rotationDeg = 37..centerX = 850..centerY = 850),
+  'rot90_s18':    Case(1700, 1700, SceneSpec()..scale = 1.8..rotationDeg = 90..centerX = 850..centerY = 850),
+  'rot271_s18':   Case(1700, 1700, SceneSpec()..scale = 1.8..rotationDeg = 271..centerX = 850..centerY = 850),
+  'keystone_s16': Case(1600, 1600, SceneSpec()..scale = 1.6..keystone = 0.12..rotationDeg = 8..centerX = 800..centerY = 800),
+  'blur_s20':     Case(1600, 1600, SceneSpec()..scale = 2.0..blurSigma = 2..centerX = 800..centerY = 800),
+  'dim_s15':      Case(1500, 1500, SceneSpec()..scale = 1.5..brightness = 0.7..centerX = 750..centerY = 750),
+  'noise_s15':    Case(1500, 1500, SceneSpec()..scale = 1.5..noiseSigma = 8..seed = 7..centerX = 750..centerY = 750),
 };
 
 void main() {
   final out = Directory('../test-data/scenes')..createSync(recursive: true);
   for (final e in cases.entries) {
     final frame = loadGoldenFrame('hello', 0);
-    final scene = renderScene(frame, 1920, 1080, e.value);
+    final scene = renderScene(frame, e.value.w, e.value.h, e.value.spec);
     File('${out.path}/${e.key}.png').writeAsBytesSync(img.encodePng(scene.image));
     File('${out.path}/${e.key}.json').writeAsStringSync(const JsonEncoder.withIndent('  ').convert({
       'name': e.key,
       'golden': 'hello',
       'frameIndex': 0,
-      'width': 1920,
-      'height': 1080,
+      'width': e.value.w,
+      'height': e.value.h,
       'finderCenters': {
         'tl': [scene.finderCenters[0].$1, scene.finderCenters[0].$2],
         'tr': [scene.finderCenters[1].$1, scene.finderCenters[1].$2],
@@ -413,7 +426,11 @@ void main() {
 }
 ```
 
-`goldenCells(name, index)` reads the `cells` array already present in the golden's sidecar (`test-data/goldens/hello.json`, produced by `web-app/tools/gen_goldens.js`) — the ground truth is the source frame's known cells, never a decode of the degraded scene.
+`goldenCells(name, index)` is a two-line helper reading
+`jsonDecode(File('../test-data/goldens/$name.json'))['frames'][index]['cells']`
+(verified present: `hello.json` frame 0 carries a flat 3840-entry `cells`
+list, written by `web-app/tools/gen_goldens.js`). The ground truth is the
+source frame's known cells, never a decode of the degraded scene.
 
 Add `test-data/scenes/README.md` stating the files are generated, the command that regenerates them, and that both test suites consume them.
 
@@ -474,7 +491,7 @@ function loadScene(name) {
 }
 function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
 
-for (const name of ['plain_s15', 'rot37_s18', 'rot90_s18', 'rot271_s18', 'keystone_s16', 'blur_s20', 'dim_s15', 'noise_s15']) {
+for (const name of ['plain_s13', 'rot37_s18', 'rot90_s18', 'rot271_s18', 'keystone_s16', 'blur_s20', 'dim_s15', 'noise_s15']) {
   test(`locates all four finders in ${name} within 2 px of ground truth`, () => {
     const { side, luma } = loadScene(name);
     const r = FinderLocator.locate(luma);
@@ -493,8 +510,8 @@ test('reports notLocated on a blank image instead of throwing', () => {
   assert(typeof r.failReason === 'string' && r.failReason.length > 0, 'failReason must say why');
 });
 
-test('module estimate is plausible for a scale-1.5 scene', () => {
-  const { luma } = loadScene('plain_s15');
+test('module estimate is plausible for a scale-1.3 scene', () => {
+  const { luma } = loadScene('plain_s13');
   const r = FinderLocator.locate(luma);
   assert(r.ok);
   assert(r.module > 6 && r.module < 40, `module ${r.module} outside the CapturePolicy 6..40 band`);
@@ -909,7 +926,7 @@ test('a pristine frame round-trips to the same raw bytes as the exact path', () 
   assertEq(Buffer.compare(Buffer.from(a), Buffer.from(b)), 0, 'packed bytes differ');
 });
 
-for (const name of ['plain_s15', 'rot37_s18', 'rot90_s18', 'rot271_s18', 'keystone_s16', 'blur_s20', 'dim_s15', 'noise_s15']) {
+for (const name of ['plain_s13', 'rot37_s18', 'rot90_s18', 'rot271_s18', 'keystone_s16', 'blur_s20', 'dim_s15', 'noise_s15']) {
   test(`decodes the ${name} scene fixture to its recorded cells`, () => {
     const side = JSON.parse(fs.readFileSync(path.join(SCENES, `${name}.json`), 'utf8'));
     const r = CimbarPhoto.decode(PNG.decode(fs.readFileSync(path.join(SCENES, `${name}.png`))));
@@ -940,8 +957,8 @@ test('a barcode far below the module floor reports tooSmall', () => {
   assert(st === 'tooSmall' || st === 'notLocated', `expected tooSmall/notLocated, got ${st}`);
 });
 
-test('performance: a 1080p scene decodes well inside the CI ceiling', () => {
-  const img = PNG.decode(fs.readFileSync(path.join(SCENES, 'plain_s15.png')));
+test('performance: the 1920x1080 scene decodes well inside the CI ceiling', () => {
+  const img = PNG.decode(fs.readFileSync(path.join(SCENES, 'plain_s13.png')));
   CimbarPhoto.decode(img);                       // warm up
   const t0 = process.hrtime.bigint();
   const r = CimbarPhoto.decode(img);
