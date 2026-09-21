@@ -53,6 +53,9 @@ node tests/test_drift.js
 echo ""; echo "--- Photo decode chain (locate to header) ---"
 node tests/test_photo_decode.js
 
+echo ""; echo "--- Capture policy (live scan hints and focus lock) ---"
+node tests/test_capture_policy.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
