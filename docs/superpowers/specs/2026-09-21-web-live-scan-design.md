@@ -1,6 +1,6 @@
 # Web app — live camera scanning
 
-Status: Designed; not implemented
+Status: Implemented (plan: docs/superpowers/plans/2026-09-21-web-live-scan.md)
 Date: 2026-09-21
 Builds on: `docs/superpowers/specs/2026-09-21-web-photo-decode-design.md` (the photo
 decode chain and the cross-photo session this feeds; its §9 deferred live scan to here),
