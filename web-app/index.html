@@ -1541,7 +1541,9 @@ async function onScanStopped(s, info) {
   scanner = null;
   document.getElementById('scanner').classList.remove('open');
   document.body.classList.remove('scan-lock');
-  if (history.state && history.state.cimbarScanner) history.back();
+  // reason === 'back' means popstate already consumed our history entry; a stale
+  // {cimbarScanner:true} entry left by a reload/Forward would otherwise cause a second back().
+  if (info.reason !== 'back' && history.state && history.state.cimbarScanner) history.back();
   log(t('scanSummary', { frames: info.frames, accepted: info.accepted }), 'info', 'logDec');
   // A close that races the completing frame (reason !== 'complete', but the
   // session is already complete and not yet done) must still finish the

@@ -536,6 +536,16 @@ test('opening the scanner clears a staged GIF; closing logs a summary and pops t
   assertEq(calls.alerts[calls.alerts.length - 1], 'selectGifFirst', 'decFile itself was cleared');
 });
 
+test('a "back" stop does not call history.back(): popstate already consumed the entry', async () => {
+  const { ctx, calls } = freshPage();
+  await ctx.openScanner();
+  assertEq(calls.pushes, 1, 'history entry pushed');
+  const scan = calls.liveScans[0];
+  scan.stop('back');                                        // history.state still carries cimbarScanner (stale entry)
+  await tick();
+  assertEq(calls.backs || 0, 0, 'history.back() not called for a "back" stop');
+});
+
 test('a camera error closes the scanner and explains in the Decode log', async () => {
   const { ctx, elements, calls } = freshPage();
   await ctx.openScanner();
