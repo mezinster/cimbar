@@ -41,6 +41,9 @@ node tests/test_photo_geometry.js
 echo ""; echo "--- Finder locator (camera path) ---"
 node tests/test_finder_locator.js
 
+echo ""; echo "--- Cell decode (white point, sampler, classifier) ---"
+node tests/test_cell_decode.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
