@@ -47,6 +47,9 @@ node tests/test_cell_decode.js
 echo ""; echo "--- Drift solver (flood-fill sub-pixel alignment) ---"
 node tests/test_drift.js
 
+echo ""; echo "--- Photo decode chain (locate to header) ---"
+node tests/test_photo_decode.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
