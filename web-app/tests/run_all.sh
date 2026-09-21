@@ -59,6 +59,9 @@ node tests/test_capture_policy.js
 echo ""; echo "--- Scan worker (decode chain inside a Web Worker) ---"
 node tests/test_scan_worker.js
 
+echo ""; echo "--- Live scan controller (camera loop, lock, worker lifecycle) ---"
+node tests/test_live_scan.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 
