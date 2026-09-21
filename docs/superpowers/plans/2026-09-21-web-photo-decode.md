@@ -736,7 +736,7 @@ git commit -m "feat(web): port WhitePoint, CellSampler and CellClassifier"
 
 **Interfaces:**
 - Consumes: `CellSampler`, `CellClassifier` (Task 5).
-- Produces: `new DriftSolver(sampler, classifier, {wideThreshold = 20, clampPx = 6})` with `.solve() → {dx: Int8Array(4096), dy: Int8Array(4096), widened: int, meanAbs: number, maxAbs: number}`, indexed by `row * 64 + col`.
+- Produces: `new DriftSolver(sampler, classifier, {wideThreshold = 20, clampPx = 6})` with `.solve() → {dx: Float32Array(4096), dy: Float32Array(4096), widened: int, meanAbs: number, maxAbs: number}`, indexed by `row * 64 + col`. **Float32Array, matching Dart's `Float32List` — not an integer array.** Drift is fractional: `drift_solver.dart:72-73` seeds each cell from the mean drift of its decided neighbours, so rounding the stored field would perturb the starting point of every subsequent cell and compound across the BFS.
 
 - [ ] **Step 1: Write the failing test**
 
