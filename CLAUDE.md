@@ -106,7 +106,7 @@ All tests live in `web-app/tests/`. Run from the `web-app/` directory (no instal
 
 ```bash
 cd web-app
-sh tests/run_all.sh          # run all tests (tiles + format + frame + rateless + RS + compress + goldens + pipeline + i18n + browser load + deploy healthcheck + icons)
+sh tests/run_all.sh          # run all tests (tiles + format + frame + rateless + RS + compress + goldens + pipeline + i18n + browser load + photo geometry + finder locator + deploy healthcheck + icons)
 node tests/test_tiles.js     # single test
 node tests/test_format.js
 node tests/test_frame.js
@@ -117,9 +117,11 @@ node tests/test_goldens.js
 node tests/test_pipeline_node.js
 node tests/test_i18n.js
 node tests/test_browser_load.js
+node tests/test_photo_geometry.js
+node tests/test_finder_locator.js
 node tests/test_healthcheck.js
 node tests/test_web_icons.js
-python3 tests/test_pipeline.py                              # Python orchestrator (runs six of the twelve Node tests; sh tests/run_all.sh runs all)
+python3 tests/test_pipeline.py                              # Python orchestrator (runs six of the fourteen Node tests; sh tests/run_all.sh runs all)
 python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # also runs GIF structure check
 python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF check (needs Pillow)
 ```
@@ -136,10 +138,12 @@ python3 tests/test_gif.py path/to/output.gif [size]          # standalone GIF ch
 | `tests/test_pipeline_node.js` | Full GIF encode→decode pipeline. Tests the 4-byte length prefix that prevents AES-GCM auth-tag corruption from RS zero-padding. Three cases: multi-frame, out-of-order assembly, single-frame. |
 | `tests/test_i18n.js` | `i18n.js`: every language defines every English key with no empty strings and the same `{placeholders}`, `t()` interpolates and falls back to English, language detection (stored choice → browser languages → English), and every `data-i18n*` key used in `index.html` exists. |
 | `tests/test_browser_load.js` | Loads the ten page scripts in `index.html` order inside one shared global scope with no `module`/`require` (what a browser does), checks the dependency order (`format-data.js` before `format.js`, `format.js` before `rateless.js`/`cimbar.js`/`gif-encoder.js`, `i18n.js` last) and asserts `ReedSolomon`, `CIMBAR_SPEC`, `CimbarFormat`, `CimbarRateless`, `Cimbar`, `CimbarCrypto`, `CimbarCompress`, `GifEncoder`, `GifDecoder`, `CimbarI18n` exist. Catches top-level `const` collisions between files, which Node module tests cannot. |
+| `tests/test_photo_geometry.js` | `rgb-buffer.js`, `luma-plane.js` and `homography.js`: the camera-path geometry primitives ported from the Android decoder. |
+| `tests/test_finder_locator.js` | `finder-locator.js` against the eight `test-data/scenes/` fixtures (via `tests/png.js`, a dependency-free PNG reader): all four finders within 2 px of each sidecar's analytic `finderCenters` across rotation/keystone/blur/dimming/noise, the module estimate within 1 px of `9 × scale` (which is what catches a non-Euclidean `%` in the cos-rotation fold), field-for-field reproduction of the sidecar's `locate` block — what the **Dart** locator found in the same pixels, the Dart↔JS parity contract — absolute coordinates out of a cropped plane carrying an origin, and a blank image failing with a reason instead of throwing. |
 | `tests/test_healthcheck.js` | `tools/healthcheck.js`, the post-deploy verifier used by `.github/workflows/deploy-webapp.yml`: build-marker match, content types, no redirect following, retry/backoff, CLI exit codes (0 healthy, 1 unhealthy, 2 usage) against a local `http` server. |
 | `tests/test_web_icons.js` | The page's icons and manifest: `index.html` links a favicon, Apple touch icon, manifest and `theme-color`; every local `<link href>` exists and is in `deploy-webapp.yml`'s staging list; the verify step checks `<link href>`; the upload and rollback steps give `*.js`/`*.png`/`*.svg`/`*.webmanifest` their own Content-Type (no pass forces `text/javascript` on everything) and every staged file's type has an entry; manifest icons match their declared sizes; the Apple touch icon is 180×180 and opaque. |
 | `tests/test_gif.py` | Structural check on a real GIF: `GIF89a` magic, 608×608 dimensions, global color table flag, frame count, palette slots 0–5 against the v2 spec palette (+ black, white). Palette/frame checks require Pillow; the rest run without it. |
-| `tests/test_pipeline.py` | Python subprocess orchestrator: runs six of the twelve Node scripts above (tiles, format, frame, RS, goldens, pipeline — not `test_rateless.js`, `test_compress.js`, `test_i18n.js`, `test_browser_load.js`, `test_healthcheck.js` or `test_web_icons.js`) and, if a GIF path is given, `test_gif.py`. `sh tests/run_all.sh` is what runs all twelve. |
+| `tests/test_pipeline.py` | Python subprocess orchestrator: runs six of the fourteen Node scripts above (tiles, format, frame, RS, goldens, pipeline — not `test_rateless.js`, `test_compress.js`, `test_i18n.js`, `test_browser_load.js`, `test_photo_geometry.js`, `test_finder_locator.js`, `test_healthcheck.js` or `test_web_icons.js`) and, if a GIF path is given, `test_gif.py`. `sh tests/run_all.sh` is what runs all fourteen. |
 | `tests/mock_canvas.js` | Node.js mock of Canvas 2D API. `getImageData` returns a copy of the pixel buffer (matching browser behavior). |
 
 ### Known Subtleties (Web)

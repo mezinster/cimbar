@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cimbar_scanner/core/decode/finder_locator.dart';
 import 'package:cimbar_scanner/core/decode/frame_decoder.dart';
 import 'package:cimbar_scanner/core/decode/homography.dart';
+import 'package:cimbar_scanner/core/decode/luma_plane.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
 import 'package:image/image.dart' as img;
 
@@ -39,6 +41,40 @@ void main() {
           reason: '${side['name']}: $wrong of ${want.length} cells wrong (>1%)');
       expect(res.diag.rsFailed, 0,
           reason: '${side['name']}: RS reported ${res.diag.rsFailed} failed block(s) ($wrong of ${want.length} cells wrong)');
+    }
+  });
+
+  // The `locate` block records what THIS locator found in these exact pixels
+  // (written by tool/gen_scene_fixtures.dart). web-app/tests/test_finder_locator.js
+  // asserts the same numbers, so the block is the Dart<->JS parity contract
+  // for the transliterated web locator. This test is the other half of it: it
+  // stops Dart drifting out from under the recorded values, which would
+  // otherwise only surface as an unexplained JS failure.
+  test('each fixture reproduces its recorded FinderLocator output', () {
+    for (final f in dir.listSync().where((f) => f.path.endsWith('.json'))) {
+      final side = jsonDecode(File(f.path).readAsStringSync()) as Map<String, dynamic>;
+      final name = side['name'] as String;
+      final rec = side['locate'] as Map<String, dynamic>?;
+      expect(rec, isNotNull,
+          reason: '$name has no `locate` block -- rerun: dart run tool/gen_scene_fixtures.dart');
+      final image = img.decodeImage(File(f.path.replaceAll('.json', '.png')).readAsBytesSync())!;
+      final r = const FinderLocator().locate(LumaPlane.fromRgb(RgbBuffer.fromImage(image)));
+      expect(r.ok, isTrue, reason: '$name: ${r.failReason}');
+      // Integer stage counters must match exactly -- they move long before a
+      // centre does when a threshold or run rule changes.
+      expect(r.candidates, rec!['candidates'], reason: '$name candidates');
+      expect(r.clusters, rec['clusters'], reason: '$name clusters');
+      const eps = 1e-9;
+      expect(r.module, closeTo((rec['module'] as num).toDouble(), eps), reason: '$name module');
+      expect(r.devNorm, closeTo((rec['devNorm'] as num).toDouble(), eps), reason: '$name devNorm');
+      expect(r.tlLuma, closeTo((rec['tlLuma'] as num).toDouble(), eps), reason: '$name tlLuma');
+      expect(r.secondLuma, closeTo((rec['secondLuma'] as num).toDouble(), eps), reason: '$name secondLuma');
+      final corners = rec['corners'] as Map<String, dynamic>;
+      final got = {'tl': r.tl!, 'tr': r.tr!, 'bl': r.bl!, 'br': r.br!};
+      for (final k in const ['tl', 'tr', 'bl', 'br']) {
+        expect(got[k]!.x, closeTo((corners[k][0] as num).toDouble(), eps), reason: '$name $k.x');
+        expect(got[k]!.y, closeTo((corners[k][1] as num).toDouble(), eps), reason: '$name $k.y');
+      }
     }
   });
 }

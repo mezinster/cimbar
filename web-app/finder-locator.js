@@ -290,6 +290,17 @@ class FinderLocator {
     }
 
     const strong = clusters.filter((c) => c.hits >= 2);
+    // HAZARD, deliberately left as-is: this sort is STABLE in JS (required
+    // since ES2019) but Dart's List.sort is NOT stable for lists of >= 32
+    // elements. With many clusters tied at the same `hits` count — the common
+    // case, since `hits >= 2` is the bar — the two runtimes can order the ties
+    // differently, and the `slice(0, maxClusters)` cut below is where that
+    // could bite: a different set of 12 clusters reaches refinement and the
+    // parallelogram search. No fixture diverges today (rot271_s18 has 680
+    // clusters and still matches Dart field-for-field), and both orders are
+    // equally arbitrary. A real fix is a deterministic tie-break — e.g. by
+    // (hits desc, y asc, x asc) — but it must land on BOTH sides in one
+    // change, because it alters which corners the Android app picks.
     strong.sort((a, b) => b.hits - a.hits);
     const refined = [];
     const unrefined = [];
@@ -389,7 +400,6 @@ class FinderLocator {
     // pts are in the (possibly cropped) plane's local coordinates; the
     // returned finders must be absolute full-frame pixels.
     const ox = full.originX, oy = full.originY;
-    const modules = [tl, tr, bl, br].map((f) => f.module * cosF);
     return {
       ok: true,
       tl: [tl.x + ox, tl.y + oy],
@@ -401,8 +411,10 @@ class FinderLocator {
       devNorm: bestDev,
       tlLuma: lum[tlIdx],
       secondLuma: second,
-      module: (modules[0] + modules[1] + modules[2] + modules[3]) / 4,
-      modules,
+      // Dart applies cosF per finder in `fix` and averages the four fixed
+      // moduli; keep that grouping exactly, or the last ulp drifts and the
+      // sidecar parity assertion has to be loosened to hide it.
+      module: (tl.module * cosF + tr.module * cosF + bl.module * cosF + br.module * cosF) / 4,
       failReason: null,
       failDetail: null,
     };

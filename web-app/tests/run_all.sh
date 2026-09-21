@@ -35,6 +35,12 @@ node tests/test_i18n.js
 echo ""; echo "--- Browser script load (shared global scope) ---"
 node tests/test_browser_load.js
 
+echo ""; echo "--- Photo decode geometry (RgbBuffer, LumaPlane, Homography) ---"
+node tests/test_photo_geometry.js
+
+echo ""; echo "--- Finder locator (camera path) ---"
+node tests/test_finder_locator.js
+
 echo ""; echo "--- Deploy healthcheck ---"
 node tests/test_healthcheck.js
 

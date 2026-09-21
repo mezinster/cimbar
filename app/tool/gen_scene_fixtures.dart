@@ -8,6 +8,8 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../test/test_utils/synthetic_scene.dart';
+import 'package:cimbar_scanner/core/decode/finder_locator.dart';
+import 'package:cimbar_scanner/core/decode/luma_plane.dart';
 import 'package:cimbar_scanner/core/decode/rgb_buffer.dart';
 
 // RgbBuffer is a flat RGB buffer, not an image/image `img.Image`; encodePng
@@ -61,6 +63,32 @@ final cases = <String, Case>{
   'noise_s15':    Case(1100, 1100, SceneSpec()..scale = 1.5..noiseSigma = 8..seed = 7..centerX = 550..centerY = 550),
 };
 
+/// Runs the Dart FinderLocator over the fixture's committed pixels and
+/// records what it found. This is the Dart<->JS parity contract: the web
+/// app's `web-app/finder-locator.js` is a transliteration of
+/// `lib/core/decode/finder_locator.dart`, and both test suites assert against
+/// these exact numbers, so either side drifting shows up as a test failure
+/// instead of silently diverging. It is deliberately a record of the DETECTED
+/// geometry, not the analytic `finderCenters` ground truth next to it -- the
+/// two answer different questions ("is the locator good?" vs. "do the two
+/// locators agree?").
+Map<String, dynamic> locateRecord(RgbBuffer buffer) {
+  final r = const FinderLocator().locate(LumaPlane.fromRgb(buffer));
+  if (!r.ok) throw StateError('locator failed on a fixture: ${r.failReason}');
+  List<double> pt(Finder f) => [f.x, f.y];
+  return {
+    'candidates': r.candidates,
+    'clusters': r.clusters,
+    'module': r.module,
+    'devNorm': r.devNorm,
+    'tlLuma': r.tlLuma,
+    'secondLuma': r.secondLuma,
+    'corners': {
+      'tl': pt(r.tl!), 'tr': pt(r.tr!), 'bl': pt(r.bl!), 'br': pt(r.br!),
+    },
+  };
+}
+
 List<int> goldenCells(String name, int index) {
   final m = jsonDecode(File('../test-data/goldens/$name.json').readAsStringSync()) as Map<String, dynamic>;
   return ((m['frames'] as List)[index] as Map<String, dynamic>)['cells'].cast<int>();
@@ -71,7 +99,12 @@ void main() {
   for (final e in cases.entries) {
     final frame = loadGoldenFrame('hello', 0);
     final scene = renderScene(frame, e.value.w, e.value.h, e.value.spec);
-    File('${out.path}/${e.key}.png').writeAsBytesSync(_pngOf(scene.image));
+    final png = _pngOf(scene.image);
+    File('${out.path}/${e.key}.png').writeAsBytesSync(png);
+    // Locate through the PNG round trip, not `scene.image`: the recorded
+    // numbers must describe the bytes that are committed and that both test
+    // suites read back, not an in-memory buffer nobody else sees.
+    final decoded = RgbBuffer.fromImage(img.decodePng(png)!);
     File('${out.path}/${e.key}.json').writeAsStringSync(const JsonEncoder.withIndent('  ').convert({
       'name': e.key,
       'golden': 'hello',
@@ -85,6 +118,7 @@ void main() {
         'br': [scene.finderCenters[3].$1, scene.finderCenters[3].$2],
       },
       'homography': scene.frameToScene.h.toList(),
+      'locate': locateRecord(decoded),
       'cells': goldenCells('hello', 0),
     }));
     stdout.writeln('wrote ${e.key}.png + .json');
