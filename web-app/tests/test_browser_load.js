@@ -44,12 +44,23 @@ function loadLikeABrowser() {
   return window;
 }
 
-test('index.html lists the ten local scripts in dependency order', () => {
-  assert(scripts.length === 10, `expected 10 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
+test('index.html lists the nineteen local scripts in dependency order', () => {
+  assert(scripts.length === 19, `expected 19 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
   assert(scripts.indexOf('format-data.js') < scripts.indexOf('format.js'), 'format-data.js must precede format.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('cimbar.js'), 'format.js must precede cimbar.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('gif-encoder.js'), 'format.js must precede gif-encoder.js');
   assert(scripts.indexOf('rateless.js') < scripts.indexOf('cimbar.js'), 'rateless.js must precede cimbar.js');
+  // photo decode chain (Task 8): each of the eight support modules loads
+  // after format.js (they all consume CimbarFormat) and before
+  // photo-decoder.js, which composes all eight plus rs.js/cimbar.js.
+  for (const mod of ['rgb-buffer.js', 'luma-plane.js', 'homography.js', 'finder-locator.js',
+                      'white-point.js', 'cell-sampler.js', 'cell-classifier.js', 'drift-solver.js']) {
+    assert(scripts.indexOf('format.js') < scripts.indexOf(mod), `format.js must precede ${mod}`);
+    assert(scripts.indexOf(mod) < scripts.indexOf('photo-decoder.js'), `${mod} must precede photo-decoder.js`);
+  }
+  assert(scripts.indexOf('rs.js') < scripts.indexOf('photo-decoder.js'), 'rs.js must precede photo-decoder.js');
+  assert(scripts.indexOf('cimbar.js') < scripts.indexOf('photo-decoder.js'), 'cimbar.js must precede photo-decoder.js');
+  assert(scripts.indexOf('photo-decoder.js') < scripts.indexOf('i18n.js'), 'photo-decoder.js must precede i18n.js');
   assert(scripts[scripts.length - 1] === 'i18n.js', 'i18n.js is loaded last, right before the page script');
 });
 
@@ -59,12 +70,18 @@ test('every script loads as a classic <script> sharing one global scope', () => 
 
 test('the globals the inline page script uses are all defined', () => {
   const w = loadLikeABrowser();
-  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'CimbarRateless', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder', 'CimbarI18n']) {
+  for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'CimbarRateless', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder',
+                    'CimbarRgbBuffer', 'CimbarLumaPlane', 'CimbarHomography', 'CimbarFinderLocator', 'CimbarWhitePoint', 'CimbarCellSampler', 'CimbarCellClassifier', 'CimbarDriftSolver', 'CimbarPhoto',
+                    'CimbarI18n']) {
     assert(w[g] !== undefined, `window.${g} is not defined after loading the page scripts`);
   }
   for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'repairFrame', 'frameBodies', 'gifRepairCount', 'RatelessAssembler', 'buildPayload', 'parsePayload']) {
     assert(typeof w.Cimbar[fn] === 'function', `Cimbar.${fn} missing`);
   }
+  // CimbarPhoto is deliberately exported as the class itself (call shape
+  // CimbarPhoto.decode(...)), unlike every sibling module which exports an
+  // API object — do not normalise this asymmetry away.
+  assert(typeof w.CimbarPhoto.decode === 'function', 'CimbarPhoto.decode missing');
 });
 
 test('the About tab declares the app version and matches the newest CHANGELOG release', () => {
