@@ -52,7 +52,13 @@ final cases = <String, Case>{
   // "blur" case stays a real blur test instead of a trivial one.
   'blur_s20':     Case(1600, 1600, SceneSpec()..scale = 2.0..blurSigma = 2..centerX = 800..centerY = 800),
   'dim_s15':      Case(1500, 1500, SceneSpec()..scale = 1.5..brightness = 0.7..centerX = 750..centerY = 750),
-  'noise_s15':    Case(1500, 1500, SceneSpec()..scale = 1.5..noiseSigma = 8..seed = 7..centerX = 750..centerY = 750),
+  // 1100x1100 (not the full 1500 the other scale-1.5 case uses): noise is
+  // applied to the whole canvas buffer and is incompressible, so the empty
+  // margin around the 912px barcode was pure PNG weight (this fixture alone
+  // was 4.2 of the fixture set's 7.2 MB). 1100 leaves ~94px (~7 modules) of
+  // margin per side -- comfortably above the decoder's 4.5-module ROI
+  // assumption -- while cutting canvas area to 54% of the original.
+  'noise_s15':    Case(1100, 1100, SceneSpec()..scale = 1.5..noiseSigma = 8..seed = 7..centerX = 550..centerY = 550),
 };
 
 List<int> goldenCells(String name, int index) {
