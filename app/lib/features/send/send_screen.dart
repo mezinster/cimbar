@@ -8,6 +8,7 @@ import '../../l10n/generated/app_localizations.dart';
 import '../../shared/widgets/file_picker_zone.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
+import 'present_screen.dart';
 import 'send_controller.dart';
 
 class SendScreen extends ConsumerStatefulWidget {
@@ -57,9 +58,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final controller = ref.read(sendControllerProvider.notifier);
     final p = await controller.encode(_pass.text, cap: maxSendFrames);
     if (p == null || !mounted) return;
-    // The Present screen arrives in a later task; until then confirm the encode.
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.sendPresent)));
+    final delayMs = ref.read(sendControllerProvider).delayMs;
+    // Full-screen: pushed on the root navigator so it covers the tab shell.
+    await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
+        builder: (_) => PresentScreen(payload: p, delayMs: delayMs)));
   }
 
   String _errorText(AppLocalizations l10n, String e) {
