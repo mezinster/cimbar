@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:pointycastle/export.dart';
 
 /// AES-256-GCM encryption/decryption matching web-app/crypto.js wire format.
@@ -81,7 +80,8 @@ class CryptoService {
   }
 
   /// [n] bytes from the platform CSPRNG (the source of salt and IV).
-  @visibleForTesting
+  /// Public so tests can check freshness without paying for PBKDF2; production
+  /// code calls it only from encrypt.
   static Uint8List randomBytes(int n) {
     final rng = math.Random.secure();
     return Uint8List.fromList(List.generate(n, (_) => rng.nextInt(256)));
