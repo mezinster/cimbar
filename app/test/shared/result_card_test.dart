@@ -90,4 +90,18 @@ void main() {
     await tester.pump();
     expect(copied.single.length, TextMessage.maxBytes);
   });
+
+  testWidgets('the text is decoded once per result, not on every rebuild', (tester) async {
+    final r = DecodeResult(filename: TextMessage.fileName(DateTime(2026, 10, 1)), data: utf8.encode('hello there'));
+    String shown() => tester.widget<SelectableText>(find.byType(SelectableText)).data!;
+    await tester.pumpWidget(host(ResultCard(result: r, onShare: () {})));
+    final first = shown();
+    // A parent rebuild (e.g. a passphrase keystroke) makes a new ResultCard for the same result.
+    await tester.pumpWidget(host(ResultCard(result: r, onShare: () {})));
+    expect(identical(shown(), first), isTrue, reason: 'decoded again on rebuild');
+    // A new result is decoded afresh.
+    final r2 = DecodeResult(filename: r.filename, data: utf8.encode('something else'));
+    await tester.pumpWidget(host(ResultCard(result: r2, onShare: () {})));
+    expect(shown(), 'something else');
+  });
 }

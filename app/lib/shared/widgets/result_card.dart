@@ -15,6 +15,16 @@ class ResultCard extends StatelessWidget {
   /// Longest preview the card lays out; Copy and Share still use the full text.
   static const int maxDisplayChars = 100000;
 
+  /// Decoded text per result. Import and Camera rebuild the card on every
+  /// passphrase keystroke, and a text message can be 1 MiB: decode it once per
+  /// [DecodeResult] instance. A box, because "not text" (null) is cached too.
+  static final Expando<({String? text, String? preview})> _decoded = Expando('ResultCard.text');
+
+  static ({String? text, String? preview}) _textOf(DecodeResult r) => _decoded[r] ??= () {
+        final t = TextMessage.decode(r.filename, r.data);
+        return (text: t, preview: t == null ? null : _preview(t));
+      }();
+
   static String _preview(String t) {
     if (t.length <= maxDisplayChars) return t;
     var end = maxDisplayChars;
@@ -42,7 +52,7 @@ class ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final text = TextMessage.decode(result.filename, result.data);
+    final (:text, :preview) = _textOf(result);
 
     return Card(
       color: theme.colorScheme.primaryContainer,
@@ -90,7 +100,7 @@ class ResultCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 // Plain text only: received text is untrusted, nothing is linkified.
                 child: SingleChildScrollView(
-                  child: SelectableText(_preview(text)),
+                  child: SelectableText(preview!),
                 ),
               ),
               if (text.length > maxDisplayChars)
