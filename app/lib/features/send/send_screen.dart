@@ -9,6 +9,7 @@ import '../../shared/widgets/file_picker_zone.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import 'present_screen.dart';
+import 'screen_controls.dart';
 import 'send_controller.dart';
 
 class SendScreen extends ConsumerStatefulWidget {
@@ -58,9 +59,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final p = await controller.encode(_pass.text, cap: maxSendFrames);
     if (p == null || !mounted) return;
     final delayMs = ref.read(sendControllerProvider).delayMs;
+    final controls = ref.read(screenControlsProvider);
     // Full-screen: pushed on the root navigator so it covers the tab shell.
     await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
-        builder: (_) => PresentScreen(payload: p, delayMs: delayMs)));
+        builder: (_) => PresentScreen(payload: p, delayMs: delayMs, controls: controls)));
   }
 
   String _errorText(AppLocalizations l10n, String e) {

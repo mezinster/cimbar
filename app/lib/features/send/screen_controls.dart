@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -18,3 +19,7 @@ class PluginScreenControls implements ScreenControls {
   @override
   Future<void> restoreBrightness() => ScreenBrightness.instance.resetApplicationScreenBrightness();
 }
+
+/// What SendScreen hands to PresentScreen; overridden in tests so no plugin
+/// channel is touched.
+final screenControlsProvider = Provider<ScreenControls>((ref) => const PluginScreenControls());
