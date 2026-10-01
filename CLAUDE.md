@@ -26,7 +26,7 @@ This repo has two components:
 **Encoding pipeline:**
 
 ```
-File **or typed text (`message-YYYYMMDD-HHMMSS.txt`)** → build container → [compress (compress.js), if it saves ≥5%] → [optional: encrypt (crypto.js)] → length-prefix + pad →
+File or typed text (message-YYYYMMDD-HHMMSS.txt) → build container → [compress (compress.js), if it saves ≥5%] → [optional: encrypt (crypto.js)] → length-prefix + pad →
   split into N source frames → [+ repair frames (rateless.js)] → RS encode (rs.js) → draw frames (cimbar.js) → GIF encode (gif-encoder.js) → Animated GIF
 ```
 
@@ -35,7 +35,7 @@ File **or typed text (`message-YYYYMMDD-HHMMSS.txt`)** → build container → [
 ```
 Animated GIF → GIF decode (gif-decoder.js) → sample pixels (cimbar.js) → RS decode (rs.js) → RatelessAssembler assembles any N
   independent source/repair frames (rateless.js) → strip length prefix → [auto-detect: decrypt (crypto.js)] → [inflate if compressed
-  (compress.js)] → File, **or the text view when `isTextMessage`**
+  (compress.js)] → File, or the text view when isTextMessage
 ```
 
 Encryption is optional. On encode, if a passphrase is provided, the payload is encrypted with AES-256-GCM after compression and before RS encoding. On decode, encryption is auto-detected by checking for magic bytes `CB 42` at the start of the decrypted-or-not payload. Compression (zlib deflate) is applied automatically whenever it saves at least 5% of the container's size, and reversed automatically on decode from the frame header's `compressed` flag — there is no user-facing compression toggle. A downloadable GIF appends `ceil(0.25 × N)` repair frames after its N source frames (see "Format v2.1" below); present mode instead streams the N source frames once and then repair frames forever, since any N of the N + R total frames — in any order — reconstruct the file. Present mode loops the source pass for single-frame files and for files above the 4096-frame coding cap (there are no repair frames to stream in those cases).
