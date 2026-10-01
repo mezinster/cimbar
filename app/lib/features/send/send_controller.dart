@@ -64,8 +64,12 @@ class SendController extends StateNotifier<SendState> {
   void setFile(String name, Uint8List bytes) => state = state.copyWith(fileName: name, fileBytes: bytes, clearError: true);
   void setDelay(int ms) => state = state.copyWith(delayMs: ms);
 
-  SendRequest? _request(String passphrase) {
+  /// Trims [passphrase] the way the web app does (index.html passEnc.value.trim()),
+  /// so a phone-made GIF opens on the web with the same typed passphrase, and a
+  /// whitespace-only one means no encryption on both sides.
+  SendRequest? _request(String rawPassphrase) {
     if (!state.hasInput) return null;
+    final passphrase = rawPassphrase.trim();
     return state.mode == SendMode.text
         ? SendRequest(TextMessage.fileName(_now()), Uint8List.fromList(const Utf8Codec().encode(state.text)), passphrase)
         : SendRequest(state.fileName!, state.fileBytes!, passphrase);

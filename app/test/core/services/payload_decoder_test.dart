@@ -49,6 +49,12 @@ void main() {
     expect(() => decodeFramedPayload(framed, ''), throwsA(isA<PassphraseRequiredException>()));
   });
 
+  test('the passphrase is trimmed (web parity): " pw " opens a "pw" payload, "   " is none', () {
+    final framed = framedOf(CryptoService.encrypt(payload('secret.bin', [9, 9, 9]), 'pw'));
+    expect(decodeFramedPayload(framed, ' pw ').fileBytes, Uint8List.fromList([9, 9, 9]));
+    expect(() => decodeFramedPayload(framed, '   '), throwsA(isA<PassphraseRequiredException>()));
+  });
+
   test('a wrong passphrase throws', () {
     final body = payload('secret.bin', [9, 9, 9]);
     final framed = framedOf(CryptoService.encrypt(body, 'pw'));

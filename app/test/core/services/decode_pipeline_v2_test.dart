@@ -44,6 +44,19 @@ void main() {
     expect(pipeline.lastResult!.data, golden.fileBytes);
   });
 
+  test('passphrase surrounding whitespace is trimmed, matching the web app', () async {
+    final golden = GoldenSidecar.load(repoPath('test-data/goldens/lorem_coded_enc.json'));
+    final (last, pipeline) = await run('lorem_coded_enc', '  test123 \t');
+    expect(last?.state, DecodeState.done, reason: last?.message);
+    expect(pipeline.lastResult!.data, golden.fileBytes);
+  });
+
+  test('a whitespace-only passphrase counts as none', () async {
+    final (last, _) = await run('lorem_12k_enc', '   ');
+    expect(last?.state, DecodeState.error);
+    expect(last?.message, contains('passphrase is required'));
+  });
+
   test('encrypted golden with wrong passphrase reports an error', () async {
     final (last, _) = await run('lorem_12k_enc', 'nope');
     expect(last?.state, DecodeState.error);

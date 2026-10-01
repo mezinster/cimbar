@@ -37,6 +37,22 @@ void main() {
     expect(seen!.passphrase, 'pw');
   });
 
+  test('the passphrase is trimmed like the web app; whitespace-only means unencrypted', () async {
+    final seen = <SendRequest>[];
+    final c = SendController(encoder: (r) { seen.add(r); return fakePayload(1); })..setText('x');
+    await c.encode(' pw ', cap: maxSendFrames);
+    await c.encode('   ', cap: maxSendFrames);
+    expect(seen.map((r) => r.passphrase), ['pw', '']);
+  });
+
+  test('shareGif trims the passphrase too', () async {
+    SendRequest? seen;
+    final c = SendController(encoder: (r) { seen = r; return fakePayload(1); }, shareGifBytes: (_, __) async {})
+      ..setText('x');
+    await c.shareGif('\tpw\n');
+    expect(seen!.passphrase, 'pw');
+  });
+
   test('caps are checked on the encoded frame count', () async {
     final c = SendController(encoder: (_) => fakePayload(501))..setText('x');
     expect(await c.encode('', cap: maxSendFrames), isNotNull);

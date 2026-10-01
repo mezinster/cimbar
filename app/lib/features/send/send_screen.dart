@@ -116,7 +116,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           const SizedBox(height: 8),
           if (state.hasInput)
             Text(
-              l10n.sendEstimate(_formatSize(inputBytes), estimateFrames(state, encrypted: _pass.text.isNotEmpty)),
+              l10n.sendEstimate(_formatSize(inputBytes), estimateFrames(state, encrypted: _pass.text.trim().isNotEmpty)),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           const SizedBox(height: 16),
