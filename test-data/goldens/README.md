@@ -46,3 +46,9 @@ still carry losslessly. This currently yields `sourceFrames: 5`, `repairFrames: 
 v2 goldens (missing these fields entirely) and the new coded goldens.
 
 Regenerate with `node web-app/tools/gen_goldens.js` from the repo root (or `node tools/gen_goldens.js` from `web-app/`). Generation is deterministic (fixed seeds, fileIds, salt/IV), so a clean regenerate produces byte-identical files — a diff after regenerating means the format or encoder changed. The five `coded: false` cases in particular MUST stay byte-identical across a regenerate (`git status --short test-data/goldens` should show no changes to them); if one changes, the generator broke v2.0 compatibility and must be fixed rather than the golden re-committed.
+
+## Dart-written golden
+
+| Case | Description |
+|------|-------------|
+| `dart_text` | text message encoded by the Dart encoder (`app/tool/gen_dart_goldens.dart`), compressed, N source + 25% repair; regenerate only when the Dart encoder changes — zlib output may differ across machines, the sidecar records whatever was written. Uses the coded sidecar schema, so every golden loop (web and Dart) verifies it. |

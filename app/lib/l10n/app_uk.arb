@@ -92,5 +92,24 @@
 
   "privacyPolicy": "Політика конфіденційності",
   "licenseInfo": "Ліцензія MIT",
-  "sourceCode": "Вихідний код"
+  "sourceCode": "Вихідний код",
+  "receivedText": "Отриманий текст",
+  "copyText": "Копіювати",
+  "textCopied": "Скопійовано в буфер обміну",
+  "shareText": "Поділитися текстом",
+  "textTruncated": "Показано перші {count} символів — «Копіювати», «Поділитися» та «Зберегти» використовують увесь текст.",
+  "tabSend": "Надіслати",
+  "sendModeText": "Текст",
+  "sendModeFile": "Файл",
+  "sendTextHint": "Введіть або вставте текст…",
+  "sendEstimate": "{size} · не більше {frames} кадрів",
+  "sendFrameDelay": "Затримка кадру",
+  "sendPresent": "Показати на екрані",
+  "sendShareGif": "Поділитися GIF",
+  "sendEmpty": "Спочатку введіть текст або виберіть файл.",
+  "sendTooLarge": "Забагато: {frames} кадрів (ліміт {max}).",
+  "sendFailed": "Помилка кодування: {error}",
+  "presentSource": "Кадр {i} з {n}",
+  "presentRepair": "Кадр відновлення {r}",
+  "sendFileTooBig": "Файл завеликий: {size} (ліміт {max})."
 }

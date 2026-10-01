@@ -162,6 +162,10 @@ label {
   margin-bottom: 7px;
 }
 
+.seg { display: inline-flex; border: 1px solid var(--border2); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.seg-btn { border: 0; background: var(--surface); color: var(--text2); padding: 8px 18px; font: inherit; cursor: pointer; }
+.seg-btn.active { background: var(--surface2); color: var(--text); font-weight: 600; }
+#textEnc { width: 100%; box-sizing: border-box; resize: vertical; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); color: var(--text); }
 .field-hint {
   font-size: 12px;
   color: var(--text3);
@@ -405,6 +409,7 @@ input:focus, select:focus {
 }
 
 /* Output */
+.text-out { text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; padding: 12px; margin: 8px 0 12px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface2); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .output-section {
   display: none;
   margin-top: 22px;
@@ -592,7 +597,12 @@ footer {
   <div class="tab-panel active" id="tab-encode">
     <div class="card">
 
-      <div class="field">
+      <div class="seg" role="tablist">
+        <button type="button" class="seg-btn active" id="encModeFile" onclick="setEncMode('file')" data-i18n="encModeFile">File</button>
+        <button type="button" class="seg-btn" id="encModeText" onclick="setEncMode('text')" data-i18n="encModeText">Text</button>
+      </div>
+
+      <div class="field" id="encFileField">
         <label data-i18n="fileToEncode">File to encode</label>
         <div class="drop-zone" id="dropEnc">
           <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
@@ -605,6 +615,12 @@ footer {
         <div class="file-pill" id="pillEnc">
           <span>✓</span><span id="pillEncText"></span>
         </div>
+      </div>
+
+      <div class="field" id="encTextField" style="display:none">
+        <label for="textEnc" data-i18n="textToEncode">Text to send</label>
+        <textarea id="textEnc" rows="8" data-i18n-placeholder="textEncPlaceholder" placeholder="Type or paste text…" oninput="updateTextInfo()"></textarea>
+        <div class="field-hint" id="textEncInfo"></div>
       </div>
 
       <div class="field">
@@ -700,6 +716,13 @@ footer {
         <button type="button" class="btn btn-outline" id="photoStartOverBtn" style="display:none;margin-top:10px;" data-i18n="photoStartOver" onclick="resetPhotoSession()">Start over</button>
       </div>
 
+      <div class="output-section" id="textOut" style="display:none">
+        <label data-i18n="textReceivedTitle">Received text</label>
+        <pre id="textOutBody" class="text-out"></pre>
+        <button type="button" class="btn btn-primary" onclick="copyText()" data-i18n="copyText">Copy</button>
+        <button type="button" class="btn" onclick="saveText()" data-i18n="saveTxt">Save as .txt</button>
+      </div>
+
       <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
         <strong>How decoding works:</strong> A GIF is parsed frame-by-frame in your browser;
         a photo is located, straightened and read one frame at a time, so you can photograph a
@@ -726,6 +749,7 @@ footer {
         and each frame's data is protected by
         <strong style="color:var(--accent)">Reed-Solomon</strong> error correction
         (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
+        Type a message in the Encode tab's Text mode and the receiver sees it as text, ready to copy or save.
       </p>
 
       <div class="about-grid">
@@ -845,6 +869,7 @@ function switchTab(evt, name) {
 
 // ── File selection ────────────────────────────────────────
 let encFile = null, decFile = null;
+let encMode = 'file';
 
 function onFileSelect(input, side) {
   const file = input.files[0];
@@ -852,6 +877,38 @@ function onFileSelect(input, side) {
   if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); return; }
   handleDecFile(file);
   input.value = '';   // allow re-selecting/re-shooting the same file
+}
+
+function setEncMode(mode) {
+  encMode = mode;
+  document.getElementById('encFileField').style.display = mode === 'file' ? 'block' : 'none';
+  document.getElementById('encTextField').style.display = mode === 'text' ? 'block' : 'none';
+  document.getElementById('encModeFile').classList[mode === 'file' ? 'add' : 'remove']('active');
+  document.getElementById('encModeText').classList[mode === 'text' ? 'add' : 'remove']('active');
+  updateTextInfo();
+}
+
+// Byte count and an upper bound on frames (before compression; encryption adds 48 bytes).
+function updateTextInfo() {
+  const btn = document.getElementById('encBtn');
+  if (encMode !== 'text') { btn.disabled = false; return; }
+  const text = document.getElementById('textEnc').value;
+  const bytes = new TextEncoder().encode(text).length;
+  const framed = 4 + 4 + 27 + bytes + 48; // len prefix + name len + 'message-YYYYMMDD-HHMMSS.txt' + text + crypto
+  const frames = Math.max(1, Math.ceil(framed / CimbarFormat.fileBytesPerFrame()));
+  document.getElementById('textEncInfo').textContent = t('textEncInfo', { bytes: fmtBytes(bytes), frames });
+  btn.disabled = text.length === 0;
+}
+
+// What the Encode button sends: the staged file, or the typed text as a text message.
+async function encodeInput() {
+  if (encMode === 'text') {
+    const text = document.getElementById('textEnc').value;
+    if (text.length === 0) return null;
+    return { name: Cimbar.textMessageName(new Date()), bytes: new TextEncoder().encode(text) };
+  }
+  if (!encFile) return null;
+  return { name: encFile.name, bytes: new Uint8Array(await encFile.arrayBuffer()) };
 }
 
 // A gallery or the camera can hand over a photo labelled with any MIME type
@@ -862,6 +919,7 @@ function isGifBytes(u8) {
 }
 
 async function handleDecFile(file) {
+  hideTextResult();
   try {
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
     if (isGifBytes(head)) {
@@ -947,14 +1005,23 @@ let outputBlob = null;
 let encodeState = null;
 
 async function startEncode() {
-  if (!encFile) { alert(t('selectFileFirst')); return; }
+  // Disable first: reading a staged file is async, and a second click during
+  // that read would otherwise start a second encode.
+  const btn = document.getElementById('encBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const input = await encodeInput();
+  if (!input) {
+    btn.disabled = false;
+    updateTextInfo();
+    alert(t(encMode === 'text' ? 'enterTextFirst' : 'selectFileFirst'));
+    return;
+  }
   const pass = document.getElementById('passEnc').value.trim();
   const isEncrypted = pass.length > 0;
 
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
 
-  const btn = document.getElementById('encBtn');
-  btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> ' + t('processing');
 
   document.getElementById('progEnc').style.display = 'block';
@@ -967,9 +1034,8 @@ async function startEncode() {
     // 1. Read file and build payload
     log(t('readingFile'), 'info', 'logEnc');
     setProgress(5, t('reading'), 'progEncFill', 'progEncPct', 'progEncLabel');
-    const raw = new Uint8Array(await encFile.arrayBuffer());
-    const payload = Cimbar.buildPayload(encFile.name, raw);
-    log(t('fileInfo', { name: encFile.name, size: fmtBytes(raw.length) }), 'ok', 'logEnc');
+    const payload = Cimbar.buildPayload(input.name, input.bytes);
+    log(t('fileInfo', { name: input.name, size: fmtBytes(input.bytes.length) }), 'ok', 'logEnc');
 
     // 1b. Compress (optional, skipped when it doesn't save enough)
     const z = await CimbarCompress.maybeDeflate(payload);
@@ -1066,6 +1132,7 @@ async function startEncode() {
 
   btn.disabled = false;
   btn.innerHTML = t('encodeBtn');
+  updateTextInfo();
 }
 
 function downloadGif() {
@@ -1250,6 +1317,41 @@ function logDecodeError(err) {
 // have been accumulated): strip the length prefix, auto-detect encryption,
 // inflate if compressed, parse the container and offer the file for
 // download.
+let textResult = null;   // { name, bytes } of the text message on screen
+
+function showTextResult(name, bytes, text) {
+  textResult = { name, bytes };
+  document.getElementById('textOutBody').textContent = text;   // never innerHTML: untrusted
+  document.getElementById('textOut').style.display = 'block';
+}
+
+function hideTextResult() {
+  textResult = null;
+  document.getElementById('textOutBody').textContent = '';
+  document.getElementById('textOut').style.display = 'none';
+}
+
+async function copyText() {
+  if (!textResult) return;
+  const body = document.getElementById('textOutBody');
+  try {
+    await navigator.clipboard.writeText(body.textContent);
+    log(t('textCopied'), 'ok', 'logDec');
+  } catch (e) {
+    const sel = typeof getSelection === 'function' ? getSelection() : null;
+    if (sel) sel.selectAllChildren(body);
+    log(t('copyFailedHint'), 'err', 'logDec');
+  }
+}
+
+function saveText() {
+  if (!textResult) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([textResult.bytes], { type: 'text/plain' }));
+  a.download = textResult.name;
+  a.click();
+}
+
 async function finishDecode(asm) {
   const pass = document.getElementById('passDec').value.trim();
   const payloadBytes = Cimbar.stripLengthPrefix(asm.framedData());
@@ -1279,6 +1381,13 @@ async function finishDecode(asm) {
   log(t('decryptedFile', { name: filename, size: fmtBytes(fileData.length) }), 'ok', 'logDec');
   setProgress(100, t('done'), 'progDecFill', 'progDecPct', 'progDecLabel');
 
+  const text = Cimbar.decodeTextMessage(filename, fileData);
+  if (text !== null) {
+    showTextResult(filename, fileData, text);
+    log(t('textReceivedLog', { size: fmtBytes(fileData.length) }), 'ok', 'logDec');
+    return;
+  }
+
   // Download the file
   const blob = new Blob([fileData]);
   const a = document.createElement('a');
@@ -1292,6 +1401,7 @@ async function finishDecode(asm) {
 let photoSession = null;   // { asm, photos, accepted, done, finishing }
 
 function resetPhotoSession() {
+  hideTextResult();
   photoSession = null;
   document.getElementById('progDec').style.display = 'none';
   document.getElementById('logDec').innerHTML = '';
@@ -1335,6 +1445,7 @@ async function completePhotoSession() {
 }
 
 function newPhotoSession() {
+  hideTextResult();
   return { asm: new Cimbar.RatelessAssembler(), photos: 0, accepted: 0, done: false, finishing: false };
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/file_service.dart';
@@ -84,6 +85,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               onOpen: () => openWithFeedback(context, () => FileService.openResult(state.result!)),
               onExport: () => exportWithFeedback(context, () => FileService.exportBytes(state.result!.filename, state.result!.data)),
               onShare: () => FileService.shareResult(state.result!),
+              onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
             ),
           ],
         ],

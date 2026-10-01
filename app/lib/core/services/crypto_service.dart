@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
@@ -78,18 +79,22 @@ class CryptoService {
     }
   }
 
+  /// [n] bytes from the platform CSPRNG (the source of salt and IV).
+  /// Public so tests can check freshness without paying for PBKDF2; production
+  /// code calls it only from encrypt.
+  static Uint8List randomBytes(int n) {
+    final rng = math.Random.secure();
+    return Uint8List.fromList(List.generate(n, (_) => rng.nextInt(256)));
+  }
+
   /// Encrypt arbitrary bytes with a passphrase.
   /// Returns Uint8List containing the full wire format.
-  static Uint8List encrypt(Uint8List data, String passphrase) {
-    final random = FortunaRandom();
-    random.seed(KeyParameter(
-      Uint8List.fromList(
-        List.generate(32, (i) => DateTime.now().microsecondsSinceEpoch + i),
-      ),
-    ));
-
-    final salt = random.nextBytes(16);
-    final iv = random.nextBytes(12);
+  static Uint8List encrypt(Uint8List data, String passphrase, {Uint8List? salt, Uint8List? iv}) {
+    // Random.secure is the platform CSPRNG. The previous FortunaRandom seed was
+    // List<int> → Uint8List of clock values, which kept one byte of entropy:
+    // 256 possible (salt, iv) pairs, i.e. AES-GCM nonce reuse under one passphrase.
+    salt ??= randomBytes(16);
+    iv ??= randomBytes(12);
     final key = _deriveKey(passphrase, salt);
 
     final cipher = GCMBlockCipher(AESEngine())

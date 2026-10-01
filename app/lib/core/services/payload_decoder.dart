@@ -65,8 +65,13 @@ class PassphraseRequiredException implements Exception {
 /// thrown rather than the expansion being buffered. The parameter exists so
 /// tests can lower the cap.
 ///
+/// [passphrase] is trimmed first, as the web app trims its passphrase field on
+/// both encode and decode: every app decode path (GIF import, photo, live
+/// scan and its passphrase prompt) ends here, so " pw " opens a GIF encrypted
+/// with "pw", and a whitespace-only passphrase counts as none.
+///
 /// Throws [PassphraseRequiredException] when the payload is encrypted and
-/// [passphrase] is empty, and [FormatException] when inflation fails or the
+/// [passphrase] is empty after trimming, and [FormatException] when inflation fails or the
 /// inflated size exceeds the cap.
 /// Otherwise propagates whatever
 /// [FileContainer.stripLengthPrefix]/[FileContainer.parsePayload] throw on a
@@ -79,10 +84,11 @@ ParsedFile decodeFramedPayload(
   int maxInflatedBytes = CimbarSpec.maxInflatedBytes,
 }) {
   final payload = FileContainer.stripLengthPrefix(framed);
+  final pass = passphrase.trim();
   Uint8List plain;
   if (FileContainer.isEncrypted(payload)) {
-    if (passphrase.isEmpty) throw const PassphraseRequiredException();
-    plain = CryptoService.decrypt(payload, passphrase);
+    if (pass.isEmpty) throw const PassphraseRequiredException();
+    plain = CryptoService.decrypt(payload, pass);
   } else {
     plain = payload;
   }

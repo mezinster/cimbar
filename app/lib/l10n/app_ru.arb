@@ -92,5 +92,24 @@
 
   "privacyPolicy": "Политика конфиденциальности",
   "licenseInfo": "Лицензия MIT",
-  "sourceCode": "Исходный код"
+  "sourceCode": "Исходный код",
+  "receivedText": "Полученный текст",
+  "copyText": "Копировать",
+  "textCopied": "Скопировано в буфер обмена",
+  "shareText": "Поделиться текстом",
+  "textTruncated": "Показаны первые {count} символов — «Копировать», «Поделиться» и «Сохранить» используют весь текст.",
+  "tabSend": "Отправить",
+  "sendModeText": "Текст",
+  "sendModeFile": "Файл",
+  "sendTextHint": "Введите или вставьте текст…",
+  "sendEstimate": "{size} · не более {frames} кадров",
+  "sendFrameDelay": "Задержка кадра",
+  "sendPresent": "Показать на экране",
+  "sendShareGif": "Поделиться GIF",
+  "sendEmpty": "Сначала введите текст или выберите файл.",
+  "sendTooLarge": "Слишком много: {frames} кадров (лимит {max}).",
+  "sendFailed": "Ошибка кодирования: {error}",
+  "presentSource": "Кадр {i} из {n}",
+  "presentRepair": "Кадр восстановления {r}",
+  "sendFileTooBig": "Файл слишком большой: {size} (лимит {max})."
 }

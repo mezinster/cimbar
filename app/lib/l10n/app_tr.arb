@@ -92,5 +92,24 @@
 
   "privacyPolicy": "Gizlilik Politikası",
   "licenseInfo": "MIT Lisansı",
-  "sourceCode": "Kaynak Kodu"
+  "sourceCode": "Kaynak Kodu",
+  "receivedText": "Alınan metin",
+  "copyText": "Kopyala",
+  "textCopied": "Panoya kopyalandı",
+  "shareText": "Metni paylaş",
+  "textTruncated": "İlk {count} karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır.",
+  "tabSend": "Gönder",
+  "sendModeText": "Metin",
+  "sendModeFile": "Dosya",
+  "sendTextHint": "Metin yazın veya yapıştırın…",
+  "sendEstimate": "{size} · en fazla {frames} kare",
+  "sendFrameDelay": "Kare gecikmesi",
+  "sendPresent": "Ekranda göster",
+  "sendShareGif": "GIF paylaş",
+  "sendEmpty": "Önce metin yazın veya dosya seçin.",
+  "sendTooLarge": "Çok büyük: {frames} kare (sınır {max}).",
+  "sendFailed": "Kodlama başarısız: {error}",
+  "presentSource": "Kare {i} / {n}",
+  "presentRepair": "Onarım karesi {r}",
+  "sendFileTooBig": "Dosya çok büyük: {size} (sınır {max})."
 }

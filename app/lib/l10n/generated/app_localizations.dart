@@ -643,6 +643,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Source Code'**
   String get sourceCode;
+
+  /// Heading above a received text message in the result card
+  ///
+  /// In en, this message translates to:
+  /// **'Received text'**
+  String get receivedText;
+
+  /// Button that copies the received text to the clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyText;
+
+  /// Snackbar after the received text was copied
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get textCopied;
+
+  /// Button that shares the received text via the system share sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Share text'**
+  String get shareText;
+
+  /// Note under a long received text that only the first characters are displayed
+  ///
+  /// In en, this message translates to:
+  /// **'Showing the first {count} characters — Copy, Share and Save use the full text.'**
+  String textTruncated(int count);
+
+  /// Bottom tab: encode and send
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get tabSend;
+
+  /// Send mode: text
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get sendModeText;
+
+  /// Send mode: file
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get sendModeFile;
+
+  /// Hint in the message box
+  ///
+  /// In en, this message translates to:
+  /// **'Type or paste text…'**
+  String get sendTextHint;
+
+  /// Size and frame-count estimate of the input
+  ///
+  /// In en, this message translates to:
+  /// **'{size} · at most {frames} frames'**
+  String sendEstimate(String size, int frames);
+
+  /// Label of the frame delay picker
+  ///
+  /// In en, this message translates to:
+  /// **'Frame delay'**
+  String get sendFrameDelay;
+
+  /// Button that shows the code on screen
+  ///
+  /// In en, this message translates to:
+  /// **'Present on screen'**
+  String get sendPresent;
+
+  /// Button that shares the code as a GIF
+  ///
+  /// In en, this message translates to:
+  /// **'Share GIF'**
+  String get sendShareGif;
+
+  /// Error when nothing was entered
+  ///
+  /// In en, this message translates to:
+  /// **'Type some text or choose a file first.'**
+  String get sendEmpty;
+
+  /// Error when the input needs too many frames
+  ///
+  /// In en, this message translates to:
+  /// **'Too large: {frames} frames (limit {max}).'**
+  String sendTooLarge(int frames, int max);
+
+  /// Error when encoding failed
+  ///
+  /// In en, this message translates to:
+  /// **'Encoding failed: {error}'**
+  String sendFailed(String error);
+
+  /// Present screen caption for a source frame
+  ///
+  /// In en, this message translates to:
+  /// **'Frame {i} of {n}'**
+  String presentSource(int i, int n);
+
+  /// Present screen caption for a repair frame
+  ///
+  /// In en, this message translates to:
+  /// **'Repair frame {r}'**
+  String presentRepair(int r);
+
+  /// Error when a picked file is larger than receivers accept
+  ///
+  /// In en, this message translates to:
+  /// **'File too large: {size} (limit {max}).'**
+  String sendFileTooBig(String size, String max);
 }
 
 class _AppLocalizationsDelegate

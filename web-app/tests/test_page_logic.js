@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -114,7 +114,7 @@ function freshPage() {
     alert: (msg) => { calls.alerts.push(msg); },
     confirm: (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; },
     addEventListener() {},
-    Math, JSON, Uint8Array, Uint8ClampedArray, Promise, Error, setTimeout,
+    Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout,
     Blob: class { constructor() {} },
     URL: { createObjectURL: () => 'blob://x' },
     CimbarFormat: Fmt,
@@ -567,6 +567,137 @@ test('a completing frame followed by a non-"complete" close still delivers the f
   scan.stop('closed');                                       // the user closed, not LiveScan noticing completion
   await tick();
   assertEq(calls.anchorClicks, 1, 'the file is still delivered even though the stop reason was not "complete"');
+});
+
+test('text mode: encodeInput builds message-….txt from the textarea, as typed (CRLF kept)', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'a\r\nб';
+  const input = await ctx.encodeInput();
+  assert(/^message-\d{8}-\d{6}\.txt$/.test(input.name), 'name: ' + input.name);
+  assertEq(Buffer.from(input.bytes).toString('hex'), Buffer.from('a\r\nб', 'utf8').toString('hex'), 'UTF-8 bytes as typed, no BOM');
+});
+
+test('text mode: empty text disables Encode; whitespace-only does not', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = '';
+  ctx.updateTextInfo();
+  assertEq(elements['encBtn'].disabled, true, 'empty text disables Encode');
+  assertEq(await ctx.encodeInput(), null, 'no input for empty text');
+  elements['textEnc'].value = '  \n';
+  ctx.updateTextInfo();
+  assertEq(elements['encBtn'].disabled, false, 'whitespace-only text is sendable');
+});
+
+test('switching modes encodes only the visible input — Review Focus 2', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'hello';
+  ctx.setEncMode('file');
+  assertEq(elements['encBtn'].disabled, false, 'file mode never disabled by the text box');
+  assertEq(await ctx.encodeInput(), null, 'file mode with no file staged → null, the typed text is NOT encoded');
+  assertEq(elements['encTextField'].style.display, 'none', 'text field hidden in file mode');
+  assertEq(elements['textEnc'].value, 'hello', 'switching keeps the typed text');
+});
+
+test('updateTextInfo shows bytes and an upper-bound frame count', () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'x'.repeat(3000);
+  ctx.updateTextInfo();
+  assert(elements['textEncInfo'].textContent.includes('textEncInfo'), 'uses the textEncInfo key');
+});
+
+test('file mode: a second Encode click while the file is still being read does not start a second encode', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.setEncMode('file');
+  let reads = 0, release;
+  const gate = new Promise((r) => { release = r; });
+  const file = { name: 'a.bin', size: 3, arrayBuffer: async () => { reads++; await gate; return new Uint8Array([1, 2, 3]).buffer; } };
+  ctx.onFileSelect({ files: [file] }, 'enc');
+  const first = ctx.startEncode();
+  assertEq(elements['encBtn'].disabled, true, 'Encode is disabled before the file read is awaited');
+  const second = ctx.startEncode();
+  release();
+  await Promise.all([first, second]);
+  assertEq(reads, 1, 'the file is read once: the second click returned early');
+  assertEq(elements['encBtn'].disabled, false, 'Encode is enabled again when the first run ends');
+  assertEq(calls.alerts.length, 0, 'no "select a file" alert from the second click');
+});
+
+test('file mode with nothing staged: Encode explains and stays usable', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.setEncMode('file');
+  await ctx.startEncode();
+  assertEq(calls.alerts[0], 'selectFileFirst', 'asks for a file');
+  assertEq(elements['encBtn'].disabled, false, 'button restored after a null input');
+});
+
+test('received text is left-aligned (.text-out overrides .output-section centering)', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const rule = html.match(/\.text-out\s*\{([^}]*)\}/);
+  assert(rule, '.text-out rule exists');
+  assert(/text-align:\s*left/.test(rule[1]), '.text-out sets text-align: left: ' + rule[1]);
+});
+
+async function completeWith(ctx, name, bytes) {
+  ctx.Cimbar.parsePayload = () => ({ fileName: name, fileBytes: bytes });
+  const data = makeCompletingFrame({ fileId: 21, seq: 0, total: 1 });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});
+}
+
+test('a decoded text message is shown as text (textContent), not downloaded', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const bytes = new Uint8Array(Buffer.from('<b>hi</b>\nthere', 'utf8'));
+  await completeWith(ctx, 'message-20261001-120000.txt', bytes);
+  assertEq(calls.anchorClicks, 0, 'no automatic download for a text message');
+  assertEq(elements['textOut'].style.display, 'block', 'text panel visible');
+  assertEq(elements['textOutBody'].textContent, '<b>hi</b>\nthere', 'text via textContent');
+  assertEq(elements['textOutBody'].innerHTML, '', 'never innerHTML');
+});
+
+test('a non-text payload still downloads and keeps the text panel hidden', async () => {
+  const { ctx, elements, calls } = freshPage();
+  await completeWith(ctx, 'photo.jpg', new Uint8Array([0xff, 0xd8]));
+  assertEq(calls.anchorClicks, 1, 'file downloaded');
+  assert(elements['textOut'].style.display !== 'block', 'text panel hidden');
+});
+
+test('BOM + CRLF: Copy gets the text without BOM, Save writes the exact bytes — Review Focus 1', async () => {
+  const { ctx, calls } = freshPage();
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x61, 0x0d, 0x0a, 0x62]);
+  await completeWith(ctx, 'notes.txt', bytes);
+  let copied = null;
+  ctx.navigator.clipboard = { writeText: async (s) => { copied = s; } };
+  await ctx.copyText();
+  assertEq(copied, 'a\r\nb', 'clipboard text');
+  let blobParts = null;
+  ctx.Blob = class { constructor(p) { blobParts = p; } };
+  ctx.saveText();
+  assertEq(calls.anchorClicks, 1, 'Save downloads');
+  assertEq(Buffer.from(blobParts[0]).toString('hex'), 'efbbbf610d0a62', 'exact received bytes');
+});
+
+test('a blocked clipboard selects the text and explains', async () => {
+  const { ctx, elements } = freshPage();
+  await completeWith(ctx, 'n.txt', new Uint8Array([0x61]));
+  ctx.navigator.clipboard = { writeText: async () => { throw new Error('denied'); } };
+  let selected = false;
+  ctx.getSelection = () => ({ selectAllChildren() { selected = true; } });
+  await ctx.copyText();
+  assert(selected, 'text selected for manual copy');
+  assert(elements['logDec'].innerHTML.includes('copyFailedHint'), 'hint logged');
+});
+
+test('starting over after a text result hides the old text — Review Focus 3', async () => {
+  const { ctx, elements } = freshPage();
+  await completeWith(ctx, 'n.txt', new Uint8Array([0x61]));
+  ctx.resetPhotoSession();
+  assertEq(elements['textOut'].style.display, 'none', 'hidden after reset');
+  assertEq(elements['textOutBody'].textContent, '', 'old text cleared');
 });
 
 (async () => {

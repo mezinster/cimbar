@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Send text, not just files: the web app's Encode tab has a Text mode, and every receiver (web, Android, iOS) shows a received text message with Copy and Save as .txt instead of a bare file.
+- Android/iOS can now send: a new Send tab encodes text or a file and shows it full screen (Present) or shares an animated GIF.
+
+### Fixed
+- `CryptoService.encrypt` drew its salt and IV from a 256-value seed space; it now uses the platform CSPRNG. Only tests used it before this release.
+
 ## [0.12.1] — 2026-09-20
 
 ### Changed

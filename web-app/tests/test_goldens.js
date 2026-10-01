@@ -40,6 +40,9 @@ function verifyAssembled(asm, side, label) {
   const expected = Buffer.from(side.fileBytesBase64, 'base64');
   assertEq(parsed.fileBytes.length, expected.length, `${label}: file length`);
   for (let i = 0; i < expected.length; i++) if (parsed.fileBytes[i] !== expected[i]) throw new Error(`${label}: file byte ${i} differs`);
+  if (side.name === 'dart_text') {
+    assertEq(C.decodeTextMessage(parsed.fileName, parsed.fileBytes), expected.toString('utf8'), `${label}: dart_text decodes as a text message`);
+  }
 }
 
 for (const name of names) {

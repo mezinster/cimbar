@@ -107,6 +107,30 @@ No Flutter imports under these directories; `tool/decode_image.dart` runs with `
 - `FinderLocator`'s column scan is bounded to ±7 modules around each row hit (the row scan itself still runs every row — an attempted stride of 2 lost hits on small, rotated finders and was reverted).
 - `DriftSolver`'s hill-climb is capped at 3 steps (measured drift on the degradation matrix stays ≤ 2.1 px, so 3 steps of the ±1/±2 px search always converge).
 
+## Encoder, Send Tab and Present Screen
+
+The app encodes as well as decodes. `lib/core/encode/` is a pure-Dart port of the web encode path (no Flutter imports, so it runs in isolates and plain `dart test`); it is byte-identical to the web encoder on `test-data/goldens/`, GIF bytes included.
+
+| File | Responsibility |
+|---|---|
+| `payload_encoder.dart` | `(name, bytes, passphrase?, fileId?) -> EncodedPayload{bodies, fileId, encrypted, compressed, total}`: container, deflate if it saves >= 5%, optional encrypt, length prefix, split into 2104-byte bodies; throws `ArgumentError` for a container over `CimbarSpec.maxInflatedBytes` (receivers will not inflate past it) |
+| `frame_builder.dart` | `sourceFrame`, `repairFrame` (2112-byte frame data), `gifRepairCount` |
+| `cell_grid.dart` | frame data to RS framing to 3840 cell values |
+| `frame_raster.dart` | cells to a 608x608 palette-index buffer, as `renderFrame` |
+| `gif_writer.dart` | index buffers + delay to GIF89a bytes, web palette slot order, no quantization; `encodeStream` pulls frames one at a time and `buildGif` feeds it a lazy iterable, so Share GIF holds one raster (not ~231 MB of them at the 500-frame cap) |
+| `send_jobs.dart` | isolate entry points (`encodeInIsolate`, `buildGifInIsolate`) as top-level functions, plus the caps `maxSendFrames` = 4096 (Send/Present) and `maxGifFrames` = 500 (Share GIF) |
+
+Parity tests live in `test/core/encode/`; `tool/gen_dart_goldens.dart` (`cd app && dart run tool/gen_dart_goldens.dart`) writes `test-data/goldens/dart_text.{gif,json}` (a Dart-encoded text message, 6 source + 2 repair frames) which `web-app/tests/test_goldens.js` decodes. `lib/core/format/text_message.dart` is the text-message convention, tested against `test-data/text-message.json`.
+
+- **Send tab** (`features/send/`, first in the bar; the app still opens on `/import`): text or file (refused by its length, before reading, above 128 MB), passphrase, frame delay 100/200/400 ms, Present and Share GIF. Encoding runs in isolates through the top-level helpers in `send_jobs.dart` (a closure must not capture a Riverpod notifier).
+- **Present screen** (`present_screen.dart`, `present_sequencer.dart`, `screen_controls.dart`) is pushed with `Navigator.of(context, rootNavigator: true)`: source frames once, then repair frames forever (the source pass loops when N == 1 or above the coding cap). It keeps the screen awake (`wakelock_plus` 1.8.1) and bright (`screen_brightness` 2.1.11, app-level brightness, no permission; the APK is still CAMERA-only), restores both on every exit, and runs a single frame chain (a run-generation counter stops stale timers).
+- **Receiving text:** `ResultCard` shows a message when `TextMessage.decode` is non-null, with Copy and Share text; the on-screen preview is capped at 100 000 characters with a translated note, while Copy/Share/Save use the full text. Live Scan's `LiveScanResultPanel` is capped at 70% of the screen height and scrolls.
+- **`CryptoService.encrypt`** draws salt and IV from `Random.secure` via the public `CryptoService.randomBytes` (the old FortunaRandom seed had one byte of entropy, i.e. 256 possible (salt, IV) pairs). The `salt`/`iv` parameters exist only so tests can reproduce encrypted goldens; production callers never pass them. `crypto_service.dart` stays Flutter-free.
+
+### Device checklist (not yet done)
+
+Phone to phone (Present + Live Scan, text and a small file); Share GIF to a messenger then Import on the other phone; web Text to Present to phone Live Scan; phone Present to web Live Scan (http(s) page); an encrypted text each way (passphrase typed on the receiver after the "passphrase required" prompt); iOS simulator: Send tab, Present, Share GIF sheet. Also: a phone-encrypted text whose passphrase has a trailing space decrypts on the web (both sides trim); and Present at N near 4096 on a low-end phone keeps the chosen frame period (frames are built on the UI isolate — ~21 ms per repair frame on a desktop JIT, unmeasured on phones).
+
 ## CLI decoder
 
 Offline decoder, no Flutter/emulator needed:
@@ -212,7 +236,7 @@ GoRouter(
 );
 ```
 
-`NoTransitionPage` for instant tab switching. The two full-screen routes, `LiveScanScreen` and `PhotoCaptureScreen`, are pushed **on the root navigator** — `Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(...))` from `CameraScreen` — so they sit above the shell instead of inside its nested navigator. Pushed on the nested navigator they float over go_router's pages: tapping a bottom tab then moves the tab highlight and switches the route underneath while the scanner keeps covering it, leaving the tab bar apparently dead. `test/features/camera_navigation_test.dart` is the regression guard.
+`NoTransitionPage` for instant tab switching. The two full-screen routes, `LiveScanScreen` and `PhotoCaptureScreen`, are pushed **on the root navigator** — `Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(...))` from `CameraScreen` — so they sit above the shell instead of inside its nested navigator. Pushed on the nested navigator they float over go_router's pages: tapping a bottom tab then moves the tab highlight and switches the route underneath while the scanner keeps covering it, leaving the tab bar apparently dead. `test/features/camera_navigation_test.dart` is the regression guard. The Send tab's `PresentScreen` is pushed the same way (`test/features/send_navigation_test.dart`; its `ScreenControls` come from `screenControlsProvider` so tests inject fakes).
 
 ## Camera Implementation
 
@@ -350,6 +374,7 @@ Run: `sh tests/run_all.sh` from `app/` (never bare `flutter test`; see Build).
 | `tool/scene_fixtures_test.dart` | `test-data/scenes/` fixtures (generated by `tool/gen_scene_fixtures.dart`, shared with the web app's photo-decode tests): at least eight PNGs, each with a sidecar; each fixture decodes to its recorded `cells` (within 1% wrong, RS reporting zero failed blocks) through a grid built from its recorded `finderCenters`; each fixture reproduces its recorded camera-path `decode` digest exactly — the Dart↔JS parity contract for the photo decode layer. |
 | `shared/corners_overlay_painter_test.dart` | `CornersOverlayPainter.mapPoint`: a 1280×720 landscape frame on a 720×1280 portrait canvas maps its corners as expected for `sensorOrientation` 90 (frame origin → preview top-right) and 270 (the point-symmetric mirror); orientation 0 is identity with contain letterboxing; `isRotated` agrees with the mapping. |
 | `features/camera_navigation_test.dart` | Live Scan and Photo Capture are pushed on the **root** navigator, not the shell's nested one, so the bottom tab bar keeps working after a scan. |
+| `features/send_navigation_test.dart` | Present (Send tab) is pushed on the **root** navigator too, with fake screen controls injected through `screenControlsProvider`. |
 | `features/live_scan_controller_test.dart` | `LiveScanController` without a camera or isolate (`onOutcomeForTest`/`onIsolateErrorForTest`): an `ok` outcome carrying a golden frame fills its slot and completes; a `notLocated` outcome clears the corners and reports no hint; three consecutive isolate errors surface `decoder_failed:` and the next outcome clears the panel; `'DecodeIsolate disposed'` errors are ignored; the first located outcome asks for a focus/exposure lock exactly once (`consumeLockAction` resets it); rateless assembly — feeding source and repair frames from a coded golden in mixed order climbs `state.rank` to completion, then further duplicate/dependent/already-seen frames leave `rank` unchanged. |
 
 ### Known Subtleties (Android)

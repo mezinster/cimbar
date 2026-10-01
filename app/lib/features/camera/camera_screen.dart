@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/decode_result.dart';
@@ -165,6 +166,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               onOpen: () => openWithFeedback(context, () => FileService.openResult(state.result!)),
               onExport: () => exportWithFeedback(context, () => FileService.exportBytes(state.result!.filename, state.result!.data)),
               onShare: () => FileService.shareResult(state.result!),
+              onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
             ),
           ],
         ],
