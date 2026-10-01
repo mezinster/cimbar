@@ -12,7 +12,7 @@ class AppLocalizationsKa extends AppLocalizations {
   String get appTitle => 'CimBar სკანერი';
 
   @override
-  String get tabImport => 'GIF იმპორტი';
+  String get tabImport => 'იმპორტი';
 
   @override
   String get tabCamera => 'კამერა';
