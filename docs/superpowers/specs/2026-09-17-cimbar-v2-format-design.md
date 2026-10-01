@@ -142,6 +142,8 @@ usable cell is (col 8, row 0) and the last is (col 55, row 63).
 
 ### 4.1 File container (unchanged from v1)
 
+A container named `*.txt` holding strict UTF-8 ≤ 1 MiB is presented as a text message — see `2026-10-01-text-transfer-and-mobile-encode-design.md` §3; nothing on the wire changes.
+
 ```
 [u32 nameLen][name utf8][file bytes]           = payload
 payload | CimbarCrypto.encrypt(payload, pass)  = framedPayload (encrypted if passphrase given)

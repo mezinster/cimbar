@@ -107,6 +107,30 @@ No Flutter imports under these directories; `tool/decode_image.dart` runs with `
 - `FinderLocator`'s column scan is bounded to ±7 modules around each row hit (the row scan itself still runs every row — an attempted stride of 2 lost hits on small, rotated finders and was reverted).
 - `DriftSolver`'s hill-climb is capped at 3 steps (measured drift on the degradation matrix stays ≤ 2.1 px, so 3 steps of the ±1/±2 px search always converge).
 
+## Encoder, Send Tab and Present Screen
+
+The app encodes as well as decodes. `lib/core/encode/` is a pure-Dart port of the web encode path (no Flutter imports, so it runs in isolates and plain `dart test`); it is byte-identical to the web encoder on `test-data/goldens/`, GIF bytes included.
+
+| File | Responsibility |
+|---|---|
+| `payload_encoder.dart` | `(name, bytes, passphrase?, fileId?) -> EncodedPayload{bodies, fileId, encrypted, compressed, total}`: container, deflate if it saves >= 5%, optional encrypt, length prefix, split into 2104-byte bodies |
+| `frame_builder.dart` | `sourceFrame`, `repairFrame` (2112-byte frame data), `gifRepairCount` |
+| `cell_grid.dart` | frame data to RS framing to 3840 cell values |
+| `frame_raster.dart` | cells to a 608x608 palette-index buffer, as `renderFrame` |
+| `gif_writer.dart` | index buffers + delay to GIF89a bytes, web palette slot order, no quantization |
+| `send_jobs.dart` | isolate entry points (`encodeInIsolate`, `buildGifInIsolate`) as top-level functions, plus the caps `maxSendFrames` = 4096 (Send/Present) and `maxGifFrames` = 500 (Share GIF) |
+
+Parity tests live in `test/core/encode/`; `tool/gen_dart_goldens.dart` (`cd app && dart run tool/gen_dart_goldens.dart`) writes `test-data/goldens/dart_text.{gif,json}` (a Dart-encoded text message, 6 source + 2 repair frames) which `web-app/tests/test_goldens.js` decodes. `lib/core/format/text_message.dart` is the text-message convention, tested against `test-data/text-message.json`.
+
+- **Send tab** (`features/send/`, first in the bar; the app still opens on `/import`): text or file, passphrase, frame delay 100/200/400 ms, Present and Share GIF. Encoding runs in isolates through the top-level helpers in `send_jobs.dart` (a closure must not capture a Riverpod notifier).
+- **Present screen** (`present_screen.dart`, `present_sequencer.dart`, `screen_controls.dart`) is pushed with `Navigator.of(context, rootNavigator: true)`: source frames once, then repair frames forever (the source pass loops when N == 1 or above the coding cap). It keeps the screen awake (`wakelock_plus` 1.8.1) and bright (`screen_brightness` 2.1.11, app-level brightness, no permission; the APK is still CAMERA-only), restores both on every exit, and runs a single frame chain (a run-generation counter stops stale timers).
+- **Receiving text:** `ResultCard` shows a message when `TextMessage.decode` is non-null, with Copy and Share text; the on-screen preview is capped at 100 000 characters with a translated note, while Copy/Share/Save use the full text. Live Scan's `LiveScanResultPanel` is capped at 70% of the screen height and scrolls.
+- **`CryptoService.encrypt`** draws salt and IV from `Random.secure` via the public `CryptoService.randomBytes` (the old FortunaRandom seed had one byte of entropy, i.e. 256 possible (salt, IV) pairs). The `salt`/`iv` parameters exist only so tests can reproduce encrypted goldens; production callers never pass them. `crypto_service.dart` stays Flutter-free.
+
+### Device checklist (not yet done)
+
+Phone to phone (Present + Live Scan, text and a small file); Share GIF to a messenger then Import on the other phone; web Text to Present to phone Live Scan; phone Present to web Live Scan (http(s) page); an encrypted text each way (passphrase typed on the receiver after the "passphrase required" prompt); iOS simulator: Send tab, Present, Share GIF sheet.
+
 ## CLI decoder
 
 Offline decoder, no Flutter/emulator needed:

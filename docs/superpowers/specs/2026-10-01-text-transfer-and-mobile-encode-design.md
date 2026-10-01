@@ -1,6 +1,6 @@
 # Text transfer, and encoding on Android/iOS
 
-Status: Approved design, not yet planned
+Status: Implemented (plan: docs/superpowers/plans/2026-10-01-text-transfer-and-mobile-encode.md)
 Date: 2026-10-01
 Builds on: `docs/superpowers/specs/2026-09-17-cimbar-v2-format-design.md` (frame image, §4.1 file
 container), `docs/superpowers/specs/2026-09-18-cimbar-v2.1-rateless-and-compression-design.md`
