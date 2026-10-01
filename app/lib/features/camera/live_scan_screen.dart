@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/decode/yuv_frame.dart';
+import '../../core/models/decode_result.dart';
 import '../../core/providers/debug_mode_provider.dart';
 import '../../core/services/capture_policy.dart';
 import '../../core/services/file_service.dart';
@@ -314,17 +315,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
 
   Widget _buildStatusPanel(AppLocalizations l10n, LiveScanState s, LiveScanController controller) {
     if (s.result != null) {
-      return Column(mainAxisSize: MainAxisSize.min, children: [
-        ResultCard(
-          result: s.result!,
-          onOpen: () => openWithFeedback(context, () => FileService.openResult(s.result!)),
-          onExport: () => exportWithFeedback(context, () => FileService.exportBytes(s.result!.filename, s.result!.data)),
-          onShare: () => FileService.shareResult(s.result!),
-          onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
-        ),
-        const SizedBox(height: 8),
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.cancel, style: const TextStyle(color: Colors.white70))),
-      ]);
+      return LiveScanResultPanel(result: s.result!, onCancel: () => Navigator.of(context).pop());
     }
     if (s.errorMessage == 'passphrase_required' || s.errorMessage == 'wrong_passphrase') {
       // The frames are all assembled; only the passphrase is missing or wrong.
@@ -374,5 +365,35 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
         Text(l10n.liveScanFramesAnalyzed(s.framesAnalyzed), style: const TextStyle(color: Colors.white38, fontSize: 12)),
       ],
     ]);
+  }
+}
+
+/// The finished-scan panel. Scrolls inside 70% of the screen height so a long
+/// text message cannot push it off a short or landscape screen.
+class LiveScanResultPanel extends StatelessWidget {
+  final DecodeResult result;
+  final VoidCallback onCancel;
+
+  const LiveScanResultPanel({super.key, required this.result, required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ResultCard(
+            result: result,
+            onOpen: () => openWithFeedback(context, () => FileService.openResult(result)),
+            onExport: () => exportWithFeedback(context, () => FileService.exportBytes(result.filename, result.data)),
+            onShare: () => FileService.shareResult(result),
+            onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
+          ),
+          const SizedBox(height: 8),
+          TextButton(onPressed: onCancel, child: Text(l10n.cancel, style: const TextStyle(color: Colors.white70))),
+        ]),
+      ),
+    );
   }
 }
