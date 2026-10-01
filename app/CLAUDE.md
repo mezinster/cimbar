@@ -129,7 +129,7 @@ Parity tests live in `test/core/encode/`; `tool/gen_dart_goldens.dart` (`cd app 
 
 ### Device checklist (not yet done)
 
-Phone to phone (Present + Live Scan, text and a small file); Share GIF to a messenger then Import on the other phone; web Text to Present to phone Live Scan; phone Present to web Live Scan (http(s) page); an encrypted text each way (passphrase typed on the receiver after the "passphrase required" prompt); iOS simulator: Send tab, Present, Share GIF sheet.
+Phone to phone (Present + Live Scan, text and a small file); Share GIF to a messenger then Import on the other phone; web Text to Present to phone Live Scan; phone Present to web Live Scan (http(s) page); an encrypted text each way (passphrase typed on the receiver after the "passphrase required" prompt); iOS simulator: Send tab, Present, Share GIF sheet. Also: a phone-encrypted text whose passphrase has a trailing space decrypts on the web (both sides trim); and Present at N near 4096 on a low-end phone keeps the chosen frame period (frames are built on the UI isolate — ~21 ms per repair frame on a desktop JIT, unmeasured on phones).
 
 ## CLI decoder
 
