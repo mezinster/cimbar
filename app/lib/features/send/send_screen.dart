@@ -18,7 +18,8 @@ class SendScreen extends ConsumerStatefulWidget {
 }
 
 class _SendScreenState extends ConsumerState<SendScreen> {
-  final _text = TextEditingController();
+  // Seeded from the provider: the controller outlives this widget across tab switches.
+  late final _text = TextEditingController(text: ref.read(sendControllerProvider).text);
   final _pass = TextEditingController();
 
   @override

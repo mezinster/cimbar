@@ -41,4 +41,27 @@ void main() {
     expect(enabled(tester, 'Present on screen'), isFalse);
     expect(enabled(tester, 'Share GIF'), isFalse);
   });
+
+  testWidgets('the text box is re-seeded from the controller after a tab switch', (tester) async {
+    final container = ProviderContainer(overrides: [
+      sendControllerProvider.overrideWith((ref) => SendController(encoder: (_) => fakePayload(1))),
+    ]);
+    addTearDown(container.dispose);
+    Widget app(Widget child) => UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: child,
+          ),
+        );
+    await tester.pumpWidget(app(const SendScreen()));
+    await tester.enterText(find.byKey(const Key('sendText')), 'keep me');
+    await tester.pump();
+    await tester.pumpWidget(app(const SizedBox()));
+    await tester.pumpWidget(app(const SendScreen()));
+    expect(find.text('keep me'), findsOneWidget);
+    expect(enabled(tester, 'Present on screen'), isTrue);
+    expect(enabled(tester, 'Share GIF'), isTrue);
+  });
 }
