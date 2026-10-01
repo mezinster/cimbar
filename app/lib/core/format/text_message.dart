@@ -10,18 +10,17 @@ class TextMessage {
 
   static const int maxBytes = 1048576;
 
-  /// The text (leading BOM dropped), or null when this is not a text message.
+  /// The text (one leading BOM dropped), or null when this is not a text message.
   static String? decode(String name, Uint8List bytes) {
     if (!name.toLowerCase().endsWith('.txt') || bytes.length > maxBytes) return null;
-    final String s;
     try {
       // Dart's strict decoder rejects overlong forms, surrogates and
-      // truncated tails exactly like TextDecoder(fatal: true), and keeps a BOM.
-      s = utf8.decode(bytes);
+      // truncated tails exactly like TextDecoder(fatal: true), and drops one
+      // leading BOM (like TextDecoder's default ignoreBOM=false).
+      return utf8.decode(bytes);
     } on FormatException {
       return null;
     }
-    return s.startsWith('﻿') ? s.substring(1) : s;
   }
 
   static bool isTextMessage(String name, Uint8List bytes) => decode(name, bytes) != null;
