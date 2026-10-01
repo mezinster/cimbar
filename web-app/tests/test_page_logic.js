@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -607,6 +607,38 @@ test('updateTextInfo shows bytes and an upper-bound frame count', () => {
   elements['textEnc'].value = 'x'.repeat(3000);
   ctx.updateTextInfo();
   assert(elements['textEncInfo'].textContent.includes('textEncInfo'), 'uses the textEncInfo key');
+});
+
+test('file mode: a second Encode click while the file is still being read does not start a second encode', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.setEncMode('file');
+  let reads = 0, release;
+  const gate = new Promise((r) => { release = r; });
+  const file = { name: 'a.bin', size: 3, arrayBuffer: async () => { reads++; await gate; return new Uint8Array([1, 2, 3]).buffer; } };
+  ctx.onFileSelect({ files: [file] }, 'enc');
+  const first = ctx.startEncode();
+  assertEq(elements['encBtn'].disabled, true, 'Encode is disabled before the file read is awaited');
+  const second = ctx.startEncode();
+  release();
+  await Promise.all([first, second]);
+  assertEq(reads, 1, 'the file is read once: the second click returned early');
+  assertEq(elements['encBtn'].disabled, false, 'Encode is enabled again when the first run ends');
+  assertEq(calls.alerts.length, 0, 'no "select a file" alert from the second click');
+});
+
+test('file mode with nothing staged: Encode explains and stays usable', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.setEncMode('file');
+  await ctx.startEncode();
+  assertEq(calls.alerts[0], 'selectFileFirst', 'asks for a file');
+  assertEq(elements['encBtn'].disabled, false, 'button restored after a null input');
+});
+
+test('received text is left-aligned (.text-out overrides .output-section centering)', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const rule = html.match(/\.text-out\s*\{([^}]*)\}/);
+  assert(rule, '.text-out rule exists');
+  assert(/text-align:\s*left/.test(rule[1]), '.text-out sets text-align: left: ' + rule[1]);
 });
 
 async function completeWith(ctx, name, bytes) {

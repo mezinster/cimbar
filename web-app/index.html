@@ -409,7 +409,7 @@ input:focus, select:focus {
 }
 
 /* Output */
-.text-out { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; padding: 12px; margin: 8px 0 12px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface2); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.text-out { text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; padding: 12px; margin: 8px 0 12px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface2); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .output-section {
   display: none;
   margin-top: 22px;
@@ -1005,15 +1005,23 @@ let outputBlob = null;
 let encodeState = null;
 
 async function startEncode() {
+  // Disable first: reading a staged file is async, and a second click during
+  // that read would otherwise start a second encode.
+  const btn = document.getElementById('encBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
   const input = await encodeInput();
-  if (!input) { alert(t(encMode === 'text' ? 'enterTextFirst' : 'selectFileFirst')); return; }
+  if (!input) {
+    btn.disabled = false;
+    updateTextInfo();
+    alert(t(encMode === 'text' ? 'enterTextFirst' : 'selectFileFirst'));
+    return;
+  }
   const pass = document.getElementById('passEnc').value.trim();
   const isEncrypted = pass.length > 0;
 
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
 
-  const btn = document.getElementById('encBtn');
-  btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> ' + t('processing');
 
   document.getElementById('progEnc').style.display = 'block';
