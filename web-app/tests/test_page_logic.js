@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -114,7 +114,7 @@ function freshPage() {
     alert: (msg) => { calls.alerts.push(msg); },
     confirm: (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; },
     addEventListener() {},
-    Math, JSON, Uint8Array, Uint8ClampedArray, Promise, Error, setTimeout,
+    Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout,
     Blob: class { constructor() {} },
     URL: { createObjectURL: () => 'blob://x' },
     CimbarFormat: Fmt,
@@ -567,6 +567,46 @@ test('a completing frame followed by a non-"complete" close still delivers the f
   scan.stop('closed');                                       // the user closed, not LiveScan noticing completion
   await tick();
   assertEq(calls.anchorClicks, 1, 'the file is still delivered even though the stop reason was not "complete"');
+});
+
+test('text mode: encodeInput builds message-….txt from the textarea, as typed (CRLF kept)', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'a\r\nб';
+  const input = await ctx.encodeInput();
+  assert(/^message-\d{8}-\d{6}\.txt$/.test(input.name), 'name: ' + input.name);
+  assertEq(Buffer.from(input.bytes).toString('hex'), Buffer.from('a\r\nб', 'utf8').toString('hex'), 'UTF-8 bytes as typed, no BOM');
+});
+
+test('text mode: empty text disables Encode; whitespace-only does not', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = '';
+  ctx.updateTextInfo();
+  assertEq(elements['encBtn'].disabled, true, 'empty text disables Encode');
+  assertEq(await ctx.encodeInput(), null, 'no input for empty text');
+  elements['textEnc'].value = '  \n';
+  ctx.updateTextInfo();
+  assertEq(elements['encBtn'].disabled, false, 'whitespace-only text is sendable');
+});
+
+test('switching modes encodes only the visible input — Review Focus 2', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'hello';
+  ctx.setEncMode('file');
+  assertEq(elements['encBtn'].disabled, false, 'file mode never disabled by the text box');
+  assertEq(await ctx.encodeInput(), null, 'file mode with no file staged → null, the typed text is NOT encoded');
+  assertEq(elements['encTextField'].style.display, 'none', 'text field hidden in file mode');
+  assertEq(elements['textEnc'].value, 'hello', 'switching keeps the typed text');
+});
+
+test('updateTextInfo shows bytes and an upper-bound frame count', () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'x'.repeat(3000);
+  ctx.updateTextInfo();
+  assert(elements['textEncInfo'].textContent.includes('textEncInfo'), 'uses the textEncInfo key');
 });
 
 (async () => {
