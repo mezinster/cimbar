@@ -36,6 +36,14 @@ class GifWriter {
   }
 
   static Uint8List encode(List<Uint8List> indexFrames,
+          {required int delayCs, int width = CimbarSpec.framePx, int height = CimbarSpec.framePx}) =>
+      encodeStream(indexFrames, delayCs: delayCs, width: width, height: height);
+
+  /// Same bytes as [encode], but pulls [indexFrames] one at a time and
+  /// LZW-compresses each before asking for the next, so a lazy iterable
+  /// (see [buildGif]) keeps one frame raster alive instead of all of them —
+  /// 625 rasters at the 500-frame Share GIF cap would be ~231 MB.
+  static Uint8List encodeStream(Iterable<Uint8List> indexFrames,
       {required int delayCs, int width = CimbarSpec.framePx, int height = CimbarSpec.framePx}) {
     final out = BytesBuilder(copy: false);
     void word(int n) => out.add([n & 0xFF, (n >> 8) & 0xFF]);
@@ -131,8 +139,10 @@ class GifWriter {
 }
 
 /// The downloadable GIF for [p]: N source + gifRepairCount(N) repair frames.
-/// Top-level so it can run in Isolate.run.
-Uint8List buildGif(EncodedPayload p, int delayMs) => GifWriter.encode(
-      [for (final f in FrameBuilder.gifFrames(p)) FrameRaster.render(CellGrid.cells(f))],
+/// Each frame is built and rendered only when the writer asks for it, so peak
+/// memory is one raster plus the GIF being written. Top-level so it can run in
+/// Isolate.run.
+Uint8List buildGif(EncodedPayload p, int delayMs) => GifWriter.encodeStream(
+      FrameBuilder.gifFrameStream(p).map((f) => FrameRaster.render(CellGrid.cells(f))),
       delayCs: delayMs ~/ 10,
     );

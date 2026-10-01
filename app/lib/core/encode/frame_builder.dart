@@ -45,16 +45,20 @@ class FrameBuilder {
   }
 
   /// N source frames, then gifRepairCount(N) repair frames when coding applies.
-  static List<Uint8List> gifFrames(EncodedPayload p) {
-    final out = [for (var s = 0; s < p.total; s++) sourceFrame(p, s)];
+  static List<Uint8List> gifFrames(EncodedPayload p) => gifFrameStream(p).toList();
+
+  /// [gifFrames], built lazily: each frame is made only when iterated to.
+  static Iterable<Uint8List> gifFrameStream(EncodedPayload p) sync* {
+    for (var s = 0; s < p.total; s++) {
+      yield sourceFrame(p, s);
+    }
     if (p.total > 1 && p.total <= CimbarSpec.codingMaxFrames) {
       var r = 0;
       for (var i = 0; i < CimbarSpec.gifRepairCount(p.total); i++) {
         final rf = nextRepair(p, r);
-        out.add(rf.data);
+        yield rf.data;
         r = rf.nextR;
       }
     }
-    return out;
   }
 }
