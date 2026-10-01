@@ -59,6 +59,7 @@ void main() {
       onShareText: shared.add,
     )));
     expect(find.text('line 1\r\nстрока 2'), findsOneWidget);
+    expect(find.textContaining('Showing the first'), findsNothing);
     await tester.tap(find.text('Copy'));
     await tester.pump();
     expect(copied, ['line 1\r\nстрока 2'], reason: 'BOM dropped, CRLF kept — Review Focus 1');
@@ -73,11 +74,20 @@ void main() {
   });
 
   testWidgets('1 MiB of one long line stays bounded and scrollable — Review Focus 5', (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
+      return null;
+    });
     final big = Uint8List(TextMessage.maxBytes)..fillRange(0, TextMessage.maxBytes, 0x41);
     await tester.pumpWidget(host(SingleChildScrollView(child: ResultCard(
       result: DecodeResult(filename: 'big.txt', data: big)))));
     expect(tester.takeException(), isNull);
     final box = tester.getSize(find.byKey(const Key('textResultBody')));
     expect(box.height, lessThanOrEqualTo(320));
+    expect(find.textContaining('Showing the first 100000 characters'), findsOneWidget);
+    await tester.tap(find.text('Copy'));
+    await tester.pump();
+    expect(copied.single.length, TextMessage.maxBytes);
   });
 }

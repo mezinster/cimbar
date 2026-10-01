@@ -318,4 +318,9 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get shareText => 'Поділитися текстом';
+
+  @override
+  String textTruncated(int count) {
+    return 'Показано перші $count символів — «Копіювати», «Поділитися» та «Зберегти» використовують увесь текст.';
+  }
 }

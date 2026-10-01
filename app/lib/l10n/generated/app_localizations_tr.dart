@@ -317,4 +317,9 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get shareText => 'Metni paylaş';
+
+  @override
+  String textTruncated(int count) {
+    return 'İlk $count karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır.';
+  }
 }

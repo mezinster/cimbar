@@ -96,5 +96,6 @@
   "receivedText": "Alınan metin",
   "copyText": "Kopyala",
   "textCopied": "Panoya kopyalandı",
-  "shareText": "Metni paylaş"
+  "shareText": "Metni paylaş",
+  "textTruncated": "İlk {count} karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır."
 }

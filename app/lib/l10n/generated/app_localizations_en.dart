@@ -317,4 +317,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareText => 'Share text';
+
+  @override
+  String textTruncated(int count) {
+    return 'Showing the first $count characters — Copy, Share and Save use the full text.';
+  }
 }

@@ -317,4 +317,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get shareText => 'Поделиться текстом';
+
+  @override
+  String textTruncated(int count) {
+    return 'Показаны первые $count символов — «Копировать», «Поделиться» и «Сохранить» используют весь текст.';
+  }
 }

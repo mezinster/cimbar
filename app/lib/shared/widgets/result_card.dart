@@ -12,6 +12,17 @@ class ResultCard extends StatelessWidget {
   final VoidCallback? onShare;
   final ValueChanged<String>? onShareText;
 
+  /// Longest preview the card lays out; Copy and Share still use the full text.
+  static const int maxDisplayChars = 100000;
+
+  static String _preview(String t) {
+    if (t.length <= maxDisplayChars) return t;
+    var end = maxDisplayChars;
+    final last = t.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return t.substring(0, end);
+  }
+
   const ResultCard({
     super.key,
     required this.result,
@@ -78,8 +89,18 @@ class ResultCard extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.all(12),
                 // Plain text only: received text is untrusted, nothing is linkified.
-                child: SingleChildScrollView(child: SelectableText(text)),
+                child: SingleChildScrollView(
+                  child: SelectableText(_preview(text)),
+                ),
               ),
+              if (text.length > maxDisplayChars)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    l10n.textTruncated(maxDisplayChars),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,

@@ -249,5 +249,7 @@
   "textCopied": "Copied to clipboard",
   "@textCopied": { "description": "Snackbar after the received text was copied" },
   "shareText": "Share text",
-  "@shareText": { "description": "Button that shares the received text via the system share sheet" }
+  "@shareText": { "description": "Button that shares the received text via the system share sheet" },
+  "textTruncated": "Showing the first {count} characters — Copy, Share and Save use the full text.",
+  "@textTruncated": { "description": "Note under a long received text that only the first characters are displayed", "placeholders": { "count": { "type": "int" } } }
 }

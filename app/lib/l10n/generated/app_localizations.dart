@@ -667,6 +667,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share text'**
   String get shareText;
+
+  /// Note under a long received text that only the first characters are displayed
+  ///
+  /// In en, this message translates to:
+  /// **'Showing the first {count} characters — Copy, Share and Save use the full text.'**
+  String textTruncated(int count);
 }
 
 class _AppLocalizationsDelegate

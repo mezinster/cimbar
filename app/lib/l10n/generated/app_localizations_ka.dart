@@ -318,4 +318,9 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get shareText => 'ტექსტის გაზიარება';
+
+  @override
+  String textTruncated(int count) {
+    return 'ნაჩვენებია პირველი $count სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს.';
+  }
 }
