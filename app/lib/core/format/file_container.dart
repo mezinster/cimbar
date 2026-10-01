@@ -15,6 +15,24 @@ class FileContainer {
 
   static const int maxNameLen = 512;
 
+  /// [u32 nameLen BE][UTF-8 name][file bytes] — web-app/cimbar.js buildPayload.
+  static Uint8List buildPayload(String fileName, Uint8List fileBytes) {
+    final name = utf8.encode(fileName);
+    final out = Uint8List(4 + name.length + fileBytes.length);
+    ByteData.sublistView(out).setUint32(0, name.length);
+    out.setRange(4, 4 + name.length, name);
+    out.setRange(4 + name.length, out.length, fileBytes);
+    return out;
+  }
+
+  /// [u32 len BE][bytes] — strips RS zero padding on decode (stripLengthPrefix).
+  static Uint8List withLengthPrefix(Uint8List bytes) {
+    final out = Uint8List(4 + bytes.length);
+    ByteData.sublistView(out).setUint32(0, bytes.length);
+    out.setRange(4, out.length, bytes);
+    return out;
+  }
+
   static int _u32(Uint8List b, int off) =>
       (b[off] << 24) | (b[off + 1] << 16) | (b[off + 2] << 8) | b[off + 3];
 
