@@ -673,6 +673,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Showing the first {count} characters — Copy, Share and Save use the full text.'**
   String textTruncated(int count);
+
+  /// Bottom tab: encode and send
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get tabSend;
+
+  /// Send mode: text
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get sendModeText;
+
+  /// Send mode: file
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get sendModeFile;
+
+  /// Hint in the message box
+  ///
+  /// In en, this message translates to:
+  /// **'Type or paste text…'**
+  String get sendTextHint;
+
+  /// Size and frame-count estimate of the input
+  ///
+  /// In en, this message translates to:
+  /// **'{size} · at most {frames} frames'**
+  String sendEstimate(String size, int frames);
+
+  /// Label of the frame delay picker
+  ///
+  /// In en, this message translates to:
+  /// **'Frame delay'**
+  String get sendFrameDelay;
+
+  /// Button that shows the code on screen
+  ///
+  /// In en, this message translates to:
+  /// **'Present on screen'**
+  String get sendPresent;
+
+  /// Button that shares the code as a GIF
+  ///
+  /// In en, this message translates to:
+  /// **'Share GIF'**
+  String get sendShareGif;
+
+  /// Error when nothing was entered
+  ///
+  /// In en, this message translates to:
+  /// **'Type some text or choose a file first.'**
+  String get sendEmpty;
+
+  /// Error when the input needs too many frames
+  ///
+  /// In en, this message translates to:
+  /// **'Too large: {frames} frames (limit {max}).'**
+  String sendTooLarge(int frames, int max);
+
+  /// Error when encoding failed
+  ///
+  /// In en, this message translates to:
+  /// **'Encoding failed: {error}'**
+  String sendFailed(String error);
+
+  /// Present screen caption for a source frame
+  ///
+  /// In en, this message translates to:
+  /// **'Frame {i} of {n}'**
+  String presentSource(int i, int n);
+
+  /// Present screen caption for a repair frame
+  ///
+  /// In en, this message translates to:
+  /// **'Repair frame {r}'**
+  String presentRepair(int r);
 }
 
 class _AppLocalizationsDelegate

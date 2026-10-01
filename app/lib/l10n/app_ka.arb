@@ -97,5 +97,18 @@
   "copyText": "კოპირება",
   "textCopied": "დაკოპირდა ბუფერში",
   "shareText": "ტექსტის გაზიარება",
-  "textTruncated": "ნაჩვენებია პირველი {count} სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს."
+  "textTruncated": "ნაჩვენებია პირველი {count} სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს.",
+  "tabSend": "გაგზავნა",
+  "sendModeText": "ტექსტი",
+  "sendModeFile": "ფაილი",
+  "sendTextHint": "აკრიფეთ ან ჩასვით ტექსტი…",
+  "sendEstimate": "{size} · მაქს. {frames} კადრი",
+  "sendFrameDelay": "კადრის დაყოვნება",
+  "sendPresent": "ეკრანზე ჩვენება",
+  "sendShareGif": "GIF-ის გაზიარება",
+  "sendEmpty": "ჯერ შეიყვანეთ ტექსტი ან აირჩიეთ ფაილი.",
+  "sendTooLarge": "ზედმეტად დიდია: {frames} კადრი (ლიმიტი {max}).",
+  "sendFailed": "კოდირება ვერ მოხერხდა: {error}",
+  "presentSource": "კადრი {i} / {n}",
+  "presentRepair": "აღდგენის კადრი {r}"
 }

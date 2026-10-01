@@ -322,4 +322,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String textTruncated(int count) {
     return 'Showing the first $count characters — Copy, Share and Save use the full text.';
   }
+
+  @override
+  String get tabSend => 'Send';
+
+  @override
+  String get sendModeText => 'Text';
+
+  @override
+  String get sendModeFile => 'File';
+
+  @override
+  String get sendTextHint => 'Type or paste text…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    return '$size · at most $frames frames';
+  }
+
+  @override
+  String get sendFrameDelay => 'Frame delay';
+
+  @override
+  String get sendPresent => 'Present on screen';
+
+  @override
+  String get sendShareGif => 'Share GIF';
+
+  @override
+  String get sendEmpty => 'Type some text or choose a file first.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    return 'Too large: $frames frames (limit $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'Encoding failed: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'Frame $i of $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'Repair frame $r';
+  }
 }

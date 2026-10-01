@@ -7,6 +7,7 @@ import 'core/providers/locale_provider.dart';
 import 'features/camera/camera_screen.dart';
 import 'features/files/files_screen.dart';
 import 'features/import/import_screen.dart';
+import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'shared/theme/app_theme.dart';
@@ -29,6 +30,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => AppShell(child: child),
         routes: [
+          GoRoute(
+            path: '/send',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SendScreen(),
+            ),
+          ),
           GoRoute(
             path: '/import',
             pageBuilder: (context, state) => const NoTransitionPage(

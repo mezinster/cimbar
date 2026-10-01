@@ -323,4 +323,53 @@ class AppLocalizationsUk extends AppLocalizations {
   String textTruncated(int count) {
     return 'Показано перші $count символів — «Копіювати», «Поділитися» та «Зберегти» використовують увесь текст.';
   }
+
+  @override
+  String get tabSend => 'Надіслати';
+
+  @override
+  String get sendModeText => 'Текст';
+
+  @override
+  String get sendModeFile => 'Файл';
+
+  @override
+  String get sendTextHint => 'Введіть або вставте текст…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    return '$size · не більше $frames кадрів';
+  }
+
+  @override
+  String get sendFrameDelay => 'Затримка кадру';
+
+  @override
+  String get sendPresent => 'Показати на екрані';
+
+  @override
+  String get sendShareGif => 'Поділитися GIF';
+
+  @override
+  String get sendEmpty => 'Спочатку введіть текст або виберіть файл.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    return 'Забагато: $frames кадрів (ліміт $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'Помилка кодування: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'Кадр $i з $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'Кадр відновлення $r';
+  }
 }

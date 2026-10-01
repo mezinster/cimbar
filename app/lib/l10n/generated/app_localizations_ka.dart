@@ -323,4 +323,53 @@ class AppLocalizationsKa extends AppLocalizations {
   String textTruncated(int count) {
     return 'ნაჩვენებია პირველი $count სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს.';
   }
+
+  @override
+  String get tabSend => 'გაგზავნა';
+
+  @override
+  String get sendModeText => 'ტექსტი';
+
+  @override
+  String get sendModeFile => 'ფაილი';
+
+  @override
+  String get sendTextHint => 'აკრიფეთ ან ჩასვით ტექსტი…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    return '$size · მაქს. $frames კადრი';
+  }
+
+  @override
+  String get sendFrameDelay => 'კადრის დაყოვნება';
+
+  @override
+  String get sendPresent => 'ეკრანზე ჩვენება';
+
+  @override
+  String get sendShareGif => 'GIF-ის გაზიარება';
+
+  @override
+  String get sendEmpty => 'ჯერ შეიყვანეთ ტექსტი ან აირჩიეთ ფაილი.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    return 'ზედმეტად დიდია: $frames კადრი (ლიმიტი $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'კოდირება ვერ მოხერხდა: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'კადრი $i / $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'აღდგენის კადრი $r';
+  }
 }

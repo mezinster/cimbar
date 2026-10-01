@@ -322,4 +322,53 @@ class AppLocalizationsRu extends AppLocalizations {
   String textTruncated(int count) {
     return 'Показаны первые $count символов — «Копировать», «Поделиться» и «Сохранить» используют весь текст.';
   }
+
+  @override
+  String get tabSend => 'Отправить';
+
+  @override
+  String get sendModeText => 'Текст';
+
+  @override
+  String get sendModeFile => 'Файл';
+
+  @override
+  String get sendTextHint => 'Введите или вставьте текст…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    return '$size · не более $frames кадров';
+  }
+
+  @override
+  String get sendFrameDelay => 'Задержка кадра';
+
+  @override
+  String get sendPresent => 'Показать на экране';
+
+  @override
+  String get sendShareGif => 'Поделиться GIF';
+
+  @override
+  String get sendEmpty => 'Сначала введите текст или выберите файл.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    return 'Слишком много: $frames кадров (лимит $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'Ошибка кодирования: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'Кадр $i из $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'Кадр восстановления $r';
+  }
 }

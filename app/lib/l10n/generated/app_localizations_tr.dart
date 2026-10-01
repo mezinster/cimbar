@@ -322,4 +322,53 @@ class AppLocalizationsTr extends AppLocalizations {
   String textTruncated(int count) {
     return 'İlk $count karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır.';
   }
+
+  @override
+  String get tabSend => 'Gönder';
+
+  @override
+  String get sendModeText => 'Metin';
+
+  @override
+  String get sendModeFile => 'Dosya';
+
+  @override
+  String get sendTextHint => 'Metin yazın veya yapıştırın…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    return '$size · en fazla $frames kare';
+  }
+
+  @override
+  String get sendFrameDelay => 'Kare gecikmesi';
+
+  @override
+  String get sendPresent => 'Ekranda göster';
+
+  @override
+  String get sendShareGif => 'GIF paylaş';
+
+  @override
+  String get sendEmpty => 'Önce metin yazın veya dosya seçin.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    return 'Çok büyük: $frames kare (sınır $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'Kodlama başarısız: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'Kare $i / $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'Onarım karesi $r';
+  }
 }

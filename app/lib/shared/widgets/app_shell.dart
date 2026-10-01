@@ -8,7 +8,7 @@ class AppShell extends StatelessWidget {
 
   const AppShell({super.key, required this.child});
 
-  static const _tabs = ['/import', '/camera', '/files', '/settings'];
+  static const _tabs = ['/send', '/import', '/camera', '/files', '/settings'];
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
@@ -27,6 +27,11 @@ class AppShell extends StatelessWidget {
         selectedIndex: index,
         onDestinationSelected: (i) => context.go(_tabs[i]),
         destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.send_outlined),
+            selectedIcon: const Icon(Icons.send),
+            label: l10n.tabSend,
+          ),
           NavigationDestination(
             icon: const Icon(Icons.gif_box_outlined),
             selectedIcon: const Icon(Icons.gif_box),
