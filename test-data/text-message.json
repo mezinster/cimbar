@@ -1,0 +1,19 @@
+{
+  "description": "Shared contract for isTextMessage (spec 2026-10-01 §3). Asserted by web-app/tests/test_text_message.js and app/test/core/format/text_message_test.dart. bytes = hex repeated `repeat` times (default 1). `text` is the expected decoded string when expected is true.",
+  "cases": [
+    { "name": "message-20261001-120000.txt", "hex": "48656c6c6f", "expected": true, "text": "Hello", "note": "plain ASCII" },
+    { "name": "notes.TXT", "hex": "d09fd180d0b8d0b2d0b5d1820ae18392e18390e183a0e183a3e183ae20f09f9880", "expected": true, "text": "Привет\nგარუხ 😀", "note": "Cyrillic, Georgian, emoji; upper-case extension" },
+    { "name": "bom.txt", "hex": "efbbbf41", "expected": true, "text": "A", "note": "leading BOM tolerated and not shown" },
+    { "name": "crlf.txt", "hex": "610d0a62", "expected": true, "text": "a\r\nb", "note": "CRLF preserved" },
+    { "name": "empty.txt", "hex": "", "expected": true, "text": "", "note": "empty text" },
+    { "name": "notes.txt.bin", "hex": "41", "expected": false, "note": ".txt not the final extension" },
+    { "name": "notes", "hex": "41", "expected": false, "note": "no extension" },
+    { "name": "report.pdf", "hex": "41", "expected": false, "note": "other extension" },
+    { "name": "bad.txt", "hex": "41c328", "expected": false, "note": "invalid continuation byte" },
+    { "name": "overlong.txt", "hex": "c0af", "expected": false, "note": "overlong encoding" },
+    { "name": "surrogate.txt", "hex": "eda080", "expected": false, "note": "encoded UTF-16 surrogate" },
+    { "name": "trunc.txt", "hex": "41e282", "expected": false, "note": "truncated multi-byte tail" },
+    { "name": "big.txt", "hex": "41", "repeat": 1048576, "expected": true, "note": "exactly 1 MiB" },
+    { "name": "toobig.txt", "hex": "41", "repeat": 1048577, "expected": false, "note": "1 MiB + 1" }
+  ]
+}

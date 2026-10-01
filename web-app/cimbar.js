@@ -286,12 +286,38 @@ function stripLengthPrefix(bytes) {
   return bytes.slice(4, 4 + len);
 }
 
+// ── Text messages (spec 2026-10-01 §3) ──────────────────────────────────
+// A text message is an ordinary container whose name ends in .txt and whose
+// bytes are strict UTF-8 of at most TEXT_MAX_BYTES. Nothing on the wire marks
+// it: older receivers simply get a .txt file.
+const TEXT_MAX_BYTES = 1048576;
+
+function decodeTextMessage(name, bytes) {
+  if (!/\.txt$/i.test(name) || bytes.length > TEXT_MAX_BYTES) return null;
+  try {
+    // fatal: rejects overlong forms, surrogates and truncated tails;
+    // the default ignoreBOM=false drops a leading BOM.
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (e) {
+    return null;
+  }
+}
+
+function isTextMessage(name, bytes) { return decodeTextMessage(name, bytes) !== null; }
+
+function textMessageName(date) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `message-${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}-` +
+    `${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}.txt`;
+}
+
 const API = {
   renderFrame, decodeFrameExact,
   encodeRSFrame, decodeRSFrame,
   splitIntoFrames, repairFrame, frameBodies, gifRepairCount,
   RatelessAssembler: Rateless.RatelessAssembler,
   buildPayload, parsePayload, withLengthPrefix, stripLengthPrefix,
+  isTextMessage, decodeTextMessage, textMessageName, TEXT_MAX_BYTES,
   // exported for tests
   drawTile, drawFinder, finderOrigin,
 };

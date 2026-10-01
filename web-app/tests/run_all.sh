@@ -26,6 +26,9 @@ node tests/test_compress.js
 echo ""; echo "--- Goldens ---"
 node tests/test_goldens.js
 
+echo ""; echo "--- Text-message rule (shared fixture) ---"
+node tests/test_text_message.js
+
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
