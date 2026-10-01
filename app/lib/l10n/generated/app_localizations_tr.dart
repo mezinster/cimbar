@@ -371,4 +371,9 @@ class AppLocalizationsTr extends AppLocalizations {
   String presentRepair(int r) {
     return 'Onarım karesi $r';
   }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'Dosya çok büyük: $size (sınır $max).';
+  }
 }

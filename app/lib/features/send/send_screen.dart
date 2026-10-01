@@ -49,9 +49,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final result = await FilePicker.pickFiles();
     if (result.isEmpty) return;
     final f = result.first;
-    final bytes = await f.readAsBytes();
-    if (!mounted) return;
-    ref.read(sendControllerProvider.notifier).setFile(f.name, bytes);
+    // The controller outlives this widget, so no mounted check is needed.
+    await ref.read(sendControllerProvider.notifier).loadFile(f.name, length: f.length, read: f.readAsBytes);
   }
 
   Future<void> _present() async {
@@ -69,6 +68,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     if (e.startsWith('tooLarge:')) {
       final parts = e.split(':');
       return l10n.sendTooLarge(int.tryParse(parts[1]) ?? 0, int.tryParse(parts[2]) ?? 0);
+    }
+    if (e.startsWith('fileTooBig:')) {
+      final parts = e.split(':');
+      return l10n.sendFileTooBig(_formatSize(int.tryParse(parts[1]) ?? 0), _formatSize(int.tryParse(parts[2]) ?? 0));
     }
     if (e.startsWith('failed:')) return l10n.sendFailed(e.substring(7));
     return e;

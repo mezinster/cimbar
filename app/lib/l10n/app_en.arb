@@ -277,5 +277,7 @@
   "presentSource": "Frame {i} of {n}",
   "@presentSource": {"description": "Present screen caption for a source frame", "placeholders": {"i": {"type": "int"}, "n": {"type": "int"}}},
   "presentRepair": "Repair frame {r}",
-  "@presentRepair": {"description": "Present screen caption for a repair frame", "placeholders": {"r": {"type": "int"}}}
+  "@presentRepair": {"description": "Present screen caption for a repair frame", "placeholders": {"r": {"type": "int"}}},
+  "sendFileTooBig": "File too large: {size} (limit {max}).",
+  "@sendFileTooBig": {"description": "Error when a picked file is larger than receivers accept", "placeholders": {"size": {"type": "String"}, "max": {"type": "String"}}}
 }

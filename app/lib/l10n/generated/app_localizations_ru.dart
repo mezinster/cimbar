@@ -371,4 +371,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String presentRepair(int r) {
     return 'Кадр восстановления $r';
   }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'Файл слишком большой: $size (лимит $max).';
+  }
 }

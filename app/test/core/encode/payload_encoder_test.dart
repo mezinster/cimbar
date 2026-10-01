@@ -59,4 +59,13 @@ void main() {
     expect(p.total, 1);
     expect(p.bodies.single.length, CimbarSpec.fileBytesPerFrame);
   });
+
+  test('a container larger than receivers will inflate is refused', () {
+    expect(() => PayloadEncoder.encode(name: 'a.bin', bytes: Uint8List(100), maxContainerBytes: 100),
+        throwsArgumentError);
+    expect(PayloadEncoder.encode(name: 'a.bin', bytes: Uint8List(91), maxContainerBytes: 100).total, 1);
+    // The default cap is the decoders' inflate cap (128 MB); checked before any work.
+    expect(() => PayloadEncoder.encode(name: 'big.bin', bytes: Uint8List(CimbarSpec.maxInflatedBytes)),
+        throwsArgumentError);
+  });
 }

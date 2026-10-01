@@ -110,5 +110,6 @@
   "sendTooLarge": "Забагато: {frames} кадрів (ліміт {max}).",
   "sendFailed": "Помилка кодування: {error}",
   "presentSource": "Кадр {i} з {n}",
-  "presentRepair": "Кадр відновлення {r}"
+  "presentRepair": "Кадр відновлення {r}",
+  "sendFileTooBig": "Файл завеликий: {size} (ліміт {max})."
 }

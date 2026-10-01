@@ -751,6 +751,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Repair frame {r}'**
   String presentRepair(int r);
+
+  /// Error when a picked file is larger than receivers accept
+  ///
+  /// In en, this message translates to:
+  /// **'File too large: {size} (limit {max}).'**
+  String sendFileTooBig(String size, String max);
 }
 
 class _AppLocalizationsDelegate

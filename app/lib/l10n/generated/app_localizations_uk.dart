@@ -372,4 +372,9 @@ class AppLocalizationsUk extends AppLocalizations {
   String presentRepair(int r) {
     return 'Кадр відновлення $r';
   }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'Файл завеликий: $size (ліміт $max).';
+  }
 }

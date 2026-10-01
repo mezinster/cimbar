@@ -110,5 +110,6 @@
   "sendTooLarge": "Çok büyük: {frames} kare (sınır {max}).",
   "sendFailed": "Kodlama başarısız: {error}",
   "presentSource": "Kare {i} / {n}",
-  "presentRepair": "Onarım karesi {r}"
+  "presentRepair": "Onarım karesi {r}",
+  "sendFileTooBig": "Dosya çok büyük: {size} (sınır {max})."
 }

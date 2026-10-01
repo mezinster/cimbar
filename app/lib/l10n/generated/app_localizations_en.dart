@@ -371,4 +371,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String presentRepair(int r) {
     return 'Repair frame $r';
   }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'File too large: $size (limit $max).';
+  }
 }

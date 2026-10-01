@@ -1,3 +1,4 @@
+import 'dart:convert' show utf8;
 import 'dart:io' show ZLibCodec;
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -35,7 +36,15 @@ class PayloadEncoder {
     bool allowCompression = true,
     Uint8List? salt,
     Uint8List? iv,
+    int maxContainerBytes = CimbarSpec.maxInflatedBytes,
   }) {
+    // Receivers refuse to inflate past CimbarSpec.maxInflatedBytes, and an
+    // uncompressed container that size could not be parsed by them either:
+    // refuse before doing any work. (The parameter lets tests lower the cap.)
+    final containerLen = 4 + utf8.encode(name).length + bytes.length;
+    if (containerLen > maxContainerBytes) {
+      throw ArgumentError('file container is $containerLen bytes (max $maxContainerBytes)');
+    }
     final container = FileContainer.buildPayload(name, bytes);
     var body = container;
     var compressed = false;

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cimbar_scanner/core/encode/payload_encoder.dart';
 import 'package:cimbar_scanner/core/encode/send_jobs.dart';
+import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/features/send/send_controller.dart';
 
 EncodedPayload fakePayload(int n) => EncodedPayload(fileId: 1, encrypted: false, compressed: false,
@@ -74,5 +75,33 @@ void main() {
     expect(await c.encode('', cap: maxSendFrames), isNull);
     expect(c.state.error, startsWith('failed:'));
     expect(c.state.text, 'keep me');
+  });
+
+  test('loadFile refuses a file over 128 MB by its length, without reading it', () async {
+    var reads = 0;
+    final c = SendController(encoder: (_) => fakePayload(1))..setMode(SendMode.file);
+    await c.loadFile('movie.mp4',
+        length: () async => CimbarSpec.maxInflatedBytes + 1,
+        read: () async { reads++; return Uint8List(0); });
+    expect(reads, 0);
+    expect(c.state.fileBytes, isNull);
+    expect(c.state.error, 'fileTooBig:${CimbarSpec.maxInflatedBytes + 1}:${CimbarSpec.maxInflatedBytes}');
+  });
+
+  test('loadFile reads a file within the cap (and one whose length is unknown)', () async {
+    final c = SendController(encoder: (_) => fakePayload(1))..setMode(SendMode.file);
+    await c.loadFile('a.bin', length: () async => 2, read: () async => Uint8List.fromList([1, 2]));
+    expect(c.state.fileName, 'a.bin');
+    expect(c.state.fileBytes, [1, 2]);
+    await c.loadFile('b.bin', length: () async => null, read: () async => Uint8List.fromList([3]));
+    expect(c.state.fileName, 'b.bin');
+    expect(c.state.error, isNull);
+  });
+
+  test('an oversized container from PayloadEncoder surfaces as a failed error', () async {
+    final c = SendController(encoder: (r) => PayloadEncoder.encode(name: r.name, bytes: r.bytes, maxContainerBytes: 10))
+      ..setText('more than ten bytes of text');
+    expect(await c.encode('', cap: maxSendFrames), isNull);
+    expect(c.state.error, allOf(startsWith('failed:'), contains('Invalid argument')));
   });
 }

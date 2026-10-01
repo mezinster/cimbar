@@ -372,4 +372,9 @@ class AppLocalizationsKa extends AppLocalizations {
   String presentRepair(int r) {
     return 'აღდგენის კადრი $r';
   }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'ფაილი ზედმეტად დიდია: $size (ლიმიტი $max).';
+  }
 }

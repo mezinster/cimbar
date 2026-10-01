@@ -62,6 +62,26 @@ class SendController extends StateNotifier<SendState> {
   void setMode(SendMode m) => state = state.copyWith(mode: m, clearError: true);
   void setText(String t) => state = state.copyWith(text: t, clearError: true);
   void setFile(String name, Uint8List bytes) => state = state.copyWith(fileName: name, fileBytes: bytes, clearError: true);
+  /// Loads a picked file, checking its [length] before [read]ing it so a large
+  /// video never lands in memory: over [CimbarSpec.maxInflatedBytes] (what
+  /// receivers will inflate) it is refused with error 'fileTooBig:<len>:<max>'.
+  /// An unknown length (null) is checked after reading instead.
+  Future<void> loadFile(String name,
+      {required Future<int?> Function() length, required Future<Uint8List> Function() read}) async {
+    const max = CimbarSpec.maxInflatedBytes;
+    final len = await length();
+    if (len != null && len > max) {
+      state = state.copyWith(error: 'fileTooBig:$len:$max');
+      return;
+    }
+    final bytes = await read();
+    if (bytes.length > max) {
+      state = state.copyWith(error: 'fileTooBig:${bytes.length}:$max');
+      return;
+    }
+    setFile(name, bytes);
+  }
+
   void setDelay(int ms) => state = state.copyWith(delayMs: ms);
 
   /// Trims [passphrase] the way the web app does (index.html passEnc.value.trim()),

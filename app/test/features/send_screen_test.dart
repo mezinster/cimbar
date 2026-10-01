@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,5 +65,24 @@ void main() {
     expect(find.text('keep me'), findsOneWidget);
     expect(enabled(tester, 'Present on screen'), isTrue);
     expect(enabled(tester, 'Share GIF'), isTrue);
+  });
+
+  testWidgets('a file over the size cap shows a translated hint', (tester) async {
+    final container = ProviderContainer(overrides: [
+      sendControllerProvider.overrideWith((ref) => SendController(encoder: (_) => fakePayload(1))),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: SendScreen(),
+      ),
+    ));
+    await container.read(sendControllerProvider.notifier)
+        .loadFile('movie.mp4', length: () async => 200 * 1024 * 1024, read: () async => Uint8List(0));
+    await tester.pump();
+    expect(find.text('File too large: 200.0 MB (limit 128.0 MB).'), findsOneWidget);
   });
 }
