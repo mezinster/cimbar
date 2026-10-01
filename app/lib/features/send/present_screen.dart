@@ -42,6 +42,12 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
   Timer? _timer;
   bool _running = false;
 
+  /// Run generation: bumped by every start and stop (and dispose). An async
+  /// step that resumes under a different generation is stale and must neither
+  /// tick nor leave the screen awake/bright — so there is at most one frame
+  /// chain, and every exit ends with the screen restored.
+  int _run = 0;
+
   @override
   void initState() {
     super.initState();
@@ -49,28 +55,53 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
     _start();
   }
 
+  /// Screen settings are best-effort: a plugin that throws (synchronously or
+  /// asynchronously) must never stop the frames or skip a restore.
+  static Future<void> _safe(Future<void> Function() call) async {
+    try {
+      await call();
+    } catch (e) {
+      debugPrint('PresentScreen: screen control failed: $e');
+    }
+  }
+
+  Future<void> _restoreScreen() => Future.wait([
+        _safe(() => widget.controls.keepAwake(false)),
+        _safe(widget.controls.restoreBrightness),
+      ]);
+
   Future<void> _start() async {
+    final gen = ++_run;
     _running = true;
-    await widget.controls.keepAwake(true);
-    await widget.controls.maxBrightness();
+    for (final apply in [() => widget.controls.keepAwake(true), widget.controls.maxBrightness]) {
+      await _safe(apply);
+      if (gen != _run) {
+        // Stopped while this call was in flight: it may have landed after the
+        // stop's restore, so restore again — unless a newer start now owns the screen.
+        if (!_running) await _restoreScreen();
+        return;
+      }
+    }
     _tick();
   }
 
   void _stop() {
+    _run++;
     _running = false;
     _timer?.cancel();
-    widget.controls.keepAwake(false);
-    widget.controls.restoreBrightness();
+    _timer = null;
+    unawaited(_restoreScreen());
   }
 
   // Build the next frame, show it, schedule the following one. A frame that
   // takes longer than the delay to build simply stays on screen longer.
   Future<void> _tick() async {
     if (!_running) return;
+    final gen = _run;
     final sw = Stopwatch()..start();
     final step = _seq.next();
     final img = await widget.toImage(FrameRaster.toRgba(FrameRaster.render(CellGrid.cells(step.data))));
-    if (!mounted || !_running) {
+    if (!mounted || gen != _run) {
       img.dispose();
       return;
     }
@@ -96,7 +127,11 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (_running) _stop();
+    if (_running) {
+      _stop();
+    } else {
+      _run++;
+    }
     _image?.dispose();
     super.dispose();
   }
