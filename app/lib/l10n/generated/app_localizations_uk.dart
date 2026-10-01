@@ -306,4 +306,16 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get sourceCode => 'Вихідний код';
+
+  @override
+  String get receivedText => 'Отриманий текст';
+
+  @override
+  String get copyText => 'Копіювати';
+
+  @override
+  String get textCopied => 'Скопійовано в буфер обміну';
+
+  @override
+  String get shareText => 'Поділитися текстом';
 }

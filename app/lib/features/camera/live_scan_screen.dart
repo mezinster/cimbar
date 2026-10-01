@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -319,6 +320,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> with WidgetsBin
           onOpen: () => openWithFeedback(context, () => FileService.openResult(s.result!)),
           onExport: () => exportWithFeedback(context, () => FileService.exportBytes(s.result!.filename, s.result!.data)),
           onShare: () => FileService.shareResult(s.result!),
+          onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
         ),
         const SizedBox(height: 8),
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.cancel, style: const TextStyle(color: Colors.white70))),

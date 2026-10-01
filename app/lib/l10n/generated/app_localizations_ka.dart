@@ -306,4 +306,16 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get sourceCode => 'საწყისი კოდი';
+
+  @override
+  String get receivedText => 'მიღებული ტექსტი';
+
+  @override
+  String get copyText => 'კოპირება';
+
+  @override
+  String get textCopied => 'დაკოპირდა ბუფერში';
+
+  @override
+  String get shareText => 'ტექსტის გაზიარება';
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../core/format/text_message.dart';
 import '../../core/models/decode_result.dart';
 import '../../l10n/generated/app_localizations.dart';
 
@@ -8,6 +10,7 @@ class ResultCard extends StatelessWidget {
   final VoidCallback? onOpen;
   final VoidCallback? onExport;
   final VoidCallback? onShare;
+  final ValueChanged<String>? onShareText;
 
   const ResultCard({
     super.key,
@@ -15,6 +18,7 @@ class ResultCard extends StatelessWidget {
     this.onOpen,
     this.onExport,
     this.onShare,
+    this.onShareText,
   });
 
   String _formatSize(int bytes) {
@@ -27,6 +31,7 @@ class ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final text = TextMessage.decode(result.filename, result.data);
 
     return Card(
       color: theme.colorScheme.primaryContainer,
@@ -60,6 +65,47 @@ class ResultCard extends StatelessWidget {
                 color: theme.colorScheme.onPrimaryContainer,
               ),
             ),
+            if (text != null) ...[
+              const SizedBox(height: 12),
+              Text(l10n.receivedText, style: theme.textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Container(
+                key: const Key('textResultBody'),
+                constraints: const BoxConstraints(maxHeight: 320),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(12),
+                // Plain text only: received text is untrusted, nothing is linkified.
+                child: SingleChildScrollView(child: SelectableText(text)),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: text));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.textCopied)),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy),
+                    label: Text(l10n.copyText),
+                  ),
+                  if (onShareText != null)
+                    OutlinedButton.icon(
+                      onPressed: () => onShareText!(text),
+                      icon: const Icon(Icons.share),
+                      label: Text(l10n.shareText),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             // Wrap, not Row: the labels do not fit side by side in every
             // locale (Russian overflowed by 9 px on a Pixel 8 Pro), so buttons

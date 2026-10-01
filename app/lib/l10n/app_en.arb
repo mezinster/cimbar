@@ -241,5 +241,13 @@
   "licenseInfo": "MIT License",
   "@licenseInfo": { "description": "License name shown in About screen" },
   "sourceCode": "Source Code",
-  "@sourceCode": { "description": "Label for source code / GitHub link" }
+  "@sourceCode": { "description": "Label for source code / GitHub link" },
+  "receivedText": "Received text",
+  "@receivedText": { "description": "Heading above a received text message in the result card" },
+  "copyText": "Copy",
+  "@copyText": { "description": "Button that copies the received text to the clipboard" },
+  "textCopied": "Copied to clipboard",
+  "@textCopied": { "description": "Snackbar after the received text was copied" },
+  "shareText": "Share text",
+  "@shareText": { "description": "Button that shares the received text via the system share sheet" }
 }

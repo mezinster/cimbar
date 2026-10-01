@@ -305,4 +305,16 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get sourceCode => 'Kaynak Kodu';
+
+  @override
+  String get receivedText => 'Alınan metin';
+
+  @override
+  String get copyText => 'Kopyala';
+
+  @override
+  String get textCopied => 'Panoya kopyalandı';
+
+  @override
+  String get shareText => 'Metni paylaş';
 }

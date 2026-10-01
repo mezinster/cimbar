@@ -305,4 +305,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sourceCode => 'Source Code';
+
+  @override
+  String get receivedText => 'Received text';
+
+  @override
+  String get copyText => 'Copy';
+
+  @override
+  String get textCopied => 'Copied to clipboard';
+
+  @override
+  String get shareText => 'Share text';
 }

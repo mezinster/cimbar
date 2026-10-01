@@ -92,5 +92,9 @@
 
   "privacyPolicy": "Gizlilik Politikası",
   "licenseInfo": "MIT Lisansı",
-  "sourceCode": "Kaynak Kodu"
+  "sourceCode": "Kaynak Kodu",
+  "receivedText": "Alınan metin",
+  "copyText": "Kopyala",
+  "textCopied": "Panoya kopyalandı",
+  "shareText": "Metni paylaş"
 }

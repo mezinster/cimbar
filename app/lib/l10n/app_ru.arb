@@ -92,5 +92,9 @@
 
   "privacyPolicy": "Политика конфиденциальности",
   "licenseInfo": "Лицензия MIT",
-  "sourceCode": "Исходный код"
+  "sourceCode": "Исходный код",
+  "receivedText": "Полученный текст",
+  "copyText": "Копировать",
+  "textCopied": "Скопировано в буфер обмена",
+  "shareText": "Поделиться текстом"
 }

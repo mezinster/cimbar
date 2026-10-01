@@ -643,6 +643,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Source Code'**
   String get sourceCode;
+
+  /// Heading above a received text message in the result card
+  ///
+  /// In en, this message translates to:
+  /// **'Received text'**
+  String get receivedText;
+
+  /// Button that copies the received text to the clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyText;
+
+  /// Snackbar after the received text was copied
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get textCopied;
+
+  /// Button that shares the received text via the system share sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Share text'**
+  String get shareText;
 }
 
 class _AppLocalizationsDelegate

@@ -92,5 +92,9 @@
 
   "privacyPolicy": "Політика конфіденційності",
   "licenseInfo": "Ліцензія MIT",
-  "sourceCode": "Вихідний код"
+  "sourceCode": "Вихідний код",
+  "receivedText": "Отриманий текст",
+  "copyText": "Копіювати",
+  "textCopied": "Скопійовано в буфер обміну",
+  "shareText": "Поділитися текстом"
 }

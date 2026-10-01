@@ -92,5 +92,9 @@
 
   "privacyPolicy": "კონფიდენციალურობის პოლიტიკა",
   "licenseInfo": "MIT ლიცენზია",
-  "sourceCode": "საწყისი კოდი"
+  "sourceCode": "საწყისი კოდი",
+  "receivedText": "მიღებული ტექსტი",
+  "copyText": "კოპირება",
+  "textCopied": "დაკოპირდა ბუფერში",
+  "shareText": "ტექსტის გაზიარება"
 }

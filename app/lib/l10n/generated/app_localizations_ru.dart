@@ -305,4 +305,16 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get sourceCode => 'Исходный код';
+
+  @override
+  String get receivedText => 'Полученный текст';
+
+  @override
+  String get copyText => 'Копировать';
+
+  @override
+  String get textCopied => 'Скопировано в буфер обмена';
+
+  @override
+  String get shareText => 'Поделиться текстом';
 }
