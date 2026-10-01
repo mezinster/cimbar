@@ -48,7 +48,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -607,6 +607,65 @@ test('updateTextInfo shows bytes and an upper-bound frame count', () => {
   elements['textEnc'].value = 'x'.repeat(3000);
   ctx.updateTextInfo();
   assert(elements['textEncInfo'].textContent.includes('textEncInfo'), 'uses the textEncInfo key');
+});
+
+async function completeWith(ctx, name, bytes) {
+  ctx.Cimbar.parsePayload = () => ({ fileName: name, fileBytes: bytes });
+  const data = makeCompletingFrame({ fileId: 21, seq: 0, total: 1 });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});
+}
+
+test('a decoded text message is shown as text (textContent), not downloaded', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const bytes = new Uint8Array(Buffer.from('<b>hi</b>\nthere', 'utf8'));
+  await completeWith(ctx, 'message-20261001-120000.txt', bytes);
+  assertEq(calls.anchorClicks, 0, 'no automatic download for a text message');
+  assertEq(elements['textOut'].style.display, 'block', 'text panel visible');
+  assertEq(elements['textOutBody'].textContent, '<b>hi</b>\nthere', 'text via textContent');
+  assertEq(elements['textOutBody'].innerHTML, '', 'never innerHTML');
+});
+
+test('a non-text payload still downloads and keeps the text panel hidden', async () => {
+  const { ctx, elements, calls } = freshPage();
+  await completeWith(ctx, 'photo.jpg', new Uint8Array([0xff, 0xd8]));
+  assertEq(calls.anchorClicks, 1, 'file downloaded');
+  assert(elements['textOut'].style.display !== 'block', 'text panel hidden');
+});
+
+test('BOM + CRLF: Copy gets the text without BOM, Save writes the exact bytes — Review Focus 1', async () => {
+  const { ctx, calls } = freshPage();
+  const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x61, 0x0d, 0x0a, 0x62]);
+  await completeWith(ctx, 'notes.txt', bytes);
+  let copied = null;
+  ctx.navigator.clipboard = { writeText: async (s) => { copied = s; } };
+  await ctx.copyText();
+  assertEq(copied, 'a\r\nb', 'clipboard text');
+  let blobParts = null;
+  ctx.Blob = class { constructor(p) { blobParts = p; } };
+  ctx.saveText();
+  assertEq(calls.anchorClicks, 1, 'Save downloads');
+  assertEq(Buffer.from(blobParts[0]).toString('hex'), 'efbbbf610d0a62', 'exact received bytes');
+});
+
+test('a blocked clipboard selects the text and explains', async () => {
+  const { ctx, elements } = freshPage();
+  await completeWith(ctx, 'n.txt', new Uint8Array([0x61]));
+  ctx.navigator.clipboard = { writeText: async () => { throw new Error('denied'); } };
+  let selected = false;
+  ctx.getSelection = () => ({ selectAllChildren() { selected = true; } });
+  await ctx.copyText();
+  assert(selected, 'text selected for manual copy');
+  assert(elements['logDec'].innerHTML.includes('copyFailedHint'), 'hint logged');
+});
+
+test('starting over after a text result hides the old text — Review Focus 3', async () => {
+  const { ctx, elements } = freshPage();
+  await completeWith(ctx, 'n.txt', new Uint8Array([0x61]));
+  ctx.resetPhotoSession();
+  assertEq(elements['textOut'].style.display, 'none', 'hidden after reset');
+  assertEq(elements['textOutBody'].textContent, '', 'old text cleared');
 });
 
 (async () => {
