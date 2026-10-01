@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:pointycastle/export.dart';
 
 /// AES-256-GCM encryption/decryption matching web-app/crypto.js wire format.
@@ -79,15 +80,21 @@ class CryptoService {
     }
   }
 
+  /// [n] bytes from the platform CSPRNG (the source of salt and IV).
+  @visibleForTesting
+  static Uint8List randomBytes(int n) {
+    final rng = math.Random.secure();
+    return Uint8List.fromList(List.generate(n, (_) => rng.nextInt(256)));
+  }
+
   /// Encrypt arbitrary bytes with a passphrase.
   /// Returns Uint8List containing the full wire format.
   static Uint8List encrypt(Uint8List data, String passphrase, {Uint8List? salt, Uint8List? iv}) {
     // Random.secure is the platform CSPRNG. The previous FortunaRandom seed was
     // List<int> → Uint8List of clock values, which kept one byte of entropy:
     // 256 possible (salt, iv) pairs, i.e. AES-GCM nonce reuse under one passphrase.
-    final rng = math.Random.secure();
-    salt ??= Uint8List.fromList(List.generate(16, (_) => rng.nextInt(256)));
-    iv ??= Uint8List.fromList(List.generate(12, (_) => rng.nextInt(256)));
+    salt ??= randomBytes(16);
+    iv ??= randomBytes(12);
     final key = _deriveKey(passphrase, salt);
 
     final cipher = GCMBlockCipher(AESEngine())

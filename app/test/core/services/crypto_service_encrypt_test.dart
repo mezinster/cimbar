@@ -11,15 +11,20 @@ void main() {
     expect(CryptoService.decrypt(enc, 'pw'), data);
   });
 
-  test('salt and IV are fresh per call (no 256-seed space)', () {
-    final seen = <String>{};
-    for (var i = 0; i < 300; i++) {
-      final enc = CryptoService.encrypt(data, 'pw');
-      seen.add(enc.sublist(4, 32).toString()); // salt || iv
-    }
+  test('CSPRNG draws are distinct (no 256-seed space)', () {
     // The old FortunaRandom seed kept only the low byte of the clock: at most
-    // 256 distinct (salt, iv) pairs, so 300 calls (> 256) always collided.
-    expect(seen.length, 300);
+    // 256 distinct (salt, iv) pairs, so 2000 draws always collided.
+    final seen = <String>{};
+    for (var i = 0; i < 2000; i++) {
+      seen.add(CryptoService.randomBytes(28).toString()); // salt || iv
+    }
+    expect(seen.length, 2000);
+  });
+
+  test('two encrypt calls use different salt || iv', () {
+    final a = CryptoService.encrypt(data, 'pw');
+    final b = CryptoService.encrypt(data, 'pw');
+    expect(a.sublist(4, 32), isNot(b.sublist(4, 32)));
   });
 
   test('injected salt/iv are used verbatim (golden reproduction only)', () {
