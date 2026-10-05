@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -110,7 +110,7 @@ function freshPage(opts = {}) {
       parsePayload: (bytes) => { calls.parsePayload++; return { fileName: 'x.bin', fileBytes: new Uint8Array(1) }; },
     }),
     ReedSolomon,
-    GifDecoder: class {},
+    GifDecoder: class { decode() { throw new Error('GifDecoder was not stubbed for this test'); } },
     CimbarCrypto: { decryptBytes: async () => { calls.decrypt++; return new Uint8Array(4); } },
     CimbarCompress: { inflateBytes: async (b) => b, MAX_INFLATED: 128 * 1024 * 1024 },
     CimbarI18n: { t: (k) => k, apply: () => {}, LANGUAGES: [{ code: 'en', name: 'English' }, { code: 'ka', name: 'ქართული' }], getLang: () => 'en', setLang() {} },

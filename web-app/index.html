@@ -225,15 +225,25 @@ body.scan-lock { overflow:hidden; }
 #scanner.open { display:block; }
 #scanVideo, #scanOverlay { position:absolute; inset:0; width:100%; height:100%; }
 #scanVideo { object-fit:cover; }
-.scan-top, .scan-bottom { position:absolute; left:0; right:0; padding:12px 16px; color:#fff; background:rgba(0,0,0,.45); }
-.scan-top { top:0; padding-top:calc(12px + env(safe-area-inset-top)); display:flex; justify-content:space-between; align-items:center; }
-.scan-bottom { bottom:0; padding-bottom:calc(12px + env(safe-area-inset-bottom)); text-align:center; }
-.scan-close { background:none; border:0; color:#fff; font-size:24px; line-height:1; cursor:pointer; padding:4px 8px; }
-#scanCount { font:600 15px/1 var(--mono); }
-#scanTrack { display:none; margin-bottom:8px; }
-#scanHint { min-height:1.4em; font-size:16px; }
-#scanResumeBtn { display:none; margin-top:8px; }
+.scan-top { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px; }
+#scanCount:empty { visibility:hidden; }
+.scan-sheet { position:absolute; bottom:0; left:0; right:0; padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+  background:rgba(20,20,20,.82); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border-radius:20px 20px 0 0; color:#fff; }
+.scan-sheet .progress-track { background:rgba(255,255,255,.1); }
+#scanFill { background:var(--signal); }
+#scanTrack { display:none; margin-bottom:12px; }
+#scanHint { min-height:1.5em; font-size:15px; color:rgba(255,255,255,.85); }
+#scanResumeBtn { display:none; margin-top:12px; }
+.btn-ghost-dark { margin-top:16px; background:transparent; border:1px solid rgba(255,255,255,.2); color:#fff; min-height:48px; font-weight:500; }
+.btn-ghost-dark .i { color:var(--signal); }
 #scanDebug { display:none; max-height:30vh; overflow:auto; margin:8px 0 0; text-align:left; font:11px/1.35 var(--mono); color:#9f9; white-space:pre-wrap; }
+
+/* receive: files */
+.notice { margin:4px 0 12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-size:14px; }
+.notice[hidden] { display:none; }
+.photo-btn { margin-top:12px; }
+#progDec .btn-link { padding:0; align-items:center; gap:6px; }
 
 @keyframes spin { to { transform:rotate(360deg); } }
 .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
@@ -494,70 +504,47 @@ body.scan-lock { overflow:hidden; }
     <p class="center"><a class="btn-link" href="#/send" data-i18n="sendAnother">Send something else</a></p>
   </section>
 
-  <!-- ═══════════════════ DECODE ═══════════════════ -->
-  <section class="screen" data-route="/receive/files" id="tab-decode" hidden>
-    <div class="card">
+  <!-- ═══════════════════ RECEIVE ═══════════════════ -->
+  <section class="screen" data-route="/receive/files" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receiveTitle">Receive</h1></header>
+    <div class="notice" id="decNotice" role="status" hidden></div>
+    <a class="btn btn-primary" id="scanBtn" href="#/receive" style="display:none"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="scanCamera">Scan with camera</span></a>
+    <label class="pick" id="dropDec">
+      <input type="file" id="fileDec" class="sr-only" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
+      <span class="pick-icon"><svg class="i" aria-hidden="true"><use href="#i-image"/></svg></span>
+      <span class="pick-title" data-i18n="chooseGif">Choose a GIF</span>
+      <span class="pick-hint" data-i18n="chooseGifHint">A CimBar GIF, or a photo of one frame</span>
+      <span class="pick-drop" data-i18n="dropHere">or drop it here</span>
+    </label>
+    <input type="file" id="photoDec" accept="image/*" capture="environment" class="sr-only" onchange="onFileSelect(this,'dec')">
+    <button type="button" class="btn btn-secondary photo-btn" onclick="document.getElementById('photoDec').click()"><svg class="i" aria-hidden="true"><use href="#i-camera"/></svg><span data-i18n="photographFrames">Photograph frames</span></button>
+    <p class="field-hint" data-i18n="photoFramesHint">One photo per frame — keep going until every frame is in.</p>
+    <div class="file-pill" id="pillDec"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillDecText"></span></div>
+    <div class="form-error" id="decError" role="alert" hidden></div>
+    <div class="progress-section" id="progDec">
+      <div class="progress-header"><span id="progDecLabel" data-i18n="decoding">Decoding…</span><span id="progDecPct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progDecFill"></div></div>
+      <details class="disclosure details-log"><summary data-i18n="details">Details</summary><div class="log" id="logDec"></div></details>
+      <button type="button" class="btn-link" id="photoStartOverBtn" style="display:none" onclick="resetPhotoSession()"><svg class="i" aria-hidden="true"><use href="#i-rotate-ccw"/></svg><span data-i18n="photoStartOver">Start over</span></button>
+    </div>
+  </section>
 
-      <div class="field">
-        <label data-i18n="choosePhotoOrGif">Choose a GIF or a photo of a barcode</label>
-        <div class="drop-zone" id="dropDec">
-          <input type="file" id="fileDec" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
-          <div class="drop-icon">🎞️</div>
-          <div class="drop-text" data-i18n-html="dropGifHtml">Drop a <strong>GIF or photo</strong> here, or click to browse</div>
-        </div>
-        <input type="file" id="photoDec" accept="image/*" capture="environment" style="display:none" onchange="onFileSelect(this,'dec')">
-        <button type="button" class="btn btn-outline" style="margin-top:12px;" data-i18n="takePhoto" onclick="document.getElementById('photoDec').click()">Take a photo</button>
-        <button type="button" class="btn btn-outline" id="scanBtn" style="margin-top:12px;display:none;" data-i18n="scanCamera" onclick="openScanner()">Scan with camera</button>
-        <div class="file-pill" id="pillDec">
-          <span>✓</span><span id="pillDecText"></span>
-        </div>
-      </div>
+  <!-- Placeholders: Task 8 builds the unlock and done screens around these ids. -->
+  <section class="screen" data-route="/receive/unlock" hidden>
+    <input type="password" id="passDec">
+    <div id="unlockError" class="form-error" hidden></div>
+  </section>
 
-      <div class="field">
-        <label data-i18n="passphrase">Passphrase</label>
-        <input type="password" id="passDec" placeholder="Enter passphrase (leave empty if not encrypted)…" data-i18n-placeholder="passDecPlaceholder">
-      </div>
-
-      <button class="btn btn-danger" id="decBtn" onclick="startDecode()" data-i18n="decodeBtn">
-        Decode
-      </button>
-
-      <div class="progress-section" id="progDec">
-        <div class="progress-header">
-          <span id="progDecLabel" data-i18n="decoding">Decoding…</span>
-          <span id="progDecPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progDecFill" style="background:var(--warn)"></div>
-        </div>
-        <div class="log" id="logDec"></div>
-        <button type="button" class="btn btn-outline" id="photoStartOverBtn" style="display:none;margin-top:10px;" data-i18n="photoStartOver" onclick="resetPhotoSession()">Start over</button>
-      </div>
-
-      <div class="form-error" id="decError" role="alert" hidden></div>
-      <div class="output-section" id="fileOut" style="display:none">
-        <div id="fileOutName"></div><div id="fileOutMeta"></div>
-        <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()" data-i18n="saveToDevice">Save to device</button>
-      </div>
-      <div id="unlockError" class="form-error" hidden></div>
-
-      <div class="output-section" id="textOut" style="display:none">
-        <label data-i18n="textReceivedTitle">Received text</label>
-        <pre id="textOutBody" class="text-out"></pre>
-        <button type="button" class="btn btn-primary" onclick="copyText()" data-i18n="copyText">Copy</button>
-        <button type="button" class="btn" onclick="saveText()" data-i18n="saveTxt">Save as .txt</button>
-      </div>
-
-      <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
-        <strong>How decoding works:</strong> A GIF is parsed frame-by-frame in your browser;
-        a photo is located, straightened and read one frame at a time, so you can photograph a
-        looping animation shot by shot until every frame is in. Scanning with the camera does the
-        same continuously, several frames a second. Pixels are decoded back to bytes
-        via color + symbol detection, Reed-Solomon error correction is applied per block, and the
-        frames are reassembled. If the data was encrypted, AES-256-GCM decryption restores the
-        original file. Nothing leaves your device.
-      </div>
-
+  <section class="screen" data-route="/receive/done" hidden>
+    <div class="output-section" id="fileOut" style="display:none">
+      <div id="fileOutName"></div><div id="fileOutMeta"></div>
+      <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()" data-i18n="saveToDevice">Save to device</button>
+    </div>
+    <div class="output-section" id="textOut" style="display:none">
+      <label data-i18n="textReceivedTitle">Received text</label>
+      <pre id="textOutBody" class="text-out"></pre>
+      <button type="button" class="btn btn-primary" onclick="copyText()" data-i18n="copyText">Copy</button>
+      <button type="button" class="btn" onclick="saveText()" data-i18n="saveTxt">Save as .txt</button>
     </div>
   </section>
 
@@ -660,13 +647,15 @@ body.scan-lock { overflow:hidden; }
   <video id="scanVideo" playsinline muted autoplay></video>
   <canvas id="scanOverlay"></canvas>
   <div class="scan-top">
-    <button type="button" class="scan-close" id="scanCloseBtn" title="Close" aria-label="Close" data-i18n-title="scanClose" onclick="closeScanner()">✕</button>
-    <span id="scanCount"></span>
+    <button type="button" class="glass-btn" id="scanCloseBtn" aria-label="Close" data-i18n-title="scanClose" onclick="closeScanner()"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+    <span class="signal-pill" id="scanCount"></span>
+    <span style="width:48px"></span>
   </div>
-  <div class="scan-bottom">
+  <div class="scan-sheet">
     <div class="progress-track" id="scanTrack"><div class="progress-fill" id="scanFill"></div></div>
     <div id="scanHint"></div>
     <button type="button" class="btn btn-primary" id="scanResumeBtn" data-i18n="scanResume" onclick="resumeScanner()">Resume</button>
+    <a class="btn btn-ghost-dark" href="#/receive/files" onclick="loadInsteadOfScanning(event)"><svg class="i" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="loadInstead">Load a GIF or photo instead</span></a>
     <pre id="scanDebug"></pre>
   </div>
 </div>
@@ -756,6 +745,7 @@ function renderRoute() {
 // Per-route side effects; later tasks add cases.
 function onEnterRoute(route, prev) {
   if (route === '/send') updateTextInfo();   // Create code is disabled until something is staged
+  if (route === '/receive') openScanner();   // Receive opens the camera directly (spec §1)
 }
 
 window.addEventListener('hashchange', renderRoute);
@@ -881,6 +871,7 @@ async function handleDecFile(file) {
       resetPhotoSession();
       decFile = file;
       showPill('pillDec', 'pillDecText', file.name, file.size);
+      await startDecode();   // no Decode button: choosing a GIF is the request to decode it (spec §1)
     } else {
       // Stale GIF state must not survive into a photo session: clear the
       // previously staged GIF file and its pill so #pillDec doesn't keep
@@ -1223,15 +1214,16 @@ document.addEventListener('keydown', (e) => {
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
-  // The Decode button means "decode what I have given you", and a GIF and a
+  // startDecode means "decode what I have given you" (choosing a GIF calls it;
+  // so does the unlock screen's retry), and a GIF and a
   // photo session can never both be staged (handleDecFile clears decFile the
   // moment a photo is chosen, and staging a GIF resets the session), so the
-  // button dispatches on whichever one exists:
+  // it dispatches on whichever one exists:
   //   * a GIF          -> decode it (and drop any session, they are exclusive)
   //   * a complete session -> retry finishDecode against the intact assembler.
   //     This is the recovery route for a completion that threw (missing or
   //     wrong passphrase, inflate failure): the passphrase is only read at
-  //     completion time, so typing it and pressing Decode finishes the file
+  //     completion time, so typing it and retrying finishes the file
   //     without re-photographing anything.
   //   * an incomplete session -> say how far along it is; do NOT destroy it.
   clearError('dec');
@@ -1242,21 +1234,13 @@ async function startDecode() {
       log(t('photoKeepGoing', { rank: asm.rank, total: asm.total }), 'info', 'logDec');
       return;
     }
-    const retryBtn = document.getElementById('decBtn');
-    retryBtn.disabled = true;
-    retryBtn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
-    try { await completePhotoSession(); }
-    finally { retryBtn.disabled = false; retryBtn.innerHTML = t('decodeBtn'); }
+    await completePhotoSession();
     return;
   }
 
   // A stale photo session cannot coexist with a staged GIF, but reset anyway
   // so the GIF path never writes into a half-overwritten photo-session UI.
   resetPhotoSession();
-
-  const btn = document.getElementById('decBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
 
   document.getElementById('progDec').style.display = 'block';
   document.getElementById('logDec').innerHTML = '';
@@ -1305,14 +1289,10 @@ async function startDecode() {
   } catch (err) {
     logDecodeError(err);
   }
-
-  btn.disabled = false;
-  btn.innerHTML = t('decodeBtn');
 }
 
 // Shared error logging for both the GIF path (startDecode's own try/catch)
-// and the photo path (addPhoto wraps its finishDecode call separately, since
-// there is no decBtn spinner to reset there).
+// and the photo path (addPhoto wraps its finishDecode call separately).
 function logDecodeError(err) {
   if (err.needPass) { showUnlock(!!err.wrongPass); return; }
   if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
@@ -1334,6 +1314,7 @@ let textResult = null;   // { name, bytes } of the text message on screen
 
 function showTextResult(name, bytes, text) {
   textResult = { name, bytes };
+  clearError('dec');
   document.getElementById('textOutBody').textContent = text;   // never innerHTML: untrusted
   document.getElementById('textOut').style.display = 'block';
   document.getElementById('fileOut').style.display = 'none';
@@ -1353,6 +1334,7 @@ function hideTextResult() {
 // its session intact; the unlock screen's button retries via startDecode.
 function showUnlock(wrongPass) {
   unlockPending = true;
+  clearError('dec');
   const err = document.getElementById('unlockError');
   err.textContent = wrongPass ? t('wrongPass') : '';
   err.hidden = !wrongPass;
@@ -1361,6 +1343,7 @@ function showUnlock(wrongPass) {
 
 function showFileResult(name, bytes) {
   fileResult = { name, bytes };
+  clearError('dec');
   unlockPending = false;
   document.getElementById('fileOutName').textContent = name;              // untrusted
   document.getElementById('fileOutMeta').textContent = fmtBytes(bytes.length);
@@ -1444,6 +1427,7 @@ let photoSession = null;   // { asm, photos, accepted, done, finishing }
 
 function resetPhotoSession() {
   hideTextResult();
+  clearError('dec');
   photoSession = null;
   document.getElementById('progDec').style.display = 'none';
   document.getElementById('logDec').innerHTML = '';
@@ -1582,7 +1566,8 @@ async function addPhoto(file) {
 }
 
 // ── LIVE SCAN (camera → worker → the same photo session) ─────
-let scanner = null;   // { scan, ignoreFileId, debugLines } while the scanner view is open
+let scanner = null;   // { scan, ignoreFileId, debugLines, ownEntry } while the scanner view is open
+let lastScanError = null;   // the last onError code of the current scan, for the fallback notice
 const SCAN_DEBUG = /[?&]debug=1(&|$)/.test(location.search);
 
 if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
@@ -1615,7 +1600,7 @@ function showScanProgress() {
   const count = document.getElementById('scanCount');
   const track = document.getElementById('scanTrack');
   if (!asm || !asm.total) { count.textContent = ''; track.style.display = 'none'; return; }
-  count.textContent = `${asm.rank} / ${asm.total}`;
+  count.textContent = t('scanFrames', { rank: asm.rank, total: asm.total });
   track.style.display = 'block';
   document.getElementById('scanFill').style.width = Math.round(100 * asm.rank / asm.total) + '%';
 }
@@ -1632,8 +1617,13 @@ async function openScanner() {
   decFile = null;                                             // a GIF and a session are mutually exclusive
   document.getElementById('pillDec').classList.remove('show');
 
-  const s = { scan: null, ignoreFileId: null, debugLines: [] };
+  // Opened from #/receive, that route entry is the Back target: Back pops it
+  // (popstate stops the scan). An entry of our own would have to be popped
+  // with history.back() on close, which is asynchronous: it would land on
+  // #/receive again after the close routed away, and reopen the scanner.
+  const s = { scan: null, ignoreFileId: null, debugLines: [], ownEntry: currentRoute !== '/receive' };
   scanner = s;
+  document.getElementById('decNotice').hidden = true;        // a camera that failed before may work now
   document.getElementById('scanner').classList.add('open');
   document.body.classList.add('scan-lock');
   document.getElementById('scanHint').textContent = t('scanStarting');
@@ -1641,10 +1631,11 @@ async function openScanner() {
   document.getElementById('scanDebug').style.display = SCAN_DEBUG ? 'block' : 'none';
   document.getElementById('scanDebug').textContent = '';
   showScanProgress();
-  history.pushState({ cimbarScanner: true }, '');
+  if (s.ownEntry) history.pushState({ cimbarScanner: true }, '');
   document.getElementById('progDec').style.display = 'block';
   log(t('scanStarting'), 'info', 'logDec');
 
+  lastScanError = null;
   s.scan = new CimbarLiveScan.LiveScan({
     video: document.getElementById('scanVideo'),
     overlay: document.getElementById('scanOverlay'),
@@ -1664,7 +1655,7 @@ async function openScanner() {
       pre.textContent = s.debugLines.join('\n');
       pre.scrollTop = pre.scrollHeight;
     },
-    onError: (code) => log(scanErrorText(code), 'err', 'logDec'),
+    onError: (code) => { lastScanError = code; log(scanErrorText(code), 'err', 'logDec'); },
     onPaused: () => {
       if (scanner !== s) return;
       document.getElementById('scanHint').textContent = t('scanPaused');
@@ -1696,15 +1687,39 @@ async function onScanStopped(s, info) {
   document.body.classList.remove('scan-lock');
   // reason === 'back' means popstate already consumed our history entry; a stale
   // {cimbarScanner:true} entry left by a reload/Forward would otherwise cause a second back().
-  if (info.reason !== 'back' && history.state && history.state.cimbarScanner) history.back();
+  if (s.ownEntry && info.reason !== 'back' && history.state && history.state.cimbarScanner) history.back();
   log(t('scanSummary', { frames: info.frames, accepted: info.accepted }), 'info', 'logDec');
   // A close that races the completing frame (reason !== 'complete', but the
   // session is already complete and not yet done) must still finish the
-  // file — otherwise it sits waiting for a Decode press with no indication
+  // file — otherwise it sits waiting for a retry with no indication
   // why, since the log line above already claims the scan is over.
   if (info.reason === 'complete' || (photoSession && !photoSession.done && photoSession.asm.isComplete())) {
     await completePhotoSession();
   }
+  // Where to land after the scanner closes (spec §1): a completion routed
+  // itself (done/unlock); a Back gesture already traversed to where the user
+  // asked; an error falls back to the files screen; a plain close from
+  // #/receive returns to the hub.
+  if (currentRoute !== '/receive' || info.reason === 'back') return;
+  if (info.reason === 'error' || info.reason === 'decoderFailed') {
+    navigate('#/receive/files', { replace: true });
+    showNotice(lastScanError === 'scanDecoderFailed' ? scanErrorText('scanDecoderFailed') : t('camUnavailable'));
+  } else if (!(photoSession && photoSession.asm.isComplete())) {
+    navigate('#/', { replace: true });
+  }
+}
+
+function showNotice(message) {
+  const el = document.getElementById('decNotice');
+  el.textContent = message; el.hidden = false;
+}
+
+// The scanner's "Load a GIF or photo instead": stop first (its plain-close
+// routing sends #/receive to the hub), then replace that with the files screen.
+function loadInsteadOfScanning(e) {
+  e.preventDefault();
+  if (scanner) scanner.scan.stop('closed');
+  navigate('#/receive/files', { replace: true });
 }
 
 function closeScanner() { if (scanner) scanner.scan.stop('closed'); }

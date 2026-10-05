@@ -685,6 +685,100 @@ test('Wake Lock: concurrent acquires issue a single request', async () => {
   assertEq(requests, 1, 'one request');
 });
 
+test('entering #/receive opens the scanner; closing it without a file returns to the hub', async () => {
+  const { ctx, calls } = freshPage();
+  ctx.navigate('#/receive');
+  await new Promise((r) => setTimeout(r, 0));
+  assertEq(calls.liveScans.length, 1, 'scanner started on route entry');
+  calls.liveScans[0].stop('closed');
+  await new Promise((r) => setTimeout(r, 0));
+  assertEq(ctx.location.hash, '#/', 'back to the hub');
+});
+
+test('a camera error routes to #/receive/files with the reason shown', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.navigate('#/receive');
+  await new Promise((r) => setTimeout(r, 0));
+  const scan = calls.liveScans[0];
+  scan.o.onError('camDenied');
+  scan.stop('error');
+  await new Promise((r) => setTimeout(r, 0));
+  assertEq(ctx.location.hash, '#/receive/files', 'fallback screen');
+  assertEq(elements['decNotice'].textContent, 'camUnavailable', 'explains the fallback');
+});
+
+test('no camera API: #/receive lands on files without starting a scan', () => {
+  const { ctx, calls } = freshPage({ camera: false });
+  ctx.navigate('#/receive');
+  assertEq(ctx.location.hash, '#/receive/files', 'guarded');
+  assertEq(calls.liveScans.length, 0, 'no scanner');
+});
+
+test('a worker failure falls back to files with the decoder message, not the camera one', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.navigate('#/receive');
+  await tick();
+  const scan = calls.liveScans[0];
+  scan.o.onError('scanDecoderFailed');
+  scan.stop('decoderFailed');
+  await tick();
+  assertEq(ctx.location.hash, '#/receive/files', 'fallback screen');
+  assertEq(elements['decNotice'].textContent, 'scanDecoderFailed', 'names the decoder failure');
+});
+
+test('"Load a GIF or photo instead" stops the scan and lands on #/receive/files, not the hub', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.navigate('#/receive');
+  await tick();
+  let prevented = false;
+  ctx.loadInsteadOfScanning({ preventDefault() { prevented = true; } });
+  await tick();
+  assert(prevented, 'the link does not navigate by itself');
+  assertEq(calls.liveScans[0].state, 'stopped', 'scan stopped');
+  assert(!elements['scanner'].classList.contains('open'), 'overlay closed');
+  assertEq(ctx.location.hash, '#/receive/files', 'files screen');
+});
+
+test('opened from #/receive the scanner adds no history entry of its own; a Back stop leaves routing to the browser', async () => {
+  // The #/receive entry is the scanner's Back target. An extra overlay entry
+  // would need history.back() on close, which is asynchronous in a browser:
+  // it would land on #/receive again after the close routed away, and reopen
+  // the scanner.
+  const { ctx, calls } = freshPage();
+  ctx.navigate('#/receive');
+  await tick();
+  assertEq(calls.pushes, 1, 'only the route entry');
+  calls.liveScans[0].stop('back');
+  await tick();
+  assertEq(calls.backs || 0, 0, 'no history.back()');
+  assertEq(ctx.location.hash, '#/receive', 'the traversal the browser already made is not overridden');
+});
+
+test('choosing a GIF decodes it straight away', async () => {
+  const { ctx, calls } = freshPage();
+  let decoded = 0;
+  ctx.GifDecoder = class { decode() { decoded++; throw new Error('stub GIF decoder'); } };
+  const gifBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0, 0, 0, 0]);
+  await ctx.handleDecFile({ name: 'a.gif', size: 8, slice: () => ({ arrayBuffer: async () => gifBytes.buffer }), arrayBuffer: async () => gifBytes.buffer });
+  assertEq(decoded, 1, 'decoded without a Decode press');
+  assert(calls.consoleErrors.some((e) => e && e.message === 'stub GIF decoder'), 'the decode ran into the stub');
+});
+
+test('a stale decode error is cleared by Start over, the unlock screen and a result', async () => {
+  for (const [what, act] of [
+    ['resetPhotoSession', (ctx) => ctx.resetPhotoSession()],
+    ['showUnlock', (ctx) => ctx.showUnlock(false)],
+    ['showFileResult', (ctx) => ctx.showFileResult('a.bin', new Uint8Array(1))],
+    ['showTextResult', (ctx) => ctx.showTextResult('m.txt', new Uint8Array(1), 'hi')],
+  ]) {
+    const { ctx, elements } = freshPage();
+    ctx.showError('dec', 'old failure');
+    act(ctx);
+    assertEq(elements['decError'].hidden, true, `${what} hides #decError`);
+    assertEq(elements['decError'].textContent, '', `${what} empties #decError`);
+  }
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
