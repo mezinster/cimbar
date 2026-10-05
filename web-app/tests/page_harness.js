@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -57,6 +57,7 @@ function freshPage(opts = {}) {
       appendChild(child) { if (child && child.textContent) el.innerHTML += child.textContent + '\n'; },
       addEventListener() {},
       setAttribute(k, v) { el['attr_' + k] = v; },
+      append() {}, insertAdjacentHTML() {},
       showModal() { el.open = true; }, close() { el.open = false; },
       click() { el._clicked = (el._clicked || 0) + 1; },
     };
@@ -110,7 +111,7 @@ function freshPage(opts = {}) {
     GifDecoder: class {},
     CimbarCrypto: { decryptBytes: async () => { calls.decrypt++; return new Uint8Array(4); } },
     CimbarCompress: { inflateBytes: async (b) => b, MAX_INFLATED: 128 * 1024 * 1024 },
-    CimbarI18n: { t: (k) => k, apply: () => {} },
+    CimbarI18n: { t: (k) => k, apply: () => {}, LANGUAGES: [{ code: 'en', name: 'English' }, { code: 'ka', name: 'ქართული' }], getLang: () => 'en', setLang() {} },
     CimbarPhoto: { decode: () => { throw new Error('CimbarPhoto.decode was not stubbed for this test'); } },
     createImageBitmap: async () => ({ width: 10, height: 10, close() {} }),
     innerWidth: 800, innerHeight: 600,

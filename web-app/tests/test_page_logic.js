@@ -528,6 +528,17 @@ test('starting over after a text result hides the old text — Review Focus 3', 
   assertEq(elements['textOutBody'].textContent, '', 'old text cleared');
 });
 
+test('choosing a language from the sheet sets it and closes the sheet', () => {
+  const { ctx, elements } = freshPage();
+  let set = null;
+  ctx.CimbarI18n.setLang = (c) => { set = c; };
+  ctx.openLanguageSheet();
+  assertEq(elements['langSheet'].open, true, 'sheet open');
+  ctx.chooseLanguage('ka');
+  assertEq(set, 'ka', 'language applied');
+  assertEq(elements['langSheet'].open, false, 'sheet closed');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {

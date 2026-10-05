@@ -37,7 +37,7 @@ test('index.html links a favicon, an Apple touch icon and a web manifest', () =>
   for (const rel of ['icon', 'apple-touch-icon', 'manifest']) {
     assert(new RegExp(`<link\\b[^>]*\\brel="${rel}"`).test(html), `no <link rel="${rel}">`);
   }
-  assert(/<meta name="theme-color" content="#[0-9a-fA-F]{6}">/.test(html), 'no <meta name="theme-color">');
+  assert(/<meta name="theme-color" content="#f5f3ef"(?: media="\(prefers-color-scheme: light\)")?>/.test(html), 'no light <meta name="theme-color" content="#f5f3ef">');
 });
 
 test('every local <link href> exists in web-app/', () => {
