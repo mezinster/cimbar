@@ -795,7 +795,7 @@ function askConfirm(message) {
   });
 }
 
-const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError', done: 'doneError' };
+const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError', done: 'doneError', unlock: 'unlockError' };
 function showError(side, message) {
   const el = document.getElementById(ERROR_IDS[side]);
   el.textContent = message;          // messages may quote untrusted names: never innerHTML
@@ -1330,12 +1330,14 @@ async function startDecode() {
 // and the photo path (addPhoto wraps its finishDecode call separately).
 function logDecodeError(err) {
   if (err.needPass) { console.error(err); showUnlock(!!err.wrongPass); return; }   // logged: a non-auth decrypt failure surfaces as needPass too
-  if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
-  else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
-  else {
-    log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
-    showError('dec', t('errorPrefix', { msg: err.message }));
-  }
+  const msg = err.unsupported ? t('noDecompressionSupport')
+    : err.tooLarge ? t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) })
+    : t('errorPrefix', { msg: err.message });
+  log(msg, 'err', 'logDec');
+  // An Unlock retry that fails for another reason (inflate, parse) must say so
+  // where the user is; #decError sits on the hidden files screen.
+  if (currentRoute === '/receive/unlock') showError('unlock', msg);
+  else if (!err.unsupported && !err.tooLarge) showError('dec', msg);
   console.error(err);
 }
 
@@ -1350,6 +1352,7 @@ let textResult = null;   // { name, bytes } of the text message on screen
 function showTextResult(name, bytes, text) {
   textResult = { name, bytes };
   clearError('dec');
+  clearError('done');
   document.getElementById('textOutBody').textContent = text;   // never innerHTML: untrusted
   document.getElementById('textOut').style.display = 'block';
   document.getElementById('fileOut').style.display = 'none';
@@ -1360,6 +1363,7 @@ function hideTextResult() {
   textResult = null;
   fileResult = null;
   unlockPending = false;
+  clearError('done');
   document.getElementById('textOutBody').textContent = '';
   document.getElementById('textOut').style.display = 'none';
   document.getElementById('fileOut').style.display = 'none';
@@ -1443,7 +1447,7 @@ function shareFile() {
   return shareBlob(new Blob([fileResult.bytes]), fileResult.name, mimeFor(fileResult.name), 'done');
 }
 
-async function unlock() { clearError('dec'); await startDecode(); }   // startDecode retries a GIF or a complete session
+async function unlock() { clearError('dec'); clearError('unlock'); await startDecode(); }   // startDecode retries a GIF or a complete session
 function discardAndRescan() { resetPhotoSession(); decFile = null; navigate('#/receive', { replace: true }); }
 
 function saveText() {

@@ -917,6 +917,41 @@ test('a passphrase failure is still logged to the console before routing to unlo
   assert(calls.consoleErrors.includes(err), 'console.error(err) ran');
 });
 
+test('a share error from one result does not leak onto the next result', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.showFileResult('a.pdf', new Uint8Array(3));
+  ctx.navigator.share = async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; };
+  await ctx.shareFile();
+  assertEq(elements['doneError'].hidden, false, 'setup: share error shown');
+  ctx.resetPhotoSession();   // what "Receive another" does
+  ctx.showTextResult('m.txt', new Uint8Array([0x61]), 'a');
+  assertEq(elements['doneError'].hidden, true, 'old share error gone');
+  assertEq(elements['doneError'].textContent, '', 'old share error emptied');
+  // and showTextResult clears it on its own too
+  ctx.showError('done', 'stale');
+  ctx.showTextResult('n.txt', new Uint8Array([0x62]), 'b');
+  assertEq(elements['doneError'].hidden, true, 'showTextResult clears #doneError');
+});
+
+test('an Unlock retry that fails for another reason explains it on the unlock screen', async () => {
+  const { ctx, elements } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 14, seq: 0, total: 1, encrypted: true });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  ctx.CimbarCrypto = { decryptBytes: async () => { throw new Error('bad'); } };
+  elements['passDec'].value = 'wrong';
+  await ctx.addPhoto({});
+  assertEq(elements['unlockError'].textContent, 'wrongPass', 'setup: wrong pass shown');
+  ctx.CimbarCrypto = { decryptBytes: async () => new Uint8Array(4) };
+  ctx.Cimbar.parsePayload = () => { throw new Error('corrupt container'); };
+  elements['passDec'].value = 'right';
+  await ctx.unlock();
+  assertEq(ctx.location.hash, '#/receive/unlock', 'still on the unlock screen');
+  assertEq(elements['unlockError'].hidden, false, 'error shown on the unlock screen');
+  assertEq(elements['unlockError'].textContent, 'errorPrefix', 'the failure, not the stale wrong-pass message');
+  assert(elements['logDec'].innerHTML.includes('errorPrefix'), 'the log line is kept');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
