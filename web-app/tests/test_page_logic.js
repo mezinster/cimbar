@@ -661,6 +661,30 @@ test('Escape does nothing while a <dialog> is open; closes Present otherwise', (
   assertEq(calls.backs, 1, 'closes Present');
 });
 
+test('Wake Lock: a lock granted after Present closed is released, not kept', async () => {
+  const { ctx, elements } = freshPage();
+  let release; const gate = new Promise((r) => { release = r; });
+  let released = 0;
+  const sentinel = { addEventListener() {}, release: async () => { released++; } };
+  ctx.navigator.wakeLock = { request: async () => { await gate; return sentinel; } };
+  ctx.presentOpenForTest(true);
+  const p = ctx.acquireWakeLock();
+  ctx.closePresent();
+  release(); await p;
+  assertEq(released, 1, 'late sentinel released');
+  assertEq(elements['wakePill'].hidden, true, 'pill hidden');
+});
+
+test('Wake Lock: concurrent acquires issue a single request', async () => {
+  const { ctx } = freshPage();
+  let requests = 0, release; const gate = new Promise((r) => { release = r; });
+  ctx.navigator.wakeLock = { request: async () => { requests++; await gate; return { addEventListener() {}, release: async () => {} }; } };
+  ctx.presentOpenForTest(true);
+  const a = ctx.acquireWakeLock(), b = ctx.acquireWakeLock();
+  release(); await Promise.all([a, b]);
+  assertEq(requests, 1, 'one request');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {

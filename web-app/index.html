@@ -1186,13 +1186,19 @@ function closePresent() {
 
 function showWakePill() { document.getElementById('wakePill').hidden = !wakeLock; }
 
+let wakeLockPending = false;
 async function acquireWakeLock() {
-  if (!presentOpen || !(navigator.wakeLock && navigator.wakeLock.request)) { showWakePill(); return; }
+  if (!presentOpen || wakeLockPending || !(navigator.wakeLock && navigator.wakeLock.request)) { showWakePill(); return; }
+  wakeLockPending = true;
   try {
     const lock = await navigator.wakeLock.request('screen');
-    wakeLock = lock;
-    lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; showWakePill(); });
+    if (!presentOpen) { lock.release().catch(() => {}); }   // Present closed while we waited
+    else {
+      wakeLock = lock;
+      lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; showWakePill(); });
+    }
   } catch (_) { wakeLock = null; }
+  finally { wakeLockPending = false; }
   showWakePill();
 }
 
