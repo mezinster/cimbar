@@ -45,11 +45,13 @@ html,body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 var
 .i { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
 
 /* top bars */
-.topbar { display:flex; align-items:center; justify-content:space-between; height:56px; padding-top:env(safe-area-inset-top); }
-.wordmark { display:flex; align-items:center; gap:8px; font:400 22px/1 var(--serif); color:var(--text); text-decoration:none; }
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; height:56px; padding-top:env(safe-area-inset-top); }
+.wordmark { display:flex; flex:none; align-items:center; gap:8px; font:400 22px/1 var(--serif); color:var(--text); text-decoration:none; }
 .wordmark img { width:28px; height:28px; }
 .wordmark em { color:var(--accent-fg); }
 .topbar-actions { display:flex; gap:6px; }
+/* below 380px the ka/ru "How it works" label leaves no room: the globe alone is the language button */
+@media (max-width:379px) { #langCode { display:none; } }
 .icon-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; min-width:40px; padding:0 10px; border-radius:var(--radius-sm);
   border:1px solid var(--border); background:var(--surface); color:var(--text2); font:500 13px var(--sans); cursor:pointer; text-decoration:none; white-space:nowrap; position:relative; }
 .icon-btn .i { width:18px; height:18px; }
@@ -174,7 +176,7 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .row .i { color:var(--accent-fg); }
 .muted { font-size:12px; font-weight:400; color:var(--text3); }
 .disclosure-body > label { display:block; margin-bottom:6px; font-size:13px; color:var(--text2); }
-.field-hint { margin-top:8px; font-size:12px; color:var(--text3); }
+.field-hint { margin-top:8px; font-size:12px; color:var(--text2); }   /* instructions: --text3 is 3.4:1 on --bg */
 .details-log { margin-top:8px; box-shadow:none; }
 .details-log > summary { min-height:48px; font:500 13px var(--sans); color:var(--text2); }
 .details-log .log { margin:0 12px 12px; }
@@ -222,8 +224,8 @@ p.center > .btn-link { display:inline-flex; align-items:center; justify-content:
 .present-close { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; }
 .present-wake { position:fixed; top:calc(18px + env(safe-area-inset-top)); right:12px; }
 .present-wake[hidden] { display:none; }
-.present-hint { position:fixed; left:50%; top:calc(50% + min(46vw, 46vh) + 12px); transform:translateX(-50%); max-width:calc(100% - 32px); padding:8px 14px; border-radius:16px;
-  background:rgba(0,0,0,.55); color:#fff; font:500 13px var(--sans); text-align:center; animation:hint-out 0s 3s forwards; }
+.present-hint { position:fixed; left:50%; top:calc(50% + min(46vw, 46vh) + 12px); transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:8px 14px; border-radius:16px;
+  background:var(--overlay-glass); color:#fff; font:500 13px var(--sans); text-align:center; animation:hint-out 0s 3s forwards; }
 @keyframes hint-out { to { opacity:0; visibility:hidden; } }
 @media (prefers-reduced-motion: no-preference) { .present-hint { animation:hint-out .4s 3s forwards; } }
 #present.open { display:flex; }
@@ -867,6 +869,7 @@ function openLanguageSheet() {
     b.setAttribute('role', 'menuitemradio');
     b.setAttribute('aria-checked', String(l.code === CimbarI18n.getLang()));
     b.onclick = () => chooseLanguage(l.code);
+    if (l.code === CimbarI18n.getLang()) b.setAttribute('autofocus', '');   // showModal focuses the current language, not the first row
     const name = document.createElement('span'); name.textContent = l.name;
     const code = document.createElement('span'); code.className = 'code'; code.textContent = l.code.toUpperCase();
     b.append(name, code);
