@@ -212,7 +212,7 @@ cd app
 sh tests/run_all.sh           # never bare `flutter test` — see app/CLAUDE.md's Build section
 ```
 
-The suite (257 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
+The suite (452 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 
