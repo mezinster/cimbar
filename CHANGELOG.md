@@ -10,12 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **The web app is redesigned for phones.** A Send / Receive hub replaces the Encode / Decode / About tabs. The hub has a live, scannable demo code, and Receive opens the camera directly. The app follows the system dark mode. Present keeps the screen awake (Screen Wake Lock) and closes with the Back gesture. Phones get Share GIF / Share for received files. An encrypted scan asks for the passphrase afterwards, so nothing is re-scanned. Browser `alert`/`confirm` dialogs are gone.
 
+## [0.13.0] — 2026-10-05
+
 ### Added
 - Send text, not just files: the web app's Encode tab has a Text mode, and every receiver (web, Android, iOS) shows a received text message with Copy and Save as .txt instead of a bare file.
 - Android/iOS can now send: a new Send tab encodes text or a file and shows it full screen (Present) or shares an animated GIF.
 
 ### Fixed
 - `CryptoService.encrypt` drew its salt and IV from a 256-value seed space; it now uses the platform CSPRNG. Only tests used it before this release.
+- Bottom-bar labels wrapped mid-word in the five-tab bar on a 390 pt phone (ru "О приложении", uk "Про додаток", tr "GIF İçe Aktar", ka "GIF იმპორტი"); the tab labels are shortened, while the screens' own titles keep the full wording. `test/shared/nav_labels_test.dart` caps tab labels at 10 characters.
+
+### Changed
+- The store listings (all five languages) now describe the app as sending as well as receiving, and the README's mobile-app section covers the Send tab, Present and Share GIF.
+- New dependencies `wakelock_plus` and `screen_brightness` (Present keeps the screen awake and bright). Neither adds a permission: the APK still requests only `CAMERA`.
 
 ## [0.12.1] — 2026-09-20
 

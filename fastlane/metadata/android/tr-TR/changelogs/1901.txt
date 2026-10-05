@@ -1,0 +1,3 @@
+• Yeni Gönder sekmesi: bir mesaj yazın veya dosya seçin, başka bir telefonun taraması için tam ekran gösterin ya da hareketli GIF olarak paylaşın
+• Alınan metin uygulamada açılır; kopyalayabilir, paylaşabilir veya .txt olarak kaydedebilirsiniz
+• Daha kısa sekme adları: beş sekmeli çubuk artık alt satıra kaymıyor

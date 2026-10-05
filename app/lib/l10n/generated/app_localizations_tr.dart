@@ -12,7 +12,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get appTitle => 'CimBar Tarayıcı';
 
   @override
-  String get tabImport => 'GIF İçe Aktar';
+  String get tabImport => 'İçe Aktar';
 
   @override
   String get tabCamera => 'Kamera';

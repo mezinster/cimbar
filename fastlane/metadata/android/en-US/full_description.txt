@@ -1,14 +1,16 @@
-CimBar Scanner receives files sent as CimBar barcodes — animated images in which every frame is a grid of colored tile shapes — and turns them back into the original file. Decoding happens entirely on your phone: no account, no server, no internet connection.
+CimBar Scanner sends and receives files and text as CimBar barcodes — animated images in which every frame is a grid of colored tile shapes. Point one phone's camera at another phone's screen, or at a computer running the web app, and the file arrives with no network at all. Encoding and decoding happen entirely on your device: no account, no server, no internet connection.
 
 <b>How it works</b>
 
-1. Encode any file into a CimBar GIF with the free web app at https://nfcarchiver.com/cimbar/ — it runs entirely in your browser, and the file never leaves your computer.
-2. Show the barcode full screen, or send the GIF itself.
+1. Encode a file or a text message into a CimBar barcode: in the app's Send tab, or with the free web app at https://nfcarchiver.com/cimbar/, which runs entirely in your browser.
+2. Show the barcode full screen, or send it as an animated GIF.
 3. Receive it with CimBar Scanner: live-scan an animated barcode with the camera, take a photo of a single-frame one, or import the GIF.
-4. Open, save or share the recovered file.
+4. Open, save or share the recovered file, or copy a received text.
 
 <b>Features</b>
 
+• Send tab: type a message or pick a file, add an optional passphrase, then show the barcode full screen — the screen stays on and bright, and repair frames keep coming for as long as it is shown — or share it as an animated GIF
+• Received text messages appear right in the app, ready to copy, share or save as .txt
 • Live scan with focus and exposure lock, an aiming guide, and hints such as "move closer" or "hold still"
 • Frames can be caught in any order: extra repair frames mean any N frames of an N-frame barcode complete the file, so there is no waiting for the one frame you missed
 • In-app photo or gallery image for single-frame barcodes
@@ -28,5 +30,3 @@ No data collection, no analytics, no trackers, no ads. The only permission the a
 CimBar Scanner is a successor to libcimbar and CFC by sz3 (https://github.com/sz3/libcimbar), the original Color Icon Matrix Barcode projects. It uses its own, newer format, so it does not read barcodes made by libcimbar or CFC.
 
 MIT licensed. Source code, format specification and the web encoder: https://github.com/mezinster/cimbar
-
-Send text or files from your phone too: type a message or pick a file, then show it on screen for another device to scan, or share it as an animated GIF.

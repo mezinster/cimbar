@@ -18,7 +18,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get tabCamera => 'Камера';
 
   @override
-  String get tabSettings => 'О приложении';
+  String get tabSettings => 'Инфо';
 
   @override
   String get importTitle => 'Импорт CimBar GIF';
