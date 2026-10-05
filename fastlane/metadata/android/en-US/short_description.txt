@@ -1,1 +1,1 @@
-Receive files from animated color barcodes — offline, optional encryption
+Send and receive files and text as animated color barcodes — offline
