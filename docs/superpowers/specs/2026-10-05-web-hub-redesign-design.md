@@ -141,7 +141,7 @@ All tap targets are ≥ 48 px.
 
 **Demo GIF.** It is generated **at runtime** by the page's own encoder, so no new asset needs to be staged. The payload is the already-deployed `icon-512.png`, fetched same-origin, about 8 KB.
 - It is rendered once at load, after the encoder scripts, and cached in memory.
-- That PNG is already compressed, but deflate still shrinks it a little (8008 B to 6835 B). The result is 4 source frames plus 1 repair frame plus a repair frame, which gives a genuinely animated loop. A short text would encode to one static frame.
+- That PNG is already compressed, but deflate still shrinks it a little (8008 B to 6835 B). The result is 4 source frames plus 1 repair frame, which gives a genuinely animated loop. A short text would encode to one static frame.
 - Scanning the demo yields `cimbar.png`, the app icon, which shows off the file path and Open.
 - If the fetch fails (for example on a `file://` page), the tile shows a static rendered frame of a fixed short text instead. The tile never shows an error.
 
