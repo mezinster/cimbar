@@ -186,9 +186,6 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .center { text-align:center; }
 
 /* ── Legacy rules kept until Tasks 5–9 restyle the Send, Receive, Present and scanner screens ── */
-/* State visibility the page script toggles (style.display / .show), not styling. */
-.output-section { display:none; }
-
 .strength-track { height:4px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
 .strength-fill { height:100%; width:0%; border-radius:2px; transition:width .3s, background .3s; background:var(--warn); }
 
@@ -204,6 +201,20 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .log-err  { color:var(--warn); }
 .log-info { color:var(--text); }
 
+/* receive: unlock / done */
+.badge-icon { display:inline-grid; place-items:center; width:64px; height:64px; border-radius:50%; background:var(--accent-l); color:var(--accent-fg); }
+.badge-icon .i { width:28px; height:28px; }
+.badge-icon.big { width:80px; height:80px; }
+.badge-icon.big .i { width:40px; height:40px; }
+.screen-heading { margin:12px 0 4px; font:400 26px/1.15 var(--serif); }
+.file-card { display:flex; align-items:center; gap:12px; margin:16px 0; }
+.file-card > .i { width:28px; height:28px; color:var(--accent-fg); }
+.file-card > div { min-width:0; }
+.file-name { font-weight:500; word-break:break-all; }
+.file-card .meta { margin:2px 0 0; text-align:left; }
+.copied { display:flex; width:max-content; margin:8px auto 0; }   /* flex, not inline-flex: auto margins only centre a block-level box */
+.btn[hidden], .chip[hidden] { display:none; }
+p.center > .btn-link { display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; }
 .text-out { text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; max-height:50vh; overflow:auto; padding:12px; margin:8px 0 12px;
   border:1px solid var(--border); border-radius:8px; background:var(--surface2); font:14px/1.5 var(--mono); }
 
@@ -529,23 +540,44 @@ body.scan-lock { overflow:hidden; }
     </div>
   </section>
 
-  <!-- Placeholders: Task 8 builds the unlock and done screens around these ids. -->
+  <!-- ═══════════════════ RECEIVE: UNLOCK ═══════════════════ -->
   <section class="screen" data-route="/receive/unlock" hidden>
-    <input type="password" id="passDec">
-    <div id="unlockError" class="form-error" hidden></div>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receiveTitle">Receive</h1></header>
+    <div class="card center">
+      <span class="badge-icon"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg></span>
+      <h2 class="screen-heading" data-i18n="unlockTitle">This file is protected</h2>
+      <p class="field-hint" data-i18n="unlockSub">All frames are in. Enter the passphrase to open it — no need to scan again.</p>
+      <div class="pass-field"><input type="password" id="passDec" autocomplete="off" data-i18n-placeholder="passphrase" onkeydown="if(event.key==='Enter')unlock()">
+        <button type="button" class="icon-btn" onclick="togglePass('passDec', this)" aria-label="Show"><svg class="i" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
+      <div class="form-error" id="unlockError" role="alert" hidden></div>
+    </div>
+    <button type="button" class="btn btn-primary" style="margin-top:16px" onclick="unlock()"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-i18n="unlockBtn">Unlock</span></button>
+    <p class="center"><button type="button" class="btn-link" onclick="discardAndRescan()"><svg class="i" aria-hidden="true"><use href="#i-rotate-ccw"/></svg><span data-i18n="discardScan">Discard and scan again</span></button></p>
   </section>
 
+  <!-- ═══════════════════ RECEIVE: DONE ═══════════════════ -->
   <section class="screen" data-route="/receive/done" hidden>
-    <div class="output-section" id="fileOut" style="display:none">
-      <div id="fileOutName"></div><div id="fileOutMeta"></div>
-      <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()" data-i18n="saveToDevice">Save to device</button>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receivedTitle">Received</h1></header>
+    <div id="fileOut" style="display:none">
+      <div class="center"><span class="badge-icon big"><svg class="i" aria-hidden="true"><use href="#i-circle-check"/></svg></span>
+        <h2 class="screen-heading" data-i18n="fileReceived">File received</h2></div>
+      <div class="card file-card"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><div><div id="fileOutName" class="file-name"></div><div id="fileOutMeta" class="meta"></div></div></div>
+      <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="saveToDevice">Save to device</span></button>
+      <div class="btn-row" style="margin-top:10px">
+        <button type="button" class="btn" id="openFileBtn" onclick="openFile()" hidden><svg class="i" aria-hidden="true"><use href="#i-external-link"/></svg><span data-i18n="openFile">Open</span></button>
+        <button type="button" class="btn" id="shareFileBtn" onclick="shareFile()" hidden><svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg><span data-i18n="share">Share</span></button>
+      </div>
     </div>
-    <div class="output-section" id="textOut" style="display:none">
-      <label data-i18n="textReceivedTitle">Received text</label>
-      <pre id="textOutBody" class="text-out"></pre>
-      <button type="button" class="btn btn-primary" onclick="copyText()" data-i18n="copyText">Copy</button>
-      <button type="button" class="btn" onclick="saveText()" data-i18n="saveTxt">Save as .txt</button>
+    <div id="textOut" style="display:none">
+      <div class="center"><span class="badge-icon"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <h2 class="screen-heading" data-i18n="messageReceived">Message received</h2></div>
+      <pre id="textOutBody" class="text-out card"></pre>
+      <button type="button" class="btn btn-primary" onclick="copyText()"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span data-i18n="copyText">Copy</span></button>
+      <span class="chip copied" id="copiedChip" hidden><svg class="i" aria-hidden="true"><use href="#i-check"/></svg><span data-i18n="copied">Copied</span></span>
+      <button type="button" class="btn btn-secondary" style="margin-top:10px" onclick="saveText()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="saveTxt">Save as .txt</span></button>
     </div>
+    <div class="form-error" id="doneError" role="alert" hidden></div>
+    <p class="center"><a class="btn-link" href="#/receive" onclick="resetPhotoSession()"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="receiveAnother">Receive another</span></a></p>
   </section>
 
   <!-- ═══════════════════ ABOUT ═══════════════════ -->
@@ -763,7 +795,7 @@ function askConfirm(message) {
   });
 }
 
-const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError' };
+const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError', done: 'doneError' };
 function showError(side, message) {
   const el = document.getElementById(ERROR_IDS[side]);
   el.textContent = message;          // messages may quote untrusted names: never innerHTML
@@ -855,7 +887,9 @@ function isGifBytes(u8) {
 }
 
 async function handleDecFile(file) {
-  hideTextResult();
+  // Results (and a pending unlock) are cleared only once the new input is
+  // accepted: answering Keep to the GIF prompt must leave a locked session
+  // unlockable. resetPhotoSession() clears them on the GIF path.
   try {
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
     if (isGifBytes(head)) {
@@ -876,6 +910,7 @@ async function handleDecFile(file) {
       // Stale GIF state must not survive into a photo session: clear the
       // previously staged GIF file and its pill so #pillDec doesn't keep
       // showing "foo.gif (12 KB)" while a photo accumulation runs.
+      hideTextResult();
       decFile = null;
       document.getElementById('pillDec').classList.remove('show');
       await addPhoto(file);
@@ -1294,7 +1329,7 @@ async function startDecode() {
 // Shared error logging for both the GIF path (startDecode's own try/catch)
 // and the photo path (addPhoto wraps its finishDecode call separately).
 function logDecodeError(err) {
-  if (err.needPass) { showUnlock(!!err.wrongPass); return; }
+  if (err.needPass) { console.error(err); showUnlock(!!err.wrongPass); return; }   // logged: a non-auth decrypt failure surfaces as needPass too
   if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
   else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
   else {
@@ -1346,7 +1381,10 @@ function showFileResult(name, bytes) {
   clearError('dec');
   unlockPending = false;
   document.getElementById('fileOutName').textContent = name;              // untrusted
-  document.getElementById('fileOutMeta').textContent = fmtBytes(bytes.length);
+  document.getElementById('fileOutMeta').textContent = [fmtBytes(bytes.length), extOf(name).toUpperCase()].filter(Boolean).join(' · ');
+  document.getElementById('openFileBtn').hidden = !canOpen(name);
+  document.getElementById('shareFileBtn').hidden = !canShareFiles(mimeFor(name));
+  clearError('done');
   document.getElementById('fileOut').style.display = 'block';
   document.getElementById('textOut').style.display = 'none';
   navigate('#/receive/done', { replace: true });
@@ -1360,18 +1398,53 @@ function saveFile() {
   a.click();
 }
 
+let copiedTimer = null;
 async function copyText() {
   if (!textResult) return;
   const body = document.getElementById('textOutBody');
   try {
     await navigator.clipboard.writeText(body.textContent);
     log(t('textCopied'), 'ok', 'logDec');
+    const chip = document.getElementById('copiedChip');
+    chip.hidden = false;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => { chip.hidden = true; }, 2000);
   } catch (e) {
     const sel = typeof getSelection === 'function' ? getSelection() : null;
     if (sel) sel.selectAllChildren(body);
     log(t('copyFailedHint'), 'err', 'logDec');
   }
 }
+
+// ── Received file: Open / Share (spec §3) ─────────────────
+// Open uses a blob: URL in a new tab. A blob URL inherits THIS page's origin,
+// so a received .svg/.html with script would run as us — those are never
+// openable. Only inert, browser-rendered types are listed.
+const OPENABLE = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', txt: 'text/plain', md: 'text/plain', csv: 'text/csv', json: 'application/json',
+  mp3: 'audio/mpeg', mp4: 'video/mp4', webm: 'video/webm' };
+const SHARE_TYPES = Object.assign({ zip: 'application/zip', doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }, OPENABLE);
+
+function extOf(name) { const m = /\.([A-Za-z0-9]+)$/.exec(name || ''); return m ? m[1].toLowerCase() : ''; }
+// Own keys only: 'x.constructor' / 'x.toString' must not match Object.prototype.
+function mimeFor(name) { const e = extOf(name); return Object.prototype.hasOwnProperty.call(SHARE_TYPES, e) ? SHARE_TYPES[e] : 'application/octet-stream'; }
+function canOpen(name) { return Object.prototype.hasOwnProperty.call(OPENABLE, extOf(name)); }
+
+function openFile() {
+  if (!fileResult || !canOpen(fileResult.name)) return;
+  const url = URL.createObjectURL(new Blob([fileResult.bytes], { type: OPENABLE[extOf(fileResult.name)] }));
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function shareFile() {
+  if (!fileResult) return;
+  clearError('done');
+  return shareBlob(new Blob([fileResult.bytes]), fileResult.name, mimeFor(fileResult.name), 'done');
+}
+
+async function unlock() { clearError('dec'); await startDecode(); }   // startDecode retries a GIF or a complete session
+function discardAndRescan() { resetPhotoSession(); decFile = null; navigate('#/receive', { replace: true }); }
 
 function saveText() {
   if (!textResult) return;

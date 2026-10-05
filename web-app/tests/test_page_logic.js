@@ -462,7 +462,7 @@ test('a wrong passphrase routes to unlock with the wrong-pass message, session i
   assertEq(calls.fileResults, 1, 'Unlock (startDecode) retries the intact session');
 });
 
-test('received text is left-aligned (.text-out overrides .output-section centering)', () => {
+test('received text is left-aligned (.text-out)', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const rule = html.match(/\.text-out\s*\{([^}]*)\}/);
   assert(rule, '.text-out rule exists');
@@ -821,6 +821,100 @@ test('entering #/receive while a completion is in flight lands on the files scre
   assertEq(ctx.location.hash, '#/receive/files', 'not stranded on #/receive');
   release(); await inFlight;
   assertEq(ctx.location.hash, '#/receive/done', 'the completion still routes when it lands');
+});
+
+test('Open is offered only for types a browser renders safely — never svg or html', () => {
+  const { ctx } = freshPage();
+  for (const n of ['a.pdf', 'b.PNG', 'c.jpeg', 'd.txt', 'e.mp4', 'f.json']) assertEq(ctx.canOpen(n), true, n);
+  for (const n of ['x.svg', 'y.html', 'z.htm', 'w.xhtml', 'noext', 'v.exe', 'u.zip']) assertEq(ctx.canOpen(n), false, n);
+  assertEq(ctx.mimeFor('report.PDF'), 'application/pdf', 'case-insensitive');
+  assertEq(ctx.mimeFor('a.bin'), 'application/octet-stream', 'fallback');
+  for (const n of ['a.constructor', 'b.toString', 'c.hasOwnProperty']) {
+    assertEq(ctx.canOpen(n), false, n + ' (Object.prototype key)');
+    assertEq(ctx.mimeFor(n), 'application/octet-stream', n + ' mime');
+  }
+});
+
+test('file result screen: Open hidden for an unsafe type, Share hidden without canShare', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.showFileResult('evil.svg', new Uint8Array(3));
+  assertEq(elements['openFileBtn'].hidden, true, 'svg cannot be opened');
+  assertEq(elements['shareFileBtn'].hidden, true, 'no canShare in harness');
+  assertEq(elements['fileOutName'].textContent, 'evil.svg', 'name via textContent');
+});
+
+test('Unlock reads the passphrase field and retries; Discard resets and rescans', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 12, seq: 0, total: 1, encrypted: true });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});
+  assertEq(ctx.location.hash, '#/receive/unlock', 'asked for the passphrase');
+  elements['passDec'].value = 'pw';
+  await ctx.unlock();
+  assertEq(calls.fileResults, 1, 'unlocked');
+  ctx.discardAndRescan();
+  assertEq(ctx.location.hash, '#/receive', 'rescanning');
+  assertEq(ctx.routeState().hasResult, false, 'result cleared');
+});
+
+test('a failed Share on the file result shows on the done screen; a cancelled one shows nothing', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.showFileResult('a.pdf', new Uint8Array(3));
+  ctx.navigator.share = async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; };
+  await ctx.shareFile();
+  assertEq(elements['doneError'].hidden, false, 'error shown on the done screen');
+  assertEq(elements['doneError'].textContent, 'errorPrefix', 'error text');
+  assertEq(elements['decError'].textContent, '', 'nothing written to the hidden files screen');
+  ctx.navigator.share = async () => { const e = new Error('cancel'); e.name = 'AbortError'; throw e; };
+  await ctx.shareFile();
+  assertEq(elements['doneError'].hidden, true, 'a cancelled share clears and shows nothing');
+});
+
+test('Open opens only an inert type, in a new tab', () => {
+  const { ctx } = freshPage();
+  const opened = [];
+  ctx.open = (...a) => { opened.push(a); };
+  ctx.showFileResult('evil.svg', new Uint8Array(3));
+  ctx.openFile();
+  assertEq(opened.length, 0, 'svg is never opened');
+  ctx.showFileResult('doc.pdf', new Uint8Array(3));
+  ctx.openFile();
+  assertEq(opened.length, 1, 'pdf opened');
+  assertEq(opened[0][1], '_blank', 'new tab');
+});
+
+test('Copy shows the Copied chip', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.showTextResult('m.txt', new Uint8Array([0x61]), 'a');
+  elements['copiedChip'].hidden = true;
+  ctx.navigator.clipboard = { writeText: async () => {} };
+  await ctx.copyText();
+  assertEq(elements['copiedChip'].hidden, false, 'chip shown');
+  assert(!elements['logDec'].innerHTML.includes('copyFailedHint'), 'the copy itself succeeded');
+});
+
+test('choosing a GIF over a complete-but-locked session and answering Keep keeps the unlock pending', async () => {
+  const gifBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0, 0, 0, 0]);
+  const gifFile = { name: 'foo.gif', size: 8, slice: () => ({ arrayBuffer: async () => gifBytes.buffer }), arrayBuffer: async () => gifBytes.buffer };
+  const { ctx, calls } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 13, seq: 0, total: 1, encrypted: true });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  await ctx.addPhoto({});
+  assertEq(ctx.routeState().needsUnlock, true, 'setup: locked');
+  calls.confirmResult = false;
+  await ctx.handleDecFile(gifFile);
+  assertEq(calls.confirmPrompts.length, 1, 'asked');
+  assertEq(ctx.routeState().needsUnlock, true, 'Keep must not lose the pending unlock');
+});
+
+test('a passphrase failure is still logged to the console before routing to unlock', async () => {
+  const { ctx, calls } = freshPage();
+  const err = new Error('OperationError'); err.needPass = true; err.wrongPass = true;
+  ctx.logDecodeError(err);
+  assertEq(ctx.location.hash, '#/receive/unlock', 'routed to unlock');
+  assert(calls.consoleErrors.includes(err), 'console.error(err) ran');
 });
 
 (async () => {

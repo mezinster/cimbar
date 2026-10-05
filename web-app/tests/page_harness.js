@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult', 'mimeFor', 'canOpen', 'openFile', 'shareFile', 'unlock', 'discardAndRescan', 'logDecodeError'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -100,10 +100,10 @@ function freshPage(opts = {}) {
     confirm: (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; },
     addEventListener() {},
     setInterval: () => 1, clearInterval: () => {},
-    Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout,
+    Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout, clearTimeout,
     Blob: class { constructor() {} },
     File: class { constructor(b, n, o) { this.name = n; this.type = (o || {}).type; } },
-    URL: { createObjectURL: () => 'blob://x' },
+    URL: { createObjectURL: () => 'blob://x', revokeObjectURL() {} },
     CimbarFormat: Fmt,
     Cimbar: Object.assign({}, Core, {
       RatelessAssembler: RatelessMod.RatelessAssembler,
