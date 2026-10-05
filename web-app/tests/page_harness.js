@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -157,6 +157,8 @@ function freshPage(opts = {}) {
       );
     }
   }
+  // Top-level const/let are not properties of a vm context; expose the router's table.
+  ctx.ROUTES = vm.runInContext('ROUTES', ctx);
   // Tests read elements the page under test never touched (e.g. asserting
   // addFrame — unlike addPhoto — leaves 'logDec' untouched: elements['logDec']
   // must read as an untouched default, not throw). Auto-vivify on read the

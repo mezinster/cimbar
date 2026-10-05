@@ -859,13 +859,63 @@ footer {
 const t = (key, params) => CimbarI18n.t(key, params);
 CimbarI18n.apply();
 
-// ── Tab switching ─────────────────────────────────────────
-function switchTab(evt, name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  evt.currentTarget.classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
+// ── Routing (hash-based, spec §1) ─────────────────────────
+// Hashes never reach the server, so this works on the static S3/CloudFront
+// deploy with no rewrite rules. resolveRoute is pure (tests/test_router.js);
+// navigate/renderRoute are the thin glue around it.
+const ROUTES = ['/', '/send', '/send/ready', '/receive', '/receive/files', '/receive/unlock', '/receive/done', '/how'];
+let currentRoute = null;
+let unlockPending = false;   // a completion failed for lack of / a wrong passphrase (Task 3)
+
+function resolveRoute(hash, s) {
+  const asked = String(hash || '').replace(/^#/, '') || '/';
+  let route = ROUTES.includes(asked) ? asked : '/';
+  for (let i = 0; i < ROUTES.length; i++) {   // guards can chain (unlock → receive → files)
+    const next =
+      route === '/send/ready' && !s.hasGif ? '/send' :
+      route === '/receive' && !s.hasCamera ? '/receive/files' :
+      route === '/receive/unlock' && !s.needsUnlock ? '/receive' :
+      route === '/receive/done' && !s.hasResult ? '/' : null;
+    if (!next) break;
+    route = next;
+  }
+  return { route, redirect: route === asked ? null : '#' + route };
 }
+
+function routeState() {
+  return {
+    hasGif: !!outputBlob,
+    hasCamera: !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function'),
+    needsUnlock: unlockPending,
+    hasResult: !!(textResult || fileResult),
+  };
+}
+
+// '/receive' has no screen of its own: the scanner overlay opens over the files screen.
+function screenFor(route) { return route === '/receive' ? '/receive/files' : route; }
+
+function navigate(hash, opts) {
+  if (opts && opts.replace) history.replaceState(history.state, '', hash);
+  else history.pushState(null, '', hash);
+  renderRoute();
+}
+
+function renderRoute() {
+  const { route, redirect } = resolveRoute(location.hash, routeState());
+  if (redirect) history.replaceState(history.state, '', redirect);
+  if (route === currentRoute) return;
+  const prev = currentRoute;
+  currentRoute = route;
+  const screen = screenFor(route);
+  document.querySelectorAll('.screen').forEach((el) => { el.hidden = el.dataset.route !== screen; });
+  if (typeof scrollTo === 'function') scrollTo(0, 0);
+  onEnterRoute(route, prev);
+}
+
+// Per-route side effects; later tasks add cases.
+function onEnterRoute(route, prev) {}
+
+window.addEventListener('hashchange', renderRoute);
 
 // ── File selection ────────────────────────────────────────
 let encFile = null, decFile = null;
@@ -1317,6 +1367,7 @@ function logDecodeError(err) {
 // have been accumulated): strip the length prefix, auto-detect encryption,
 // inflate if compressed, parse the container and offer the file for
 // download.
+let fileResult = null;
 let textResult = null;   // { name, bytes } of the text message on screen
 
 function showTextResult(name, bytes, text) {
@@ -1690,6 +1741,7 @@ function concat(...arrays) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+renderRoute();
 </script>
 </body>
 </html>
