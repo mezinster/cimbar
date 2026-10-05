@@ -952,6 +952,19 @@ test('an Unlock retry that fails for another reason explains it on the unlock sc
   assert(elements['logDec'].innerHTML.includes('errorPrefix'), 'the log line is kept');
 });
 
+test('hub demo encodes the deployed icon; a fetch failure falls back to a text frame, never an error', async () => {
+  const { ctx, elements } = freshPage();
+  const seen = [];
+  ctx.encodeToGif = async (input) => { seen.push(input.name); return { blob: {}, state: {}, stats: {} }; };
+  ctx.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+  await ctx.renderDemo();
+  assertEq(seen[0], 'cimbar.png', 'icon payload');
+  assertEq(elements['demoGif'].src, 'blob://x', 'image set');
+  ctx.fetch = async () => { throw new Error('offline'); };
+  await ctx.renderDemo();
+  assertEq(seen[1], 'hello.txt', 'fallback payload');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {

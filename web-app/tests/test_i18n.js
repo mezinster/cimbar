@@ -83,6 +83,13 @@ test('html-bearing strings keep their markup balanced in every language', () => 
   }
 });
 
+test('no orphaned keys: every English key is used by index.html or by i18n.js itself', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const self = new Set(['title']);   // apply() sets document.title from t('title')
+  const orphans = Object.keys(en).filter((k) => !self.has(k) && !html.includes(`'${k}'`) && !html.includes(`"${k}"`));
+  assertEq(orphans.join(','), '', 'unused keys (delete them from all five tables)');
+});
+
 (async () => {
   console.log('\ntest_i18n.js');
   for (const t of tests) {

@@ -256,8 +256,26 @@ body.scan-lock { overflow:hidden; }
 .photo-btn { margin-top:12px; }
 #progDec .btn-link { padding:0; align-items:center; gap:6px; }
 
-@keyframes spin { to { transform:rotate(360deg); } }
-.spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+/* how it works */
+.steps { display:grid; gap:12px; margin-top:8px; }
+.step-card { display:flex; align-items:center; gap:12px; }
+.step-card > div { flex:1; min-width:0; }
+.step-num { font:400 26px/1 var(--serif); color:var(--text3); }
+.step-title { margin-top:8px; font:400 20px/1.1 var(--serif); }
+.step-text { margin:6px 0 0; font-size:14px; color:var(--text2); }
+.step-thumb { flex:none; padding:4px; border-radius:6px; background:#000; line-height:0; }
+.step-thumb img { width:72px; height:72px; border-radius:4px; image-rendering:pixelated; background:#111; }
+.hood-intro { margin:0 0 16px; font-size:14px; line-height:1.7; color:var(--text2); }
+.hood-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.hood-card { min-width:0; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); overflow-wrap:break-word; }
+.hood-card .i { width:16px; height:16px; color:var(--accent-fg); }
+.hood-title { margin-top:6px; font-weight:500; font-size:14px; }
+.hood-text { margin-top:4px; font-size:12px; line-height:1.45; color:var(--text2); }
+.hood-capacity { display:flex; gap:12px; margin-top:16px; padding:14px; border-radius:var(--radius); background:var(--accent-l); border:1px solid var(--accent-line);
+  color:var(--accent-d); font-size:13px; line-height:1.6; }
+.hood-capacity > .i { width:24px; height:24px; }
+.hood-capacity > div { min-width:0; overflow-wrap:break-word; }
+.disclosure-body > .notice { margin:12px 0 0; font-size:13px; line-height:1.6; }
 
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 </style>
@@ -580,76 +598,108 @@ body.scan-lock { overflow:hidden; }
     <p class="center"><a class="btn-link" href="#/receive" onclick="resetPhotoSession()"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="receiveAnother">Receive another</span></a></p>
   </section>
 
-  <!-- ═══════════════════ ABOUT ═══════════════════ -->
-  <section class="screen" data-route="/how" id="tab-about" hidden>
-    <div class="card">
-      <p style="font-size:14px;line-height:1.8;color:var(--text2)" data-i18n-html="aboutIntroHtml">
-        <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
-        of colored geometric symbols. This tool uses a simplified variant:
-        each cell encodes <strong style="color:var(--accent-fg)">6 bits</strong> —
-        2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
-        Before encoding, your file can optionally be encrypted with
-        <strong style="color:var(--accent-fg)">AES-256-GCM</strong>,
-        and each frame's data is protected by
-        <strong style="color:var(--accent-fg)">Reed-Solomon</strong> error correction
-        (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
-        Type a message in the Encode tab's Text mode and the receiver sees it as text, ready to copy or save.
-      </p>
-
-      <div class="about-grid">
-        <div class="about-card">
-          <div class="about-num">01</div>
-          <div class="about-title" data-i18n="about1Title">Encrypt</div>
-          <div class="about-text" data-i18n="about1Text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
+  <!-- ═══════════════════ HOW IT WORKS ═══════════════════ -->
+  <section class="screen" data-route="/how" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="howTitle">How it works</h1></header>
+    <div class="steps">
+      <div class="card step-card">
+        <div>
+          <div class="step-num">01</div>
+          <div class="step-title" data-i18n="stepEncode">Encode</div>
+          <p class="step-text" data-i18n="howStep1">Your file becomes an animated code, optionally locked with a passphrase.</p>
         </div>
-        <div class="about-card">
-          <div class="about-num">02</div>
-          <div class="about-title" data-i18n="about2Title">ECC</div>
-          <div class="about-text" data-i18n="about2Text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">03</div>
-          <div class="about-title" data-i18n="about3Title">Map</div>
-          <div class="about-text" data-i18n="about3Text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">04</div>
-          <div class="about-title" data-i18n="about4Title">Animate</div>
-          <div class="about-text" data-i18n="about4Text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">05</div>
-          <div class="about-title" data-i18n="about5Title">Transmit</div>
-          <div class="about-text" data-i18n="about5Text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">06</div>
-          <div class="about-title" data-i18n="about6Title">Private</div>
-          <div class="about-text" data-i18n="about6Text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
+        <span class="step-thumb"><img id="howDemo" alt="" width="72" height="72"></span>
+      </div>
+      <div class="card step-card">
+        <div>
+          <div class="step-num">02</div>
+          <div class="step-title" data-i18n="stepPresent">Present</div>
+          <p class="step-text" data-i18n="howStep2">Show it full screen, or share the GIF.</p>
         </div>
       </div>
-
-      <hr class="divider">
-
-      <div style="font-size:13px;color:var(--text2);line-height:1.8;" data-i18n-html="capacityHtml">
-        <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
-        One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
-        3 840 usable cells × 6 bits = 2 880 raw bytes.
-        After RS(255,191): 2 112 protected bytes; minus an 8-byte frame header = 2 104 file bytes per frame.
-        A 50 KB file needs ≈ 25 frames.
-      </div>
-
-      <!-- Language-neutral on purpose: i18n apply() would overwrite the build
-           stamp the deploy workflow writes into #buildSha. -->
-      <div style="margin-top:16px;font-size:12px;color:var(--text2);">
-        CimBar web <span id="appVersion" data-version="0.12.1">v0.12.1</span> · build <span id="buildSha">dev</span>
-      </div>
-
-      <div class="callout callout-warn" style="margin-top:16px;" data-i18n-html="paletteHtml">
-        <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
-        so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
+      <div class="card step-card">
+        <div>
+          <div class="step-num">03</div>
+          <div class="step-title" data-i18n="stepScan">Scan</div>
+          <p class="step-text" data-i18n="howStep3">The other phone reads the frames in any order; any N of them rebuild the file.</p>
+        </div>
       </div>
     </div>
+
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-sliders-horizontal"/></svg><span data-i18n="underHood">Under the hood</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <p class="hood-intro" data-i18n-html="aboutIntroHtml">
+          <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
+          of colored geometric symbols. This tool uses a simplified variant:
+          each cell encodes <strong style="color:var(--accent-fg)">6 bits</strong> —
+          2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
+          Before encoding, your file can optionally be encrypted with
+          <strong style="color:var(--accent-fg)">AES-256-GCM</strong>,
+          and each frame's data is protected by
+          <strong style="color:var(--accent-fg)">Reed-Solomon</strong> error correction
+          (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
+          Files are zlib-compressed first when that saves space, and every GIF — like present mode — carries extra
+          <strong style="color:var(--accent-fg)">repair frames</strong>, so any N frames out of the stream rebuild the file.
+          Type a message in Send's Text mode and the receiver sees it as text, ready to copy or save.
+        </p>
+
+        <div class="hood-grid">
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-lock"/></svg>
+            <div class="hood-title" data-i18n="about1Title">Encrypt</div>
+            <div class="hood-text" data-i18n="about1Text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>
+            <div class="hood-title" data-i18n="about2Title">ECC</div>
+            <div class="hood-text" data-i18n="about2Text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-grid-3x3"/></svg>
+            <div class="hood-title" data-i18n="about3Title">Map</div>
+            <div class="hood-text" data-i18n="about3Text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-refresh-cw"/></svg>
+            <div class="hood-title" data-i18n="about4Title">Animate</div>
+            <div class="hood-text" data-i18n="about4Text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder; extra repair frames are appended so any N frames rebuild the file.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg>
+            <div class="hood-title" data-i18n="about5Title">Transmit</div>
+            <div class="hood-text" data-i18n="about5Text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-cloud-off"/></svg>
+            <div class="hood-title" data-i18n="about6Title">Private</div>
+            <div class="hood-text" data-i18n="about6Text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
+          </div>
+        </div>
+
+        <div class="hood-capacity">
+          <svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg>
+          <div data-i18n-html="capacityHtml">
+            <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
+            One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
+            3 840 usable cells × 6 bits = 2 880 raw bytes.
+            After RS(255,191): 2 112 protected bytes; minus an 8-byte frame header = 2 104 file bytes per frame.
+            A 50 KB file needs ≈ 25 frames.
+          </div>
+        </div>
+
+        <p class="notice" data-i18n-html="paletteHtml">
+          <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
+          so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
+        </p>
+      </div>
+    </details>
+
+    <!-- Language-neutral on purpose: i18n apply() would overwrite the build
+         stamp the deploy workflow writes into #buildSha. -->
+    <p class="footer">
+      CimBar web <span id="appVersion" data-version="0.12.1">v0.12.1</span> · build <span id="buildSha">dev</span>
+    </p>
   </section>
 </div>
 
@@ -1838,7 +1888,31 @@ function concat(...arrays) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ── Hub demo: a real, scannable CimBar of the app icon (spec §2) ──
+// icon-512.png is already deployed; even after deflate (~85%) it spans
+// four frames + a repair frame: a genuinely animated loop.
+// Scanning it from another phone yields cimbar.png.
+async function renderDemo() {
+  if (typeof fetch !== 'function') return;
+  const img = document.getElementById('demoGif');
+  let input;
+  try {
+    const res = await fetch('icon-512.png');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    input = { name: 'cimbar.png', bytes: new Uint8Array(await res.arrayBuffer()) };
+  } catch (_) {
+    input = { name: 'hello.txt', bytes: new TextEncoder().encode('Hello from CimBar') };
+  }
+  try {
+    const { blob } = await encodeToGif(input, { pass: '', frameDelay: 20 });
+    img.src = URL.createObjectURL(blob);
+    const how = document.getElementById('howDemo');
+    if (how) how.src = img.src;
+  } catch (e) { console.error(e); }   // the tile stays an empty black square: never an error UI
+}
+
 renderRoute();
+setTimeout(renderDemo, 0);
 </script>
 </body>
 </html>
