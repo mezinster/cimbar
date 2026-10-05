@@ -645,6 +645,7 @@ footer {
       <button class="btn btn-primary" id="encBtn" onclick="startEncode()" data-i18n="encodeBtn">
         Encode to GIF
       </button>
+      <div class="form-error" id="encError" role="alert" hidden></div>
 
       <!-- Progress -->
       <div class="progress-section" id="progEnc">
@@ -715,6 +716,13 @@ footer {
         <div class="log" id="logDec"></div>
         <button type="button" class="btn btn-outline" id="photoStartOverBtn" style="display:none;margin-top:10px;" data-i18n="photoStartOver" onclick="resetPhotoSession()">Start over</button>
       </div>
+
+      <div class="form-error" id="decError" role="alert" hidden></div>
+      <div class="output-section" id="fileOut" style="display:none">
+        <div id="fileOutName"></div><div id="fileOutMeta"></div>
+        <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()" data-i18n="saveToDevice">Save to device</button>
+      </div>
+      <div id="unlockError" class="form-error" hidden></div>
 
       <div class="output-section" id="textOut" style="display:none">
         <label data-i18n="textReceivedTitle">Received text</label>
@@ -814,6 +822,14 @@ footer {
 </div>
 
 <!-- Hidden canvas for rendering frames -->
+<dialog class="sheet" id="confirmSheet" aria-labelledby="confirmText">
+  <p id="confirmText"></p>
+  <div class="sheet-actions">
+    <button type="button" class="btn" id="confirmKeep" data-i18n="confirmKeep">Keep</button>
+    <button type="button" class="btn btn-primary" id="confirmDiscard" data-i18n="confirmDiscard">Discard</button>
+  </div>
+</dialog>
+
 <canvas id="workCanvas" class="hidden"></canvas>
 
 <div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><canvas id="presentCanvas"></canvas><div id="presentStatus"></div></div>
@@ -917,6 +933,29 @@ function onEnterRoute(route, prev) {}
 
 window.addEventListener('hashchange', renderRoute);
 
+// ── In-page dialogs and messages (spec §3: no native alert/confirm dialogs) ──
+function askConfirm(message) {
+  const dlg = document.getElementById('confirmSheet');
+  document.getElementById('confirmText').textContent = message;
+  return new Promise((resolve) => {
+    const done = (v) => { dlg.close(); resolve(v); };
+    document.getElementById('confirmDiscard').onclick = () => done(true);
+    document.getElementById('confirmKeep').onclick = () => done(false);
+    dlg.oncancel = (e) => { e.preventDefault(); done(false); };   // Esc / back = Keep (the safe choice)
+    dlg.showModal();
+  });
+}
+
+function showError(side, message) {
+  const el = document.getElementById(side === 'enc' ? 'encError' : 'decError');
+  el.textContent = message;          // messages may quote untrusted names: never innerHTML
+  el.hidden = false;
+}
+function clearError(side) {
+  const el = document.getElementById(side === 'enc' ? 'encError' : 'decError');
+  el.textContent = ''; el.hidden = true;
+}
+
 // ── File selection ────────────────────────────────────────
 let encFile = null, decFile = null;
 let encMode = 'file';
@@ -924,7 +963,7 @@ let encMode = 'file';
 function onFileSelect(input, side) {
   const file = input.files[0];
   if (!file) return;
-  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); return; }
+  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); updateTextInfo(); return; }
   handleDecFile(file);
   input.value = '';   // allow re-selecting/re-shooting the same file
 }
@@ -941,7 +980,7 @@ function setEncMode(mode) {
 // Byte count and an upper bound on frames (before compression; encryption adds 48 bytes).
 function updateTextInfo() {
   const btn = document.getElementById('encBtn');
-  if (encMode !== 'text') { btn.disabled = false; return; }
+  if (encMode !== 'text') { btn.disabled = !encFile; return; }
   const text = document.getElementById('textEnc').value;
   const bytes = new TextEncoder().encode(text).length;
   const framed = 4 + 4 + 27 + bytes + 48; // len prefix + name len + 'message-YYYYMMDD-HHMMSS.txt' + text + crypto
@@ -977,7 +1016,7 @@ async function handleDecFile(file) {
       // mutually exclusive). Ask first, the same way a photo of a foreign
       // file does — accumulated frames are expensive to re-photograph.
       if (photoSession && !photoSession.done && photoSession.asm.rank > 0) {
-        if (!confirm(t('gifDiscardsSession', { n: photoSession.asm.rank }))) {
+        if (!(await askConfirm(t('gifDiscardsSession', { n: photoSession.asm.rank })))) {
           log(t('photoProgressKept'), 'info', 'logDec');
           return;
         }
@@ -1020,7 +1059,7 @@ function fmtBytes(b) {
     e.preventDefault(); el.classList.remove('over');
     const f = e.dataTransfer.files[0];
     if (!f) return;
-    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); }
+    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); updateTextInfo(); }
     else if (id === 'dropDec') { handleDecFile(f); }
   });
 });
@@ -1059,12 +1098,12 @@ async function startEncode() {
   // that read would otherwise start a second encode.
   const btn = document.getElementById('encBtn');
   if (btn.disabled) return;
+  clearError('enc');
   btn.disabled = true;
   const input = await encodeInput();
   if (!input) {
     btn.disabled = false;
     updateTextInfo();
-    alert(t(encMode === 'text' ? 'enterTextFirst' : 'selectFileFirst'));
     return;
   }
   const pass = document.getElementById('passEnc').value.trim();
@@ -1177,6 +1216,7 @@ async function startEncode() {
 
   } catch (err) {
     log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
+    showError('enc', t('errorPrefix', { msg: err.message }));
     console.error(err);
   }
 
@@ -1277,8 +1317,9 @@ async function startDecode() {
   //     completion time, so typing it and pressing Decode finishes the file
   //     without re-photographing anything.
   //   * an incomplete session -> say how far along it is; do NOT destroy it.
+  clearError('dec');
   if (!decFile) {
-    if (!photoSession) { alert(t('selectGifFirst')); return; }
+    if (!photoSession) { showError('dec', t('selectGifFirst')); return; }
     const asm = photoSession.asm;
     if (!asm.isComplete()) {
       log(t('photoKeepGoing', { rank: asm.rank, total: asm.total }), 'info', 'logDec');
@@ -1356,9 +1397,13 @@ async function startDecode() {
 // and the photo path (addPhoto wraps its finishDecode call separately, since
 // there is no decBtn spinner to reset there).
 function logDecodeError(err) {
+  if (err.needPass) { showUnlock(!!err.wrongPass); return; }
   if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
   else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
-  else log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
+  else {
+    log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
+    showError('dec', t('errorPrefix', { msg: err.message }));
+  }
   console.error(err);
 }
 
@@ -1374,12 +1419,45 @@ function showTextResult(name, bytes, text) {
   textResult = { name, bytes };
   document.getElementById('textOutBody').textContent = text;   // never innerHTML: untrusted
   document.getElementById('textOut').style.display = 'block';
+  document.getElementById('fileOut').style.display = 'none';
+  navigate('#/receive/done', { replace: true });
 }
 
 function hideTextResult() {
   textResult = null;
+  fileResult = null;
+  unlockPending = false;
   document.getElementById('textOutBody').textContent = '';
   document.getElementById('textOut').style.display = 'none';
+  document.getElementById('fileOut').style.display = 'none';
+}
+
+// A completion that needs the passphrase (none typed, or a wrong one) keeps
+// its session intact; the unlock screen's button retries via startDecode.
+function showUnlock(wrongPass) {
+  unlockPending = true;
+  const err = document.getElementById('unlockError');
+  err.textContent = wrongPass ? t('wrongPass') : '';
+  err.hidden = !wrongPass;
+  navigate('#/receive/unlock', { replace: true });
+}
+
+function showFileResult(name, bytes) {
+  fileResult = { name, bytes };
+  unlockPending = false;
+  document.getElementById('fileOutName').textContent = name;              // untrusted
+  document.getElementById('fileOutMeta').textContent = fmtBytes(bytes.length);
+  document.getElementById('fileOut').style.display = 'block';
+  document.getElementById('textOut').style.display = 'none';
+  navigate('#/receive/done', { replace: true });
+}
+
+function saveFile() {
+  if (!fileResult) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([fileResult.bytes]));
+  a.download = fileResult.name;
+  a.click();
 }
 
 async function copyText() {
@@ -1412,10 +1490,11 @@ async function finishDecode(asm) {
 
   let decrypted;
   if (isEncrypted) {
-    if (!pass) { alert(t('encryptedNeedPass')); throw new Error(t('passRequired')); }
+    if (!pass) { const e = new Error(t('passRequired')); e.needPass = true; e.wrongPass = false; throw e; }
     log(t('decrypting'), 'info', 'logDec');
     setProgress(80, t('decryptingShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
-    decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
+    try { decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass); }
+    catch (e) { e.needPass = true; e.wrongPass = true; throw e; }
   } else {
     log(t('unencrypted'), 'info', 'logDec');
     setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
@@ -1435,17 +1514,12 @@ async function finishDecode(asm) {
   const text = Cimbar.decodeTextMessage(filename, fileData);
   if (text !== null) {
     showTextResult(filename, fileData, text);
+    unlockPending = false;
     log(t('textReceivedLog', { size: fmtBytes(fileData.length) }), 'ok', 'logDec');
     return;
   }
 
-  // Download the file
-  const blob = new Blob([fileData]);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  log(t('savedDownloads'), 'ok', 'logDec');
+  showFileResult(filename, fileData);
 }
 
 // ── PHOTO DECODE (accumulate frames across several photos) ───
@@ -1515,7 +1589,7 @@ function photoSessionGate() {
 // (addPhoto) and live scan. Reports what happened; the caller decides what to
 // tell the user and runs completePhotoSession() when `complete` is true (a
 // live scan closes the scanner first so the passphrase field is visible).
-function addFrame(r) {
+async function addFrame(r) {
   const gate = photoSessionGate();
   if (gate) return { kind: gate };
   if (!photoSession) photoSession = newPhotoSession();
@@ -1526,7 +1600,7 @@ function addFrame(r) {
   // the header ourselves and ask before that reset would happen.
   const h = CimbarFormat.decodeHeader(r.data);
   if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
-    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
+    if (!(await askConfirm(t('photoWrongFile', { n: photoSession.asm.rank })))) {
       return { kind: 'kept', fileId: h.fileId, rank: photoSession.asm.rank, total: photoSession.asm.total, complete: false };
     }
     photoSession = newPhotoSession();
@@ -1572,7 +1646,7 @@ async function addPhoto(file) {
     return;
   }
 
-  const res = addFrame(r);
+  const res = await addFrame(r);
   if (res.kind === 'kept') { log(t('photoWrongFileKept'), 'info', 'logDec'); return; }
   if (res.kind === 'busy') return;
   if (res.kind === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
@@ -1688,12 +1762,12 @@ async function openScanner() {
 // chose to keep their session over a different file, that file's frames are
 // ignored silently for the rest of this scan — otherwise pointing at the
 // other screen would re-prompt several times a second.
-function onScanFrame(s, r) {
+async function onScanFrame(s, r) {
   const h = CimbarFormat.decodeHeader(r.data);
   if (h.valid && s.ignoreFileId !== null && h.fileId === s.ignoreFileId) {
     return { kind: 'kept', fileId: h.fileId, complete: false };
   }
-  const res = addFrame(r);
+  const res = await addFrame(r);
   if (res.kind === 'kept') s.ignoreFileId = res.fileId;
   return res;
 }

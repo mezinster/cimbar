@@ -43,7 +43,7 @@ test('addPhoto ignores further photos once the session has completed (no repeat 
   await ctx.addPhoto({}); // a would-be duplicate of the now-complete file
   await ctx.addPhoto({}); // and another
 
-  assertEq(calls.anchorClicks, 1, 'the download anchor must be clicked exactly once across three photos of an already-completed file');
+  assertEq(calls.fileResults, 1, 'the download anchor must be clicked exactly once across three photos of an already-completed file');
   assertEq(calls.parsePayload, 1, 'finishDecode must not re-run (Cimbar.parsePayload) once the session is done');
   assertEq(decodeCalls, 1, 'a completed session must not even attempt to decode later photos (early return before CimbarPhoto.decode)');
   assert(elements['logDec'].innerHTML.includes('photoAlreadyDone'),
@@ -74,7 +74,7 @@ test('startDecode leaves a LIVE INCOMPLETE photo session alone and reports its p
   // The session is genuinely intact, not merely visually: the next photo completes it.
   next = frame1;
   await ctx.addPhoto({});
-  assertEq(calls.anchorClicks, 1, 'the session must still be usable after the Decode press: the next photo completes the file');
+  assertEq(calls.fileResults, 1, 'the session must still be usable after the Decode press: the next photo completes the file');
 });
 
 test('a completion that failed can be retried by pressing Decode, with no re-photographing — I2', async () => {
@@ -89,8 +89,8 @@ test('a completion that failed can be retried by pressing Decode, with no re-pho
   ctx.toImageData = async () => ({});
 
   await ctx.addPhoto({});   // completes the assembler; finishDecode throws (passDec is empty)
-  assert(calls.alerts.includes('encryptedNeedPass'), 'setup: the completion must have failed for a missing passphrase');
-  assertEq(calls.anchorClicks, 0, 'setup: nothing can have been downloaded yet');
+  assert(ctx.location.hash === '#/receive/unlock', 'setup: the completion must have failed for a missing passphrase');
+  assertEq(calls.fileResults, 0, 'setup: nothing can have been downloaded yet');
   assertEq(elements['photoStartOverBtn'].style.display, 'inline-flex', 'a failed completion must leave the session alive, not tear it down');
 
   // done must NOT have been set by the failed attempt: the session is still
@@ -104,13 +104,13 @@ test('a completion that failed can be retried by pressing Decode, with no re-pho
   await ctx.startDecode();
 
   assertEq(calls.decrypt, 1, 'pressing Decode with a complete-but-unfinished session must retry finishDecode against the intact assembler');
-  assertEq(calls.anchorClicks, 1, 'the retry must deliver the file');
+  assertEq(calls.fileResults, 1, 'the retry must deliver the file');
   assertEq(decodeCalls, decodesBeforeRetry, 'the retry must reuse the accumulated frames — nothing may be re-photographed');
-  assert(!calls.alerts.includes('selectGifFirst'), 'the retry must not fall through to the no-file alert');
+  assert(elements['decError'].textContent !== 'selectGifFirst', 'the retry must not fall through to the no-file alert');
 
   // And now that it succeeded, done is set: further photos are ignored again.
   await ctx.addPhoto({});
-  assertEq(calls.anchorClicks, 1, 'once the retry succeeds the session is done and later photos must not re-download');
+  assertEq(calls.fileResults, 1, 'once the retry succeeds the session is done and later photos must not re-download');
 });
 
 test('a photo taken while a completion is still running is ignored — the finishing flag', async () => {
@@ -142,7 +142,7 @@ test('a photo taken while a completion is still running is ignored — the finis
 
   release();
   await inFlight;
-  assertEq(calls.anchorClicks, 1, 'the completion must deliver the file exactly once');
+  assertEq(calls.fileResults, 1, 'the completion must deliver the file exactly once');
 });
 
 test('choosing a GIF asks before discarding a live photo session, and honours "no" — M3', async () => {
@@ -193,7 +193,7 @@ test("choosing a photo clears a previously staged GIF's decFile and pill — I2 
   // Prove decFile itself, not just the pill, was cleared: startDecode alerts
   // and returns immediately only when decFile is falsy.
   await ctx.startDecode();
-  assertEq(calls.alerts[calls.alerts.length - 1], 'selectGifFirst', 'choosing a photo must clear decFile itself, not just its pill');
+  assertEq(elements['decError'].textContent, 'selectGifFirst', 'choosing a photo must clear decFile itself, not just its pill');
 });
 
 test('declining the wrong-file prompt leaves the assembler untouched and never calls add() on the foreign frame', async () => {
@@ -236,19 +236,19 @@ test('declining the wrong-file prompt leaves the assembler untouched and never c
 test('addFrame reports what happened without logging or completing — kinds', async () => {
   const { ctx, elements, calls } = freshPage();
   const f0 = makeFrame({ fileId: 4, seq: 0, total: 3 });
-  let r = ctx.addFrame(okResult(f0));
+  let r = await ctx.addFrame(okResult(f0));
   assertEq(r.kind, 'accepted', 'first frame accepted');
   assertEq(r.rank, 1, 'rank'); assertEq(r.total, 3, 'total'); assertEq(r.complete, false, 'not complete');
-  r = ctx.addFrame(okResult(f0));
+  r = await ctx.addFrame(okResult(f0));
   assertEq(r.kind, 'duplicate', 'same frame again');
-  r = ctx.addFrame(okResult(makeFrame({ fileId: 4, seq: 1, total: 3, compressed: true })));   // new seq, so not a duplicate
+  r = await ctx.addFrame(okResult(makeFrame({ fileId: 4, seq: 1, total: 3, compressed: true })));   // new seq, so not a duplicate
   assertEq(r.kind, 'rejected', 'flags mismatch is a plain rejection');
   assertEq(elements['logDec'].innerHTML, '', 'addFrame never logs');
   assertEq(elements['progDec'].style.display, 'block', 'progress shown');
   assertEq(elements['photoStartOverBtn'].style.display, 'inline-flex', 'start-over shown');
 
   calls.confirmResult = false;
-  r = ctx.addFrame(okResult(makeFrame({ fileId: 9, seq: 0, total: 2 })));
+  r = await ctx.addFrame(okResult(makeFrame({ fileId: 9, seq: 0, total: 2 })));
   assertEq(r.kind, 'kept', 'foreign file, user keeps the session');
   assertEq(r.fileId, 9, 'foreign fileId reported');
   assertEq(r.rank, 1, 'session untouched');
@@ -256,11 +256,11 @@ test('addFrame reports what happened without logging or completing — kinds', a
 
 test('addFrame returns complete: true and leaves completion to the caller', async () => {
   const { ctx, calls } = freshPage();
-  const r = ctx.addFrame(okResult(makeCompletingFrame({ fileId: 2, seq: 0, total: 1 })));
+  const r = await ctx.addFrame(okResult(makeCompletingFrame({ fileId: 2, seq: 0, total: 1 })));
   assertEq(r.kind, 'accepted', 'accepted');
   assertEq(r.complete, true, 'complete');
   await new Promise((res) => setTimeout(res, 0));
-  assertEq(calls.anchorClicks, 0, 'addFrame itself must not start finishDecode');
+  assertEq(calls.fileResults, 0, 'addFrame itself must not start finishDecode');
   assertEq(calls.parsePayload, 0, 'no completion attempted');
 });
 
@@ -270,7 +270,7 @@ test('addFrame on a finished session returns "done"', async () => {
   ctx.CimbarPhoto.decode = () => okResult(data);
   ctx.toImageData = async () => ({});
   await ctx.addPhoto({});                                  // completes and downloads
-  assertEq(ctx.addFrame(okResult(data)).kind, 'done', 'done');
+  assertEq((await ctx.addFrame(okResult(data))).kind, 'done', 'done');
 });
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -292,7 +292,7 @@ test('live-scan frames and photos build ONE session', async () => {
   ctx.CimbarPhoto.decode = () => okResult(f1);
   ctx.toImageData = async () => ({});
   await ctx.addPhoto({});                                   // the photo completes the SAME session
-  assertEq(calls.anchorClicks, 1, 'the photo completed the file started by the live scan');
+  assertEq(calls.fileResults, 1, 'the photo completed the file started by the live scan');
 });
 
 test('a wrong-file live frame prompts once; after "keep" that file is ignored silently', async () => {
@@ -318,12 +318,12 @@ test('completion during a scan closes the scanner, then completes the session (e
   scan.stop('complete');                                     // what LiveScan does on complete
   await tick();
   assert(!elements['scanner'].classList.contains('open'), 'scanner view closed');
-  assert(calls.alerts.includes('encryptedNeedPass'), 'completion ran after the close (and failed: no passphrase)');
+  assert(ctx.location.hash === '#/receive/unlock', 'completion ran after the close (and failed: no passphrase)');
 
   elements['passDec'].value = 'pw';
   await ctx.startDecode();                                   // the existing recovery route
   assertEq(calls.decrypt, 1, 'retry decrypts from the intact assembler');
-  assertEq(calls.anchorClicks, 1, 'file delivered');
+  assertEq(calls.fileResults, 1, 'file delivered');
 });
 
 test('opening the scanner clears a staged GIF; closing logs a summary and pops the history entry', async () => {
@@ -340,7 +340,7 @@ test('opening the scanner clears a staged GIF; closing logs a summary and pops t
   assertEq(calls.backs, 1, 'history entry consumed on close');
   assert(elements['logDec'].innerHTML.includes('scanSummary'), 'summary logged');
   await ctx.startDecode();
-  assertEq(calls.alerts[calls.alerts.length - 1], 'selectGifFirst', 'decFile itself was cleared');
+  assertEq(elements['decError'].textContent, 'selectGifFirst', 'decFile itself was cleared');
 });
 
 test('a "back" stop does not call history.back(): popstate already consumed the entry', async () => {
@@ -373,7 +373,7 @@ test('a completing frame followed by a non-"complete" close still delivers the f
   assertEq(r.complete, true, 'complete');
   scan.stop('closed');                                       // the user closed, not LiveScan noticing completion
   await tick();
-  assertEq(calls.anchorClicks, 1, 'the file is still delivered even though the stop reason was not "complete"');
+  assertEq(calls.fileResults, 1, 'the file is still delivered even though the stop reason was not "complete"');
 });
 
 test('text mode: encodeInput builds message-….txt from the textarea, as typed (CRLF kept)', async () => {
@@ -399,11 +399,14 @@ test('text mode: empty text disables Encode; whitespace-only does not', async ()
 
 test('switching modes encodes only the visible input — Review Focus 2', async () => {
   const { ctx, elements } = freshPage();
+  ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }] }, 'enc');
   ctx.setEncMode('text');
   elements['textEnc'].value = 'hello';
   ctx.setEncMode('file');
   assertEq(elements['encBtn'].disabled, false, 'file mode never disabled by the text box');
-  assertEq(await ctx.encodeInput(), null, 'file mode with no file staged → null, the typed text is NOT encoded');
+  const input = await ctx.encodeInput();
+  assertEq(input.name, 'a.bin', 'file mode encodes the staged file, the typed text is NOT encoded');
+  assertEq(Buffer.from(input.bytes).toString('hex'), '010203', 'the staged file\'s bytes, not the text\'s');
   assertEq(elements['encTextField'].style.display, 'none', 'text field hidden in file mode');
   assertEq(elements['textEnc'].value, 'hello', 'switching keeps the typed text');
 });
@@ -433,12 +436,30 @@ test('file mode: a second Encode click while the file is still being read does n
   assertEq(calls.alerts.length, 0, 'no "select a file" alert from the second click');
 });
 
-test('file mode with nothing staged: Encode explains and stays usable', async () => {
+test('file mode with nothing staged: Create code is disabled and a click is a no-op', async () => {
   const { ctx, elements, calls } = freshPage();
   ctx.setEncMode('file');
+  assertEq(elements['encBtn'].disabled, true, 'disabled until a file is chosen');
   await ctx.startEncode();
-  assertEq(calls.alerts[0], 'selectFileFirst', 'asks for a file');
-  assertEq(elements['encBtn'].disabled, false, 'button restored after a null input');
+  assertEq(calls.alerts.length, 0, 'no alert');
+  ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new ArrayBuffer(3) }] }, 'enc');
+  assertEq(elements['encBtn'].disabled, false, 'enabled once a file is staged');
+});
+
+test('a wrong passphrase routes to unlock with the wrong-pass message, session intact', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 11, seq: 0, total: 1, encrypted: true });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  ctx.CimbarCrypto = { decryptBytes: async () => { throw new Error('Decryption failed — wrong passphrase or corrupted data'); } };
+  elements['passDec'].value = 'nope';
+  await ctx.addPhoto({});
+  assertEq(ctx.location.hash, '#/receive/unlock', 'routed to unlock');
+  assertEq(elements['unlockError'].textContent, 'wrongPass', 'says the passphrase was wrong');
+  assertEq(calls.fileResults, 0, 'nothing delivered');
+  ctx.CimbarCrypto = { decryptBytes: async () => new Uint8Array(4) };
+  await ctx.startDecode();
+  assertEq(calls.fileResults, 1, 'Unlock (startDecode) retries the intact session');
 });
 
 test('received text is left-aligned (.text-out overrides .output-section centering)', () => {
@@ -460,7 +481,7 @@ test('a decoded text message is shown as text (textContent), not downloaded', as
   const { ctx, elements, calls } = freshPage();
   const bytes = new Uint8Array(Buffer.from('<b>hi</b>\nthere', 'utf8'));
   await completeWith(ctx, 'message-20261001-120000.txt', bytes);
-  assertEq(calls.anchorClicks, 0, 'no automatic download for a text message');
+  assertEq(calls.fileResults, 0, 'no automatic download for a text message');
   assertEq(elements['textOut'].style.display, 'block', 'text panel visible');
   assertEq(elements['textOutBody'].textContent, '<b>hi</b>\nthere', 'text via textContent');
   assertEq(elements['textOutBody'].innerHTML, '', 'never innerHTML');
@@ -469,7 +490,7 @@ test('a decoded text message is shown as text (textContent), not downloaded', as
 test('a non-text payload still downloads and keeps the text panel hidden', async () => {
   const { ctx, elements, calls } = freshPage();
   await completeWith(ctx, 'photo.jpg', new Uint8Array([0xff, 0xd8]));
-  assertEq(calls.anchorClicks, 1, 'file downloaded');
+  assertEq(calls.fileResults, 1, 'file downloaded');
   assert(elements['textOut'].style.display !== 'block', 'text panel hidden');
 });
 

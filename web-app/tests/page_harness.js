@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -157,6 +157,12 @@ function freshPage(opts = {}) {
       );
     }
   }
+  // In-page dialogs replace confirm(); keep the old test vocabulary.
+  ctx.askConfirm = async (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; };
+  // The file result is a screen now, not an auto-download: count deliveries.
+  calls.fileResults = 0;
+  const realShowFileResult = ctx.showFileResult;
+  ctx.showFileResult = (...a) => { calls.fileResults++; return realShowFileResult(...a); };
   // Top-level const/let are not properties of a vm context; expose the router's table.
   ctx.ROUTES = vm.runInContext('ROUTES', ctx);
   // Tests read elements the page under test never touched (e.g. asserting
