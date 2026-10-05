@@ -566,6 +566,57 @@ test('entering #/send with nothing staged disables Create code', () => {
   assertEq(elements['encBtn'].disabled, true, 'no file staged');
 });
 
+const gifResult = () => ({ blob: { size: 10 }, state: { frames: [1], bodies: [], fileId: 1, opts: {}, delayMs: 200, repairEnabled: false },
+                           stats: { frames: 1, repair: 0, bytes: 10, compressedPct: null, encrypted: false } });
+function stageText(ctx, elements) { ctx.setEncMode('text'); elements['textEnc'].value = 'hi'; ctx.updateTextInfo(); }
+
+test('a failed Share GIF shows its error on the ready screen; a cancelled one shows nothing', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.encodeToGif = async () => gifResult();
+  ctx.navigate('#/send');
+  stageText(ctx, elements);
+  await ctx.startEncode();
+  ctx.navigator.share = async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; };
+  await ctx.shareGif();
+  assertEq(elements['readyError'].hidden, false, 'error shown on the ready screen');
+  assertEq(elements['readyError'].textContent, 'errorPrefix', 'error text');
+  assert(elements['decError'].textContent === '', 'nothing written to the Receive screen');
+  ctx.navigator.share = async () => { const e = new Error('cancel'); e.name = 'AbortError'; throw e; };
+  await ctx.shareGif();
+  assertEq(elements['readyError'].hidden, true, 'a cancelled share clears and shows nothing');
+});
+
+test('leaving and returning mid-encode keeps Create code disabled', async () => {
+  const { ctx, elements } = freshPage();
+  let release;
+  ctx.encodeToGif = () => new Promise((r) => { release = () => r(gifResult()); });
+  ctx.navigate('#/send');
+  stageText(ctx, elements);
+  const run = ctx.startEncode();
+  await new Promise((r) => setTimeout(r, 0));
+  ctx.navigate('#/');
+  ctx.navigate('#/send');
+  assertEq(elements['encBtn'].disabled, true, 'still disabled while encoding');
+  release();
+  await run;
+  assertEq(elements['encBtn'].disabled, false, 're-enabled after the encode');
+});
+
+test('an encode that finishes off the Send screen keeps the GIF without redirecting', async () => {
+  const { ctx, elements } = freshPage();
+  let release;
+  ctx.encodeToGif = () => new Promise((r) => { release = () => r(gifResult()); });
+  ctx.navigate('#/send');
+  stageText(ctx, elements);
+  const run = ctx.startEncode();
+  await new Promise((r) => setTimeout(r, 0));
+  ctx.navigate('#/');
+  release();
+  await run;
+  assertEq(ctx.location.hash, '#/', 'user left where they were');
+  assertEq(ctx.routeState().hasGif, true, 'GIF kept for #/send/ready');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {

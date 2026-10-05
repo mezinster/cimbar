@@ -481,6 +481,7 @@ body.scan-lock { overflow:hidden; }
       <button type="button" class="btn btn-secondary" id="shareGifBtn" onclick="shareGif()" hidden><svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg><span data-i18n="shareGif">Share GIF</span></button>
       <button type="button" class="btn btn-secondary" onclick="downloadGif()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="download">Download</span></button>
     </div>
+    <div class="form-error" id="readyError" role="alert" hidden></div>
     <p class="field-hint center" id="readyHelp"></p>
     <div class="field-hint center" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
     <p class="center"><a class="btn-link" href="#/send" data-i18n="sendAnother">Send something else</a></p>
@@ -759,13 +760,14 @@ function askConfirm(message) {
   });
 }
 
+const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError' };
 function showError(side, message) {
-  const el = document.getElementById(side === 'enc' ? 'encError' : 'decError');
+  const el = document.getElementById(ERROR_IDS[side]);
   el.textContent = message;          // messages may quote untrusted names: never innerHTML
   el.hidden = false;
 }
 function clearError(side) {
-  const el = document.getElementById(side === 'enc' ? 'encError' : 'decError');
+  const el = document.getElementById(ERROR_IDS[side]);
   el.textContent = ''; el.hidden = true;
 }
 
@@ -822,13 +824,13 @@ function setEncMode(mode) {
 // Byte count and an upper bound on frames (before compression; encryption adds 48 bytes).
 function updateTextInfo() {
   const btn = document.getElementById('encBtn');
-  if (encMode !== 'text') { btn.disabled = !encFile; return; }
+  if (encMode !== 'text') { btn.disabled = encoding || !encFile; return; }
   const text = document.getElementById('textEnc').value;
   const bytes = new TextEncoder().encode(text).length;
   const framed = 4 + 4 + 27 + bytes + 48; // len prefix + name len + 'message-YYYYMMDD-HHMMSS.txt' + text + crypto
   const frames = Math.max(1, Math.ceil(framed / CimbarFormat.fileBytesPerFrame()));
   document.getElementById('textEncInfo').textContent = t('textEncInfo', { bytes: fmtBytes(bytes), frames });
-  btn.disabled = text.length === 0;
+  btn.disabled = encoding || text.length === 0;
 }
 
 // What the Encode button sends: the staged file, or the typed text as a text message.
@@ -934,6 +936,7 @@ function setProgress(pct, label, fillId, pctId, labelId) {
 // ── ENCODE ────────────────────────────────────────────────
 let outputBlob = null;
 let encodeState = null;
+let encoding = false;   // the whole startEncode run: Create code stays disabled even if the user leaves and comes back
 
 // The whole encode pipeline (spec: CLAUDE.md "Encoding pipeline"), UI-free so
 // both the Send screen and the hub demo use it. Its own canvas: the demo may
@@ -1006,9 +1009,10 @@ async function startEncode() {
   const btn = document.getElementById('encBtn');
   if (btn.disabled) return;
   btn.disabled = true;
+  encoding = true;
   clearError('enc');
   const input = await encodeInput();
-  if (!input) { btn.disabled = false; updateTextInfo(); return; }
+  if (!input) { encoding = false; btn.disabled = false; updateTextInfo(); return; }
   const pass = document.getElementById('passEnc').value.trim();
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
   document.getElementById('progEnc').style.display = 'block';
@@ -1025,13 +1029,16 @@ async function startEncode() {
     setProgress(100, t('done'), 'progEncFill', 'progEncPct', 'progEncLabel');
     log(t('gifReady', { size: fmtBytes(outputBlob.size) }), 'ok', 'logEnc');
     // replace: Back from the ready screen goes to the hub, not to compose.
-    navigate('#/send/ready', { replace: true });
+    // Only from compose: a user who left mid-encode (e.g. to scan) stays put;
+    // the GIF is kept and the #/send/ready guard lets them in later.
+    if (currentRoute === '/send') navigate('#/send/ready', { replace: true });
   } catch (err) {
     log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
     showError('enc', t('errorPrefix', { msg: err.message }));
     console.error(err);
   }
   document.getElementById('progEnc').style.display = 'none';
+  encoding = false;
   btn.disabled = false;
   updateTextInfo();
 }
@@ -1065,11 +1072,16 @@ function canShareFiles(type) {
   catch (_) { return false; }
 }
 
-async function shareBlob(blob, name, type) {
+// side names the screen's error box (showError) — the one the user is looking at.
+async function shareBlob(blob, name, type, side) {
   try { await navigator.share({ files: [new File([blob], name, { type })] }); }
-  catch (e) { if (e && e.name !== 'AbortError') showError('dec', t('errorPrefix', { msg: e.message })); }
+  catch (e) { if (e && e.name !== 'AbortError') showError(side, t('errorPrefix', { msg: e.message })); }
 }
-function shareGif() { if (outputBlob) shareBlob(outputBlob, gifFileName(), 'image/gif'); }
+function shareGif() {
+  if (!outputBlob) return;
+  clearError('ready');
+  return shareBlob(outputBlob, gifFileName(), 'image/gif', 'ready');
+}
 
 function clearEncFile() { encFile = null; document.getElementById('pillEnc').classList.remove('show'); document.getElementById('fileEnc').value = ''; updateTextInfo(); }
 function togglePass(id, btn) {
