@@ -142,11 +142,52 @@ html,body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 var
   @keyframes sheet-in { from { transform:translateY(100%); } to { transform:none; } }
 }
 
+/* send: compose */
+.seg { display:flex; gap:4px; margin-top:4px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); }
+.seg-btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:48px; border:0; border-radius:6px;
+  background:none; color:var(--text2); font:500 14px var(--sans); cursor:pointer; }
+.seg-btn .i { width:16px; height:16px; }
+.seg-btn.active { background:var(--accent); color:#fff; }
+.pick { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:150px; margin-top:16px; padding:20px 16px;
+  background:var(--surface); border:2px dashed var(--accent-line); border-radius:var(--radius); cursor:pointer; }
+.pick:focus-within, .pick.over { border-color:var(--accent); }
+.pick-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:var(--accent-l); color:var(--accent-d); }
+.pick-icon .i { width:24px; height:24px; }
+.pick-title { margin-top:12px; font:400 18px/1 var(--serif); color:var(--text); }
+.pick-hint, .pick-drop { margin-top:6px; font-size:12px; color:var(--text3); }
+.pick-drop { display:none; }
+@media (hover:hover) and (pointer:fine) { .pick-drop { display:block; } }
+.file-pill { display:none; align-items:center; gap:10px; margin-top:10px; min-height:48px; padding:0 4px 0 12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow); }
+.file-pill.show { display:flex; }
+.file-pill > .i { color:var(--accent-fg); }
+.file-pill > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+.file-pill .icon-btn { border:0; background:none; color:var(--text3); }
+textarea, select, input[type=password], .pass-field input { width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--text); font:15px var(--sans); }
+textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
+.pass-field { display:flex; align-items:center; gap:8px; }
+.pass-field input { flex:1; min-width:0; font-family:var(--mono); background:var(--bg); }
+.pass-field input::placeholder { font-family:var(--sans); color:var(--text3); }
+.pass-field .icon-btn { width:48px; min-height:48px; padding:0; justify-content:center; }
+.row { display:inline-flex; align-items:center; gap:8px; }
+.row .i { color:var(--accent-fg); }
+.muted { font-size:12px; font-weight:400; color:var(--text3); }
+.disclosure-body > label { display:block; margin-bottom:6px; font-size:13px; color:var(--text2); }
+.field-hint { margin-top:8px; font-size:12px; color:var(--text3); }
+.details-log { margin-top:8px; box-shadow:none; }
+.details-log > summary { min-height:48px; font:500 13px var(--sans); color:var(--text2); }
+.details-log .log { margin:0 12px 12px; }
+.action-bar .progress-section { margin:0 0 12px; padding-top:0; border-top:0; }
+
+/* send: ready */
+.demo .ready-gif { width:min(300px,100%); height:auto; aspect-ratio:1; image-rendering:pixelated; }
+.meta { margin:12px 0 16px; text-align:center; font:12px var(--mono); color:var(--text2); }
+.center { text-align:center; }
+
 /* ── Legacy rules kept until Tasks 5–9 restyle the Send, Receive, Present and scanner screens ── */
 /* State visibility the page script toggles (style.display / .show), not styling. */
 .output-section { display:none; }
-.file-pill { display:none; }
-.file-pill.show { display:inline-flex; }
 
 .strength-track { height:4px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
 .strength-fill { height:100%; width:0%; border-radius:2px; transition:width .3s, background .3s; background:var(--warn); }
@@ -190,7 +231,6 @@ body.scan-lock { overflow:hidden; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
 
-.hidden { display:none !important; }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 </style>
 </head>
@@ -378,88 +418,72 @@ body.scan-lock { overflow:hidden; }
     <p class="footer">v<span class="js-version">0.12.1</span> · <a href="https://github.com/mezinster/cimbar" data-i18n="openSource">open source</a></p>
   </section>
 
-  <!-- ═══════════════════ ENCODE ═══════════════════ -->
-  <section class="screen" data-route="/send" id="tab-encode" hidden>
-    <div class="card">
-
-      <div class="seg" role="tablist">
-        <button type="button" class="seg-btn active" id="encModeFile" onclick="setEncMode('file')" data-i18n="encModeFile">File</button>
-        <button type="button" class="seg-btn" id="encModeText" onclick="setEncMode('text')" data-i18n="encModeText">Text</button>
-      </div>
-
-      <div class="field" id="encFileField">
-        <label data-i18n="fileToEncode">File to encode</label>
-        <div class="drop-zone" id="dropEnc">
-          <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
-          <div class="drop-icon">📄</div>
-          <div class="drop-text" data-i18n-html="dropFileHtml">Drop a file here, or <strong>click to browse</strong></div>
-          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)" data-i18n="dropHint">
-            Recommended max ≈ 80 KB for fast GIF output
-          </div>
-        </div>
-        <div class="file-pill" id="pillEnc">
-          <span>✓</span><span id="pillEncText"></span>
-        </div>
-      </div>
-
-      <div class="field" id="encTextField" style="display:none">
-        <label for="textEnc" data-i18n="textToEncode">Text to send</label>
-        <textarea id="textEnc" rows="8" data-i18n-placeholder="textEncPlaceholder" placeholder="Type or paste text…" oninput="updateTextInfo()"></textarea>
-        <div class="field-hint" id="textEncInfo"></div>
-      </div>
-
-      <div class="field">
-        <label data-i18n="passphrase">Passphrase</label>
-        <input type="password" id="passEnc" placeholder="Enter a passphrase (optional)…" data-i18n-placeholder="passEncPlaceholder" oninput="updateStrength(this.value,'strengthFillEnc')">
-        <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
-        <div class="field-hint" data-i18n="passEncHint">Optional — leave empty for no encryption. AES-256-GCM via PBKDF2 (150 000 iterations)</div>
-      </div>
-
-      <div class="two-col">
-        <div class="field">
-          <label data-i18n="frameDelay">Frame delay</label>
-          <select id="frameDelay">
-            <option value="10" data-i18n="delayFast">100 ms (fast)</option>
-            <option value="20" selected data-i18n="delayNormal">200 ms</option>
-            <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
-          </select>
-          <div class="field-hint" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
-        </div>
-      </div>
-
-      <button class="btn btn-primary" id="encBtn" onclick="startEncode()" data-i18n="encodeBtn">
-        Encode to GIF
-      </button>
-      <div class="form-error" id="encError" role="alert" hidden></div>
-
-      <!-- Progress -->
-      <div class="progress-section" id="progEnc">
-        <div class="progress-header">
-          <span id="progEncLabel" data-i18n="processing">Processing…</span>
-          <span id="progEncPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progEncFill"></div>
-        </div>
-        <div class="log" id="logEnc"></div>
-      </div>
-
-      <!-- Output -->
-      <div class="output-section" id="outEnc">
-        <div class="stats" id="statsEnc">
-          <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl" data-i18n="statFrames">Frames</div></div>
-          <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl" data-i18n="statBytes">Encoded bytes</div></div>
-          <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl" data-i18n="statPerFrame">Bytes / frame</div></div>
-          <div class="stat"><div class="stat-val" id="sCompressed">—</div><div class="stat-lbl" data-i18n="statCompressed">Compressed</div></div>
-        </div>
-        <div class="preview-frame" style="margin-top:16px;">
-          <img id="gifOut" alt="Encoded GIF">
-        </div>
-        <button class="btn btn-primary" onclick="downloadGif()" data-i18n="downloadGif">Download GIF</button>
-        <button class="btn" onclick="openPresent()" data-i18n="presentFullScreen">Present full screen</button>
-      </div>
-
+  <!-- ═══════════════════ SEND ═══════════════════ -->
+  <section class="screen" data-route="/send" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="sendTitle">Send</h1></header>
+    <div class="seg" role="tablist">
+      <button type="button" role="tab" class="seg-btn active" id="encModeFile" onclick="setEncMode('file')"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span data-i18n="encModeFile">File</span></button>
+      <button type="button" role="tab" class="seg-btn" id="encModeText" onclick="setEncMode('text')"><span data-i18n="encModeText">Text</span></button>
     </div>
+    <div id="encFileField">
+      <label class="pick" id="dropEnc">
+        <input type="file" id="fileEnc" class="sr-only" onchange="onFileSelect(this,'enc')">
+        <span class="pick-icon"><svg class="i" aria-hidden="true"><use href="#i-file-up"/></svg></span>
+        <span class="pick-title" data-i18n="chooseFile">Choose a file</span>
+        <span class="pick-hint" data-i18n="chooseFileHint">Any type · up to ~80 KB is quickest</span>
+        <span class="pick-drop" data-i18n="dropHere">or drop it here</span>
+      </label>
+      <div class="file-pill" id="pillEnc"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillEncText"></span>
+        <button type="button" class="icon-btn" onclick="clearEncFile()" aria-label="Remove"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div id="encTextField" style="display:none">
+      <label for="textEnc" class="sr-only" data-i18n="textToEncode">Text to send</label>
+      <textarea id="textEnc" rows="8" data-i18n-placeholder="textEncPlaceholder" oninput="updateTextInfo()"></textarea>
+      <div class="field-hint" id="textEncInfo"></div>
+    </div>
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-i18n="addPassphrase">Add a passphrase</span> <span class="muted" data-i18n="optional">(optional)</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <div class="pass-field"><input type="password" id="passEnc" autocomplete="new-password" data-i18n-placeholder="passEncPlaceholder" oninput="updateStrength(this.value,'strengthFillEnc')">
+          <button type="button" class="icon-btn" onclick="togglePass('passEnc', this)" aria-label="Show"><svg class="i" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
+        <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
+        <div class="field-hint" data-i18n="passEncHintShort">Receiver needs it to open the file</div>
+      </div>
+    </details>
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-sliders-horizontal"/></svg><span data-i18n="advanced">Advanced</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <label for="frameDelay" data-i18n="frameSpeed">Frame speed</label>
+        <select id="frameDelay">
+          <option value="10" data-i18n="delayFast">100 ms (fast)</option>
+          <option value="20" selected data-i18n="delayNormal">200 ms</option>
+          <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
+        </select>
+      </div>
+    </details>
+    <div class="form-error" id="encError" role="alert" hidden></div>
+    <div class="action-bar">
+      <div class="progress-section" id="progEnc">
+        <div class="progress-header"><span id="progEncLabel" data-i18n="processing">Processing…</span><span id="progEncPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progEncFill"></div></div>
+        <details class="disclosure details-log"><summary data-i18n="details">Details</summary><div class="log" id="logEnc"></div></details>
+      </div>
+      <button type="button" class="btn btn-primary" id="encBtn" onclick="startEncode()"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg><span data-i18n="createCode">Create code</span></button>
+    </div>
+  </section>
+
+  <section class="screen" data-route="/send/ready" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="readyTitle">Ready to send</h1></header>
+    <div class="demo"><span class="demo-chip" data-i18n="readyChip">READY</span><img id="gifOut" alt="" class="ready-gif"></div>
+    <p class="meta" id="readyMeta"></p>
+    <button type="button" class="btn btn-primary" onclick="openPresent()"><svg class="i" aria-hidden="true"><use href="#i-maximize"/></svg><span data-i18n="presentFullScreen">Present full screen</span></button>
+    <div class="btn-row" style="margin-top:10px">
+      <button type="button" class="btn btn-secondary" id="shareGifBtn" onclick="shareGif()" hidden><svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg><span data-i18n="shareGif">Share GIF</span></button>
+      <button type="button" class="btn btn-secondary" onclick="downloadGif()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="download">Download</span></button>
+    </div>
+    <p class="field-hint center" id="readyHelp"></p>
+    <div class="field-hint center" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
+    <p class="center"><a class="btn-link" href="#/send" data-i18n="sendAnother">Send something else</a></p>
   </section>
 
   <!-- ═══════════════════ DECODE ═══════════════════ -->
@@ -616,9 +640,6 @@ body.scan-lock { overflow:hidden; }
   <ul class="lang-list" id="langList"></ul>
 </dialog>
 
-<!-- Hidden canvas for rendering frames -->
-<canvas id="workCanvas" class="hidden"></canvas>
-
 <div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><canvas id="presentCanvas"></canvas><div id="presentStatus"></div></div>
 
 <div id="scanner" role="dialog" aria-modal="true">
@@ -719,7 +740,9 @@ function renderRoute() {
 }
 
 // Per-route side effects; later tasks add cases.
-function onEnterRoute(route, prev) {}
+function onEnterRoute(route, prev) {
+  if (route === '/send') updateTextInfo();   // Create code is disabled until something is staged
+}
 
 window.addEventListener('hashchange', renderRoute);
 
@@ -912,144 +935,148 @@ function setProgress(pct, label, fillId, pctId, labelId) {
 let outputBlob = null;
 let encodeState = null;
 
+// The whole encode pipeline (spec: CLAUDE.md "Encoding pipeline"), UI-free so
+// both the Send screen and the hub demo use it. Its own canvas: the demo may
+// encode while the user is encoding.
+async function encodeToGif(input, opts) {
+  const progress = opts.onProgress || (() => {});
+  const say = opts.onLog || (() => {});
+  const isEncrypted = opts.pass.length > 0;
+  progress(5, t('reading'));
+  const payload = Cimbar.buildPayload(input.name, input.bytes);
+  say(t('fileInfo', { name: input.name, size: fmtBytes(input.bytes.length) }), 'ok');
+  const z = await CimbarCompress.maybeDeflate(payload);
+  say(z.compressed ? t('compressedInfo', { size: fmtBytes(z.bytes.length), pct: Math.round(100 * z.bytes.length / payload.length) }) : t('notCompressed'), z.compressed ? 'ok' : 'info');
+  let framedPayload;
+  if (isEncrypted) {
+    progress(15, t('encryptingShort'));
+    framedPayload = await CimbarCrypto.encryptBytes(z.bytes, opts.pass);
+    say(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok');
+  } else {
+    progress(15, t('encoding'));
+    framedPayload = z.bytes;
+    say(t('payloadNoEnc', { size: fmtBytes(framedPayload.length) }), 'ok');
+  }
+  const framedData = Cimbar.withLengthPrefix(framedPayload);
+  const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
+  const fopts = { encrypted: isEncrypted, compressed: z.compressed };
+  const frames = Cimbar.splitIntoFrames(framedData, fileId, fopts);
+  say(t('framesInfo', { n: frames.length, per: CimbarFormat.fileBytesPerFrame(), id: fileId.toString(16) }), 'info');
+  const maxN = CimbarFormat.SPEC.coding.maxFrames;
+  const R = frames.length > maxN ? 0 : Cimbar.gifRepairCount(frames.length);
+  if (frames.length > maxN) say(t('tooLargeForCoding', { max: maxN }), 'err');
+  const bodies = Cimbar.frameBodies(frames);
+  const state = { frames, bodies, fileId, opts: fopts, delayMs: opts.frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
+
+  const size = CimbarFormat.SPEC.grid.framePx;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
+  const gif = new GifEncoder(size, size, opts.frameDelay);
+  // Source frames first, then R repair frames generated inside this loop —
+  // building them up front would block the UI thread for the whole batch.
+  const totalFrames = frames.length + R;
+  let repairId = 0;
+  for (let f = 0; f < totalFrames; f++) {
+    progress(25 + (f / totalFrames) * 65, t('encodingFrame', { i: f + 1, n: totalFrames }));
+    let data;
+    if (f < frames.length) data = frames[f];
+    else {
+      for (let misses = 0; ; ) {
+        try { data = Cimbar.repairFrame(bodies, fileId, repairId, fopts); break; }
+        catch (e) { if (!e.degenerate) throw e; repairId = (repairId + 1) & 0xFFFF; if (++misses >= 64) throw new Error('no usable repair id'); }
+      }
+      repairId = (repairId + 1) & 0xFFFF;
+    }
+    Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(data, rs));
+    gif.addFrame(canvas);
+    if (f % 4 === 0) await sleep(0);
+  }
+  progress(93, t('compiling'));
+  await sleep(10);
+  const blob = gif.finish();
+  return { blob, state, stats: { frames: frames.length, repair: R, bytes: framedPayload.length,
+    compressedPct: z.compressed ? Math.round(100 * z.bytes.length / payload.length) : null, encrypted: isEncrypted } };
+}
+
 async function startEncode() {
   // Disable first: reading a staged file is async, and a second click during
   // that read would otherwise start a second encode.
   const btn = document.getElementById('encBtn');
   if (btn.disabled) return;
-  clearError('enc');
   btn.disabled = true;
+  clearError('enc');
   const input = await encodeInput();
-  if (!input) {
-    btn.disabled = false;
-    updateTextInfo();
-    return;
-  }
+  if (!input) { btn.disabled = false; updateTextInfo(); return; }
   const pass = document.getElementById('passEnc').value.trim();
-  const isEncrypted = pass.length > 0;
-
   const frameDelay = parseInt(document.getElementById('frameDelay').value);
-
-  btn.innerHTML = '<span class="spinner"></span> ' + t('processing');
-
   document.getElementById('progEnc').style.display = 'block';
-  document.getElementById('outEnc').style.display  = 'none';
   document.getElementById('logEnc').innerHTML = '';
-  outputBlob = null;
-  encodeState = null;
-
+  outputBlob = null; encodeState = null;
   try {
-    // 1. Read file and build payload
-    log(t('readingFile'), 'info', 'logEnc');
-    setProgress(5, t('reading'), 'progEncFill', 'progEncPct', 'progEncLabel');
-    const payload = Cimbar.buildPayload(input.name, input.bytes);
-    log(t('fileInfo', { name: input.name, size: fmtBytes(input.bytes.length) }), 'ok', 'logEnc');
-
-    // 1b. Compress (optional, skipped when it doesn't save enough)
-    const z = await CimbarCompress.maybeDeflate(payload);
-    if (z.compressed) log(t('compressedInfo', { size: fmtBytes(z.bytes.length), pct: Math.round(100 * z.bytes.length / payload.length) }), 'ok', 'logEnc');
-    else log(t('notCompressed'), 'info', 'logEnc');
-
-    // 2. Encrypt (optional)
-    let framedPayload;
-    if (isEncrypted) {
-      log(t('encrypting'), 'info', 'logEnc');
-      setProgress(15, t('encryptingShort'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = await CimbarCrypto.encryptBytes(z.bytes, pass);
-      log(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
-    } else {
-      setProgress(15, t('encoding'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = z.bytes;
-      log(t('payloadNoEnc', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
-    }
-    const framedData = Cimbar.withLengthPrefix(framedPayload);
-
-    // 3. Split into frames with headers
-    const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
-    const opts = { encrypted: isEncrypted, compressed: z.compressed };
-    const frames = Cimbar.splitIntoFrames(framedData, fileId, opts);
-    const perFrame = CimbarFormat.fileBytesPerFrame();
-    log(t('framesInfo', { n: frames.length, per: perFrame, id: fileId.toString(16) }), 'info', 'logEnc');
-
-    const maxN = CimbarFormat.SPEC.coding.maxFrames;
-    const R = frames.length > maxN ? 0 : Cimbar.gifRepairCount(frames.length);
-    if (frames.length > maxN) log(t('tooLargeForCoding', { max: maxN }), 'err', 'logEnc');
-    const bodies = Cimbar.frameBodies(frames);
-    encodeState = { frames, bodies, fileId, opts, delayMs: frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
-
-    // Big-number cell: keep the value short ("45 + 12") and move the words
-    // into the label, which is re-translated on language switch via data-i18n.
-    document.getElementById('sFrames').textContent = R ? frames.length + ' + ' + R : String(frames.length);
-    const framesLbl = document.querySelector('#sFrames + .stat-lbl');
-    framesLbl.dataset.i18n = R ? 'statFramesCoded' : 'statFrames';
-    framesLbl.textContent = t(framesLbl.dataset.i18n);
-    document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
-    document.getElementById('sPerFrame').textContent = perFrame;
-    document.getElementById('sCompressed').textContent = z.compressed ? Math.round(100 * z.bytes.length / payload.length) + '%' : '—';
-    document.getElementById('delayHint').style.display = frames.length > 100 ? 'block' : 'none';
-
-    // 4. Render source frames, then repair frames
-    const size = CimbarFormat.SPEC.grid.framePx;
-    const canvas = document.getElementById('workCanvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
-    const gif = new GifEncoder(size, size, frameDelay);
-    // Source frames first, then R repair frames generated inside this loop —
-    // building them up front would block the UI thread for the whole batch.
-    const totalFrames = frames.length + R;
-    let repairId = 0;
-    for (let f = 0; f < totalFrames; f++) {
-      setProgress(25 + (f / totalFrames) * 65, t('encodingFrame', { i: f + 1, n: totalFrames }), 'progEncFill', 'progEncPct', 'progEncLabel');
-      let data;
-      if (f < frames.length) {
-        data = frames[f];
-      } else {
-        for (let misses = 0; ; ) {
-          try { data = Cimbar.repairFrame(bodies, fileId, repairId, opts); break; }
-          catch (e) {
-            if (!e.degenerate) throw e;
-            repairId = (repairId + 1) & 0xFFFF;
-            if (++misses >= 64) throw new Error('no usable repair id');
-          }
-        }
-        repairId = (repairId + 1) & 0xFFFF;
-      }
-      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(data, rs));
-      gif.addFrame(canvas);
-      if (f % 4 === 0) await sleep(0);
-    }
-
-    log(t('compilingGif'), 'info', 'logEnc');
-    setProgress(93, t('compiling'), 'progEncFill', 'progEncPct', 'progEncLabel');
-    await sleep(10); // let progress render
-
-    outputBlob = gif.finish();
-    const url = URL.createObjectURL(outputBlob);
-    document.getElementById('gifOut').src = url;
-    document.getElementById('outEnc').style.display = 'block';
-
+    const res = await encodeToGif(input, {
+      pass, frameDelay,
+      onProgress: (pct, label) => setProgress(pct, label, 'progEncFill', 'progEncPct', 'progEncLabel'),
+      onLog: (msg, cls) => log(msg, cls, 'logEnc'),
+    });
+    outputBlob = res.blob; encodeState = res.state; encodeName = input.name;
+    showReady(res.stats);
     setProgress(100, t('done'), 'progEncFill', 'progEncPct', 'progEncLabel');
     log(t('gifReady', { size: fmtBytes(outputBlob.size) }), 'ok', 'logEnc');
-
+    // replace: Back from the ready screen goes to the hub, not to compose.
+    navigate('#/send/ready', { replace: true });
   } catch (err) {
     log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
     showError('enc', t('errorPrefix', { msg: err.message }));
     console.error(err);
   }
-
+  document.getElementById('progEnc').style.display = 'none';
   btn.disabled = false;
-  btn.innerHTML = t('encodeBtn');
   updateTextInfo();
 }
+
+let encodeName = '';
+function showReady(stats) {
+  const img = document.getElementById('gifOut');
+  if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(outputBlob);
+  const parts = [t('readyFrames', { n: stats.repair ? stats.frames + ' + ' + stats.repair : stats.frames }), fmtBytes(outputBlob.size)];
+  if (stats.compressedPct !== null) parts.push(t('metaCompressed'));
+  if (stats.encrypted) parts.push(t('metaEncrypted'));
+  document.getElementById('readyMeta').textContent = parts.join(' · ');
+  document.getElementById('readyHelp').textContent = t('readyHelp', { n: stats.frames });
+  document.getElementById('shareGifBtn').hidden = !canShareFiles('image/gif');
+  document.getElementById('delayHint').style.display = stats.frames > 100 ? 'block' : 'none';
+}
+
+function gifFileName() { return 'cimbar-' + (encodeName.replace(/\.[^.]*$/, '') || 'message') + '.gif'; }
 
 function downloadGif() {
   if (!outputBlob) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(outputBlob);
-  a.download = 'cimbar_' + Date.now() + '.gif';
+  a.download = gifFileName();
   a.click();
+}
+
+function canShareFiles(type) {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(1)], 'x', { type })] })); }
+  catch (_) { return false; }
+}
+
+async function shareBlob(blob, name, type) {
+  try { await navigator.share({ files: [new File([blob], name, { type })] }); }
+  catch (e) { if (e && e.name !== 'AbortError') showError('dec', t('errorPrefix', { msg: e.message })); }
+}
+function shareGif() { if (outputBlob) shareBlob(outputBlob, gifFileName(), 'image/gif'); }
+
+function clearEncFile() { encFile = null; document.getElementById('pillEnc').classList.remove('show'); document.getElementById('fileEnc').value = ''; updateTextInfo(); }
+function togglePass(id, btn) {
+  const el = document.getElementById(id);
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.querySelector('use').setAttribute('href', show ? '#i-eye-off' : '#i-eye');
 }
 
 // ── Present mode (spec §5): integer scale unless that wastes >40% of the screen ──

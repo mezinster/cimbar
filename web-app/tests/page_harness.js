@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -101,6 +101,7 @@ function freshPage(opts = {}) {
     addEventListener() {},
     Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout,
     Blob: class { constructor() {} },
+    File: class { constructor(b, n, o) { this.name = n; this.type = (o || {}).type; } },
     URL: { createObjectURL: () => 'blob://x' },
     CimbarFormat: Fmt,
     Cimbar: Object.assign({}, Core, {

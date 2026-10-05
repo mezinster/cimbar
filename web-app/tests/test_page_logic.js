@@ -539,6 +539,33 @@ test('choosing a language from the sheet sets it and closes the sheet', () => {
   assertEq(elements['langSheet'].open, false, 'sheet closed');
 });
 
+test('a finished encode replaces #/send with #/send/ready', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.encodeToGif = async () => ({ blob: { size: 10 }, state: { frames: [1], bodies: [], fileId: 1, opts: {}, delayMs: 200, repairEnabled: false },
+                                    stats: { frames: 1, repair: 0, bytes: 10, compressedPct: null, encrypted: false } });
+  ctx.navigate('#/send');
+  ctx.setEncMode('text');
+  elements['textEnc'].value = 'hi';
+  ctx.updateTextInfo();
+  await ctx.startEncode();
+  assertEq(ctx.location.hash, '#/send/ready', 'on the ready screen');
+  assertEq(ctx.routeState().hasGif, true, 'GIF held for the guard');
+});
+
+test('Share GIF is hidden when the browser cannot share files', () => {
+  const { ctx } = freshPage();
+  assertEq(ctx.canShareFiles('image/gif'), false, 'harness navigator has no canShare');
+  ctx.navigator.canShare = () => true;
+  ctx.File = class { constructor(b, n, o) { this.name = n; this.type = o.type; } };
+  assertEq(ctx.canShareFiles('image/gif'), true, 'canShare with files');
+});
+
+test('entering #/send with nothing staged disables Create code', () => {
+  const { ctx, elements } = freshPage();
+  ctx.navigate('#/send');
+  assertEq(elements['encBtn'].disabled, true, 'no file staged');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
