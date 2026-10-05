@@ -1608,10 +1608,11 @@ function showScanProgress() {
 async function openScanner() {
   if (scanner) return;
   const gate = photoSessionGate();
-  if (gate === 'busy') return;
+  if (gate === 'busy') { leaveScanRoute(); return; }        // the running completion routes when it lands
   if (gate === 'done') resetPhotoSession();                  // the finished file was delivered; a new scan starts fresh
   if (photoSession && photoSession.asm.isComplete()) {       // complete but unfinished (e.g. passphrase missing)
     await completePhotoSession();
+    leaveScanRoute();
     return;
   }
   decFile = null;                                             // a GIF and a session are mutually exclusive
@@ -1699,14 +1700,24 @@ async function onScanStopped(s, info) {
   // Where to land after the scanner closes (spec §1): a completion routed
   // itself (done/unlock); a Back gesture already traversed to where the user
   // asked; an error falls back to the files screen; a plain close from
-  // #/receive returns to the hub.
+  // #/receive returns to the hub; a completion that failed for any other
+  // reason than the passphrase shows its error on the files screen.
   if (currentRoute !== '/receive' || info.reason === 'back') return;
   if (info.reason === 'error' || info.reason === 'decoderFailed') {
     navigate('#/receive/files', { replace: true });
     showNotice(lastScanError === 'scanDecoderFailed' ? scanErrorText('scanDecoderFailed') : t('camUnavailable'));
-  } else if (!(photoSession && photoSession.asm.isComplete())) {
+  } else if (photoSession && photoSession.asm.isComplete()) {
+    leaveScanRoute();
+  } else {
     navigate('#/', { replace: true });
   }
+}
+
+// #/receive with no scanner open strands the user: the files screen shows,
+// but its Scan button (href="#/receive") is the current hash and does
+// nothing. Move to the files screen unless a completion already routed away.
+function leaveScanRoute() {
+  if (currentRoute === '/receive' && !scanner) navigate('#/receive/files', { replace: true });
 }
 
 function showNotice(message) {

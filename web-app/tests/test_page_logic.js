@@ -779,6 +779,50 @@ test('a stale decode error is cleared by Start over, the unlock screen and a res
   }
 });
 
+test('a scan whose completion fails (not for a passphrase) lands on the files screen with the error', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.Cimbar.parsePayload = () => { throw new Error('corrupt container'); };
+  ctx.navigate('#/receive');
+  await tick();
+  const scan = calls.liveScans[0];
+  const r = await scan.o.onFrame(okResult(makeCompletingFrame({ fileId: 31, seq: 0, total: 1 })));
+  assertEq(r.complete, true, 'setup: complete');
+  scan.stop('complete');
+  await tick();
+  assertEq(ctx.location.hash, '#/receive/files', 'not stranded on #/receive');
+  assertEq(elements['decError'].hidden, false, 'error shown');
+  assertEq(elements['decError'].textContent, 'errorPrefix', 'the failure is explained');
+});
+
+test('re-entering #/receive with a complete session whose retry fails lands on the files screen', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.Cimbar.parsePayload = () => { throw new Error('corrupt container'); };
+  await ctx.addFrame(okResult(makeCompletingFrame({ fileId: 32, seq: 0, total: 1 })));   // complete, never finished
+  ctx.navigate('#/receive');
+  await tick();
+  assertEq(calls.liveScans.length, 0, 'retried instead of scanning');
+  assertEq(ctx.location.hash, '#/receive/files', 'not stranded on #/receive');
+  assertEq(elements['decError'].textContent, 'errorPrefix', 'the failure is explained');
+});
+
+test('entering #/receive while a completion is in flight lands on the files screen', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 33, seq: 0, total: 1, encrypted: true });
+  ctx.CimbarPhoto.decode = () => okResult(data);
+  ctx.toImageData = async () => ({});
+  elements['passDec'].value = 'pw';
+  let release; const gate = new Promise((r) => { release = r; });
+  ctx.CimbarCrypto = { decryptBytes: async () => { calls.decrypt++; await gate; return new Uint8Array(4); } };
+  const inFlight = ctx.addPhoto({});
+  while (calls.decrypt === 0) await tick();
+  ctx.navigate('#/receive');
+  await tick();
+  assertEq(calls.liveScans.length, 0, 'no scan while busy');
+  assertEq(ctx.location.hash, '#/receive/files', 'not stranded on #/receive');
+  release(); await inFlight;
+  assertEq(ctx.location.hash, '#/receive/done', 'the completion still routes when it lands');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
