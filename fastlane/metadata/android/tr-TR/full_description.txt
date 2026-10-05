@@ -1,14 +1,16 @@
-CimBar Tarayıcı, CimBar barkodu olarak gönderilen dosyaları — her karesi renkli şekillerden oluşan bir ızgara olan animasyonlu görüntüleri — alır ve orijinal dosyaya geri dönüştürür. Çözümleme tamamen telefonunuzda yapılır: hesap yok, sunucu yok, internet bağlantısı yok.
+CimBar Tarayıcı, dosyaları ve metinleri CimBar barkodu olarak — her karesi renkli şekillerden oluşan bir ızgara olan animasyonlu görüntüler halinde — gönderir ve alır. Bir telefonun kamerasını başka bir telefonun ekranına veya web uygulamasını çalıştıran bir bilgisayara tutun; dosya hiçbir ağ olmadan ulaşır. Kodlama ve çözümleme tamamen cihazınızda yapılır: hesap yok, sunucu yok, internet bağlantısı yok.
 
 <b>Nasıl çalışır</b>
 
-1. Herhangi bir dosyayı https://nfcarchiver.com/cimbar/ adresindeki ücretsiz web uygulamasıyla CimBar GIF'e dönüştürün — tamamen tarayıcınızda çalışır ve dosya bilgisayarınızdan hiç çıkmaz.
-2. Barkodu tam ekran gösterin veya GIF dosyasının kendisini gönderin.
+1. Bir dosyayı veya metin mesajını CimBar barkoduna dönüştürün: uygulamanın Gönder sekmesinde ya da tamamen tarayıcınızda çalışan https://nfcarchiver.com/cimbar/ adresindeki ücretsiz web uygulamasında.
+2. Barkodu tam ekran gösterin veya hareketli GIF olarak gönderin.
 3. CimBar Tarayıcı ile alın: animasyonlu barkodu kamerayla canlı tarayın, tek kareli barkodun fotoğrafını çekin veya GIF'i içe aktarın.
-4. Kurtarılan dosyayı açın, kaydedin veya paylaşın.
+4. Kurtarılan dosyayı açın, kaydedin veya paylaşın ya da alınan metni kopyalayın.
 
 <b>Özellikler</b>
 
+• Gönder sekmesi: bir mesaj yazın veya dosya seçin, isterseniz parola ekleyin, ardından barkodu tam ekran gösterin — ekran açık ve parlak kalır, gösterildiği sürece onarım kareleri gelmeye devam eder — veya hareketli GIF olarak paylaşın
+• Alınan metin mesajları doğrudan uygulamada görünür; kopyalayabilir, paylaşabilir veya .txt olarak kaydedebilirsiniz
 • Odak ve pozlama kilidi, nişan kılavuzu ve "yaklaşın" ya da "sabit tutun" gibi ipuçlarıyla canlı tarama
 • Kareler herhangi bir sırayla yakalanabilir: ek onarım kareleri sayesinde N kareli bir barkodun herhangi N karesi dosyayı tamamlar — kaçırdığınız o tek kareyi beklemeniz gerekmez
 • Tek kareli barkodlar için uygulama içi fotoğraf veya galeri görüntüsü
@@ -28,5 +30,3 @@ Veri toplama, analiz, izleyici veya reklam yok. Uygulamanın istediği tek izin 
 CimBar Tarayıcı, sz3'ün özgün Renkli Simge Matris Barkodu projeleri libcimbar ve CFC'nin (https://github.com/sz3/libcimbar) halefidir. Kendine ait, daha yeni bir biçim kullanır ve libcimbar ya da CFC barkodlarını okumaz.
 
 MIT lisanslı. Kaynak kodu, format belirtimi ve web kodlayıcı: https://github.com/mezinster/cimbar
-
-Telefonunuzdan da metin veya dosya gönderin: bir mesaj yazın ya da dosya seçin, başka bir cihazın taraması için ekranda gösterin veya hareketli GIF olarak paylaşın.

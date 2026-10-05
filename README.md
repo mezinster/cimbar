@@ -76,7 +76,7 @@ The web app is deployed to `https://nfcarchiver.com/cimbar/` by the manual GitHu
 
 ## Mobile app (Android, iOS)
 
-The `app/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that decodes CimBar v2/v2.1 GIFs on Android devices via file import, in-app photo capture, or live camera scanning.
+The `app/` directory contains a Flutter app, **CimBar Scanner** (application id `com.nfcarchiver.cimbar`), that sends and receives CimBar v2/v2.1 barcodes on the phone. It encodes text or a file and shows the barcode full screen or shares it as a GIF, and it decodes via GIF import, in-app photo capture, or live camera scanning — so two phones can exchange a file with no network at all.
 
 **iOS:** the same Flutter app builds for iOS 14 or newer (`app/ios/`, bundle id `com.nfcarchiver.cimbar`, shown as "CimBar"), including a Share Extension for sending GIFs to it from Photos, Files or other apps. It is compile-checked in CI (*Build iOS (unsigned)*) but not signed or distributed yet. To run it on your own iPhone, open `app/ios/Runner.xcworkspace` in Xcode on a Mac, set your team for both targets (Runner and ShareExtension) and an App Group of your own, then run.
 
@@ -84,9 +84,15 @@ The `app/` directory contains a Flutter app, **CimBar Scanner** (application id 
 
 ### Features
 
+The bottom bar has five tabs, in this order (the app opens on Import):
+
+- **Send** — Type a message or pick a file (the barcode may have up to 4096 source frames), optionally enter a passphrase and pick a frame delay (100/200/400 ms), then **Present on screen** or **Share GIF**. Present shows the barcode full screen with the screen kept awake and at full brightness, streaming the N source frames once and then repair frames for as long as it stays open; Share GIF builds an animated GIF (N source frames + 25% repair, up to 500 source frames) for the system share sheet. Encoding runs in a background isolate and is byte-identical to the web encoder.
 - **Import GIF** — Pick a CimBar GIF file, optionally enter the passphrase, decode and save/share the original file
 - **Camera** — Take a photo in-app (or pick one from the gallery) for a single-frame barcode, or use Live Scan for a multi-frame animated barcode
-- **About** (the fourth tab, `SettingsScreen`) — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian), and Privacy Policy / License / Source Code links
+- **Files** — Every decoded file, to open, save or share
+- **About** (the fifth tab, `SettingsScreen`) — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian), and Privacy Policy / License / Source Code links
+
+A received **text message** (a container named `*.txt` holding valid UTF-8, up to 1 MiB — the same convention the web app's Text mode uses) is shown in the result card with Copy, Share and Save as .txt, instead of as a bare file.
 
 ### Live Camera Scanning
 
@@ -105,7 +111,7 @@ The scanner reassembles frames using each frame header's sequence number/repair 
 Requires Flutter 3.44+ and Java 17:
 
 ```bash
-cd android
+cd app
 flutter pub get
 flutter gen-l10n
 flutter build apk --debug      # debug APK
@@ -117,7 +123,7 @@ Note: the Android build pins Gradle 9.1 / AGP 9.0.1 to match Flutter 3.44; use F
 ### Running tests
 
 ```bash
-cd android
+cd app
 sh tests/run_all.sh
 ```
 
@@ -202,11 +208,11 @@ python3 tests/test_gif.py path/to/output.gif 608                    # GIF struct
 Requires the Flutter SDK:
 
 ```bash
-cd android
+cd app
 sh tests/run_all.sh           # never bare `flutter test` — see app/CLAUDE.md's Build section
 ```
 
-The suite (257 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
+The suite (452 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the v2/v2.1 format layer (header flags, bit packing, RS framing, file container, rateless coefficient generation and combination), `RatelessAssembler`, the camera decode layer (finder locator, homography grid model, white balance, drift solver, cell classifier, YUV/ROI buffers) against a synthetic-degradation harness, AES-256-GCM crypto, zlib compression, `CapturePolicy`, `DecodeIsolate`, photo and GIF-import decode, the live-scan controller, the AR overlay's coordinate mapping, full-screen route navigation, a decode timing benchmark and a real-capture corpus benchmark.
 
 ---
 

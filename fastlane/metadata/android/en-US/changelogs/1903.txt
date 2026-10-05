@@ -1,0 +1,3 @@
+• New Send tab: type a message or pick a file, then show it full screen for another phone to scan, or share it as an animated GIF
+• Received text messages open in the app, ready to copy, share or save as .txt
+• Shorter tab labels, so the five-tab bar no longer wraps
