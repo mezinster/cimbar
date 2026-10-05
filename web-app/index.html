@@ -187,7 +187,7 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .meta { margin:12px 0 16px; text-align:center; font:12px var(--mono); color:var(--text2); }
 .center { text-align:center; }
 
-/* ── Legacy rules kept until Tasks 5–9 restyle the Send, Receive, Present and scanner screens ── */
+/* ── Shared building blocks: password strength meter, progress bar, log ── */
 .strength-track { height:4px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
 .strength-fill { height:100%; width:0%; border-radius:2px; transition:width .3s, background .3s; background:var(--warn); }
 
@@ -417,7 +417,7 @@ body.scan-lock { overflow:hidden; }
     <header class="topbar">
       <a class="wordmark" href="#/"><img src="favicon.svg" alt="" width="28" height="28"><span>Cim<em>Bar</em></span></a>
       <div class="topbar-actions">
-        <button type="button" class="icon-btn" onclick="openLanguageSheet()" aria-label="Language" data-i18n-title="language">
+        <button type="button" class="icon-btn" onclick="openLanguageSheet()" data-i18n-aria-label="language" data-i18n-title="language">
           <svg class="i" aria-hidden="true"><use href="#i-globe"/></svg><span id="langCode">EN</span></button>
         <a class="icon-btn" href="#/how"><svg class="i" aria-hidden="true"><use href="#i-circle-help"/></svg><span data-i18n="howTitle">How it works</span></a>
       </div>
@@ -597,7 +597,7 @@ body.scan-lock { overflow:hidden; }
       <button type="button" class="btn btn-secondary" style="margin-top:10px" onclick="saveText()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="saveTxt">Save as .txt</span></button>
     </div>
     <div class="form-error" id="doneError" role="alert" hidden></div>
-    <p class="center"><a class="btn-link" href="#/receive" onclick="resetPhotoSession()"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="receiveAnother">Receive another</span></a></p>
+    <p class="center"><a class="btn-link" href="#/receive" onclick="receiveAnother()"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="receiveAnother">Receive another</span></a></p>
   </section>
 
   <!-- ═══════════════════ HOW IT WORKS ═══════════════════ -->
@@ -829,7 +829,7 @@ function renderRoute() {
 // Per-route side effects; later tasks add cases.
 function onEnterRoute(route, prev) {
   if (route === '/send') updateTextInfo();   // Create code is disabled until something is staged
-  if (route === '/receive') openScanner();   // Receive opens the camera directly (spec §1)
+  if (route === '/receive') openScanner(prev);   // Receive opens the camera directly (spec §1)
 }
 
 window.addEventListener('hashchange', renderRoute);
@@ -1103,14 +1103,16 @@ async function startEncode() {
   btn.disabled = true;
   encoding = true;
   clearError('enc');
-  const input = await encodeInput();
-  if (!input) { encoding = false; btn.disabled = false; updateTextInfo(); return; }
-  const pass = document.getElementById('passEnc').value.trim();
-  const frameDelay = parseInt(document.getElementById('frameDelay').value);
-  document.getElementById('progEnc').style.display = 'block';
-  document.getElementById('logEnc').innerHTML = '';
-  outputBlob = null; encodeState = null;
   try {
+    // Inside the try: reading a staged file can reject (NotReadableError when
+    // the file changed or vanished), and that must not leave encoding stuck.
+    const input = await encodeInput();
+    if (!input) return;
+    const pass = document.getElementById('passEnc').value.trim();
+    const frameDelay = parseInt(document.getElementById('frameDelay').value);
+    document.getElementById('progEnc').style.display = 'block';
+    document.getElementById('logEnc').innerHTML = '';
+    outputBlob = null; encodeState = null;
     const res = await encodeToGif(input, {
       pass, frameDelay,
       onProgress: (pct, label) => setProgress(pct, label, 'progEncFill', 'progEncPct', 'progEncLabel'),
@@ -1128,11 +1130,12 @@ async function startEncode() {
     log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
     showError('enc', t('errorPrefix', { msg: err.message }));
     console.error(err);
+  } finally {
+    document.getElementById('progEnc').style.display = 'none';
+    encoding = false;
+    btn.disabled = false;
+    updateTextInfo();
   }
-  document.getElementById('progEnc').style.display = 'none';
-  encoding = false;
-  btn.disabled = false;
-  updateTextInfo();
 }
 
 let encodeName = '';
@@ -1230,13 +1233,14 @@ function presentDraw() {
   document.getElementById('presentStatus').textContent = status;
 }
 
-let presentOpen = false, wakeLock = null;
+let presentOpen = false, presentClosing = false, wakeLock = null;
 
 function openPresentWith(state) { encodeState = state; openPresent(); }    // test seam
 function presentOpenForTest(open) { presentOpen = open; }                   // test seam
 
 function openPresent() {
-  if (!encodeState) return;
+  if (presentOpen || !encodeState) return;   // re-entry would push a second history entry
+  presentClosing = false;
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
   presentIdx = 0; presentRepair = 0; presentOpen = true;
   document.getElementById('present').classList.add('open');
@@ -1250,14 +1254,17 @@ function openPresent() {
 }
 
 // UI close (✕, Esc): go through history so the Back gesture and the button share one path.
+// history.back() is asynchronous, so a second ✕/Esc before popstate lands
+// would go back twice and leave the page: at most one back() per open.
 function requestClosePresent() {
-  if (history.state && history.state.cimbarPresent) history.back();   // popstate → closePresent()
+  if (presentClosing) return;
+  if (history.state && history.state.cimbarPresent) { presentClosing = true; history.back(); }   // popstate → closePresent()
   else closePresent();
 }
 
 function closePresent() {
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
-  presentOpen = false;
+  presentOpen = false; presentClosing = false;
   document.getElementById('present').classList.remove('open');
   releaseWakeLock();
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
@@ -1303,10 +1310,10 @@ document.addEventListener('keydown', (e) => {
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
   // startDecode means "decode what I have given you" (choosing a GIF calls it;
-  // so does the unlock screen's retry), and a GIF and a
-  // photo session can never both be staged (handleDecFile clears decFile the
-  // moment a photo is chosen, and staging a GIF resets the session), so the
-  // it dispatches on whichever one exists:
+  // so does the unlock screen's retry). A GIF and a photo session can never
+  // both be staged (handleDecFile clears decFile the moment a photo is
+  // chosen, and staging a GIF resets the session), so it dispatches on
+  // whichever one exists:
   //   * a GIF          -> decode it (and drop any session, they are exclusive)
   //   * a complete session -> retry finishDecode against the intact assembler.
   //     This is the recovery route for a completion that threw (missing or
@@ -1390,7 +1397,7 @@ function logDecodeError(err) {
   // An Unlock retry that fails for another reason (inflate, parse) must say so
   // where the user is; #decError sits on the hidden files screen.
   if (currentRoute === '/receive/unlock') showError('unlock', msg);
-  else if (!err.unsupported && !err.tooLarge) showError('dec', msg);
+  else showError('dec', msg);
   console.error(err);
 }
 
@@ -1501,6 +1508,13 @@ function shareFile() {
 }
 
 async function unlock() { clearError('dec'); clearError('unlock'); await startDecode(); }   // startDecode retries a GIF or a complete session
+// "Receive another": a fresh start whether or not #/receive opens a camera
+// (without one it lands on the files screen, which must not show the old GIF).
+function receiveAnother() {
+  resetPhotoSession();
+  decFile = null;
+  document.getElementById('pillDec').classList.remove('show');
+}
 function discardAndRescan() { resetPhotoSession(); decFile = null; navigate('#/receive', { replace: true }); }
 
 function saveText() {
@@ -1653,9 +1667,16 @@ async function addFrame(r) {
            rank: asm.rank, total: asm.total, complete: asm.isComplete() };
 }
 
+// A photo that added nothing must say why where the user is: the log sits
+// behind a collapsed Details. The next accepted photo clears it.
+function photoNotice(msg, cls) {
+  log(msg, cls, 'logDec');
+  showError('dec', msg);
+}
+
 async function addPhoto(file) {
   const gate = photoSessionGate();
-  if (gate === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  if (gate === 'done') { photoNotice(t('photoAlreadyDone'), 'info'); return; }
   if (gate === 'busy') return;   // transient, so no log line
 
   document.getElementById('progDec').style.display = 'block';
@@ -1673,15 +1694,16 @@ async function addPhoto(file) {
     const key = { notLocated: 'errNotLocated', tooSmall: 'errTooSmall',
                   unsupportedGrid: 'errUnsupportedGrid', rsFailed: 'errRsFailed',
                   badHeader: 'errBadHeader' }[r.status];
-    log(t(key), 'err', 'logDec');
+    photoNotice(t(key), 'err');
     return;
   }
 
   const res = await addFrame(r);
-  if (res.kind === 'kept') { log(t('photoWrongFileKept'), 'info', 'logDec'); return; }
+  if (res.kind === 'kept') { photoNotice(t('photoWrongFileKept'), 'info'); return; }
   if (res.kind === 'busy') return;
-  if (res.kind === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  if (res.kind === 'done') { photoNotice(t('photoAlreadyDone'), 'info'); return; }
   if (res.kind === 'accepted') {
+    clearError('dec');
     log(t('photoAccepted', { seq: res.header.seq, rank: res.rank, total: res.total }), 'ok', 'logDec');
   } else {
     // duplicate/dependent are the normal result of re-photographing a
@@ -1696,7 +1718,7 @@ async function addPhoto(file) {
 }
 
 // ── LIVE SCAN (camera → worker → the same photo session) ─────
-let scanner = null;   // { scan, ignoreFileId, debugLines, ownEntry } while the scanner view is open
+let scanner = null;   // { scan, ignoreFileId, debugLines, ownEntry, from } while the scanner view is open
 let lastScanError = null;   // the last onError code of the current scan, for the fallback notice
 const SCAN_DEBUG = /[?&]debug=1(&|$)/.test(location.search);
 
@@ -1735,7 +1757,9 @@ function showScanProgress() {
   document.getElementById('scanFill').style.width = Math.round(100 * asm.rank / asm.total) + '%';
 }
 
-async function openScanner() {
+// `from` is the route the scanner was entered from (#/receive's previous
+// route): a plain close returns there when it was the files screen.
+async function openScanner(from) {
   if (scanner) return;
   const gate = photoSessionGate();
   if (gate === 'busy') { leaveScanRoute(); return; }        // the running completion routes when it lands
@@ -1746,13 +1770,14 @@ async function openScanner() {
     return;
   }
   decFile = null;                                             // a GIF and a session are mutually exclusive
+  unlockPending = false;                                      // so a locked GIF's unlock goes with it (no complete session can be left here)
   document.getElementById('pillDec').classList.remove('show');
 
   // Opened from #/receive, that route entry is the Back target: Back pops it
   // (popstate stops the scan). An entry of our own would have to be popped
   // with history.back() on close, which is asynchronous: it would land on
   // #/receive again after the close routed away, and reopen the scanner.
-  const s = { scan: null, ignoreFileId: null, debugLines: [], ownEntry: currentRoute !== '/receive' };
+  const s = { scan: null, ignoreFileId: null, debugLines: [], ownEntry: currentRoute !== '/receive', from };
   scanner = s;
   document.getElementById('decNotice').hidden = true;        // a camera that failed before may work now
   document.getElementById('scanner').classList.add('open');
@@ -1830,7 +1855,8 @@ async function onScanStopped(s, info) {
   // Where to land after the scanner closes (spec §1): a completion routed
   // itself (done/unlock); a Back gesture already traversed to where the user
   // asked; an error falls back to the files screen; a plain close from
-  // #/receive returns to the hub; a completion that failed for any other
+  // #/receive returns to where the scan was entered from (the files screen,
+  // else the hub); a completion that failed for any other
   // reason than the passphrase shows its error on the files screen.
   if (currentRoute !== '/receive' || info.reason === 'back') return;
   if (info.reason === 'error' || info.reason === 'decoderFailed') {
@@ -1839,7 +1865,7 @@ async function onScanStopped(s, info) {
   } else if (photoSession && photoSession.asm.isComplete()) {
     leaveScanRoute();
   } else {
-    navigate('#/', { replace: true });
+    navigate(s.from === '/receive/files' ? '#/receive/files' : '#/', { replace: true });
   }
 }
 

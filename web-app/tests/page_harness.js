@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult', 'mimeFor', 'canOpen', 'openFile', 'shareFile', 'unlock', 'discardAndRescan', 'logDecodeError', 'renderDemo'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult', 'mimeFor', 'canOpen', 'openFile', 'shareFile', 'unlock', 'discardAndRescan', 'logDecodeError', 'renderDemo', 'receiveAnother', 'clearError', 'closePresent', 'routeState'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal

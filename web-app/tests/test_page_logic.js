@@ -965,6 +965,126 @@ test('hub demo encodes the deployed icon; a fetch failure falls back to a text f
   assertEq(seen[1], 'hello.txt', 'fallback payload');
 });
 
+// ── Final whole-branch review fixes ──────────────────────────
+test('a decompression failure is shown inline, not only logged — final 1', () => {
+  for (const [flag, key] of [['tooLarge', 'inflatedTooLarge'], ['unsupported', 'noDecompressionSupport']]) {
+    const { ctx, elements } = freshPage();
+    ctx.clearError('dec');
+    const err = new Error('inflate'); err[flag] = true;
+    ctx.logDecodeError(err);
+    assertEq(elements['decError'].hidden, false, `${flag}: #decError shown`);
+    assertEq(elements['decError'].textContent, key, `${flag}: the translated reason`);
+  }
+});
+
+test('a staged file that cannot be read shows an error and re-enables Create code — final 2', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.setEncMode('file');
+  const file = { name: 'a.bin', size: 3, arrayBuffer: async () => { const e = new Error('unreadable'); e.name = 'NotReadableError'; throw e; } };
+  ctx.onFileSelect({ files: [file] }, 'enc');
+  let threw = null;
+  try { await ctx.startEncode(); } catch (e) { threw = e; }
+  assertEq(threw, null, 'startEncode does not reject');
+  assertEq(elements['encError'].hidden, false, 'error shown');
+  assertEq(elements['encError'].textContent, 'errorPrefix', 'the failure is explained');
+  assertEq(elements['encBtn'].disabled, false, 'Create code usable again');
+  assertEq(elements['progEnc'].style.display, 'none', 'no progress left showing');
+});
+
+test('a rejected photo explains itself in #decError; the next accepted photo clears it — final 3', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.toImageData = async () => ({});
+  ctx.CimbarPhoto.decode = () => ({ status: 'notLocated' });
+  await ctx.addPhoto({});
+  assertEq(elements['decError'].hidden, false, 'notLocated shown');
+  assertEq(elements['decError'].textContent, 'errNotLocated', 'notLocated reason');
+  assert(elements['logDec'].innerHTML.includes('errNotLocated'), 'log line kept');
+  ctx.CimbarPhoto.decode = () => okResult(makeFrame({ fileId: 5, seq: 0, total: 3 }));
+  await ctx.addPhoto({});
+  assertEq(elements['decError'].hidden, true, 'accepted photo clears the error');
+  assertEq(elements['decError'].textContent, '', 'emptied');
+  // a foreign photo the user chose to keep their session over
+  calls.confirmResult = false;
+  ctx.CimbarPhoto.decode = () => okResult(makeFrame({ fileId: 6, seq: 0, total: 3 }));
+  await ctx.addPhoto({});
+  assertEq(elements['decError'].textContent, 'photoWrongFileKept', 'kept-session message shown');
+});
+
+test('a photo after the session finished says so in #decError — final 3', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.toImageData = async () => ({});
+  ctx.CimbarPhoto.decode = () => okResult(makeCompletingFrame({ fileId: 7, seq: 0, total: 1 }));
+  await ctx.addPhoto({});
+  assertEq(ctx.location.hash, '#/receive/done', 'setup: delivered');
+  await ctx.addPhoto({});
+  assertEq(elements['decError'].hidden, false, 'shown');
+  assertEq(elements['decError'].textContent, 'photoAlreadyDone', 'already-done message');
+});
+
+test('the scanner closed with ✕ returns to where it was entered from — final 4', async () => {
+  for (const [from, want] of [['#/receive/files', '#/receive/files'], ['#/', '#/']]) {
+    const { ctx, calls } = freshPage();
+    ctx.navigate(from);
+    ctx.navigate('#/receive');
+    await tick();
+    assertEq(calls.liveScans.length, 1, `${from}: scanner started`);
+    const pushes = calls.pushes;
+    calls.liveScans[0].stop('closed');
+    await tick();
+    assertEq(ctx.location.hash, want, `entered from ${from}`);
+    assertEq(calls.pushes, pushes, `${from}: still no history entry of its own`);
+    assertEq(calls.backs || 0, 0, `${from}: no history.back()`);
+  }
+});
+
+test('Present: a second open is ignored and a double close goes back once — final 5', () => {
+  const { ctx, calls } = freshPage();
+  ctx.presentDraw = () => {}; ctx.layoutPresent = () => {};
+  // A real history.back() is asynchronous: history.state still says
+  // cimbarPresent until popstate fires.
+  ctx.history.back = function () { calls.backs = (calls.backs || 0) + 1; };
+  const state = { frames: [new Uint8Array(1)], bodies: [], fileId: 1, opts: {}, delayMs: 200, repairEnabled: false };
+  ctx.openPresentWith(state);
+  ctx.openPresentWith(state);
+  assertEq(calls.pushes, 1, 're-entry pushes no second entry');
+  ctx.requestClosePresent();
+  ctx.requestClosePresent();
+  assertEq(calls.backs, 1, 'one history.back() per open');
+  ctx.closePresent();                                        // popstate lands
+  ctx.openPresentWith(state);
+  ctx.requestClosePresent();
+  assertEq(calls.backs, 2, 'the next open can close again');
+});
+
+function stageEncryptedGif(ctx) {
+  const data = makeFrameWithPayload(encryptedPayload(), { fileId: 21, seq: 0, total: 1, encrypted: true });
+  ctx.GifDecoder = class { decode() { return [{ width: 1, height: 1, imageData: {} }]; } };
+  ctx.Cimbar.decodeFrameExact = () => ({ raw: new Uint8Array(1) });
+  ctx.Cimbar.decodeRSFrame = () => ({ data, blocksFailed: 0 });
+  const gifBytes = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0, 0, 0, 0]);
+  return ctx.handleDecFile({ name: 'a.gif', size: 8, slice: () => ({ arrayBuffer: async () => gifBytes.buffer }), arrayBuffer: async () => gifBytes.buffer });
+}
+
+test('dropping a locked GIF for the scanner drops its pending unlock — final 6', async () => {
+  const { ctx } = freshPage();
+  await stageEncryptedGif(ctx);
+  assertEq(ctx.location.hash, '#/receive/unlock', 'setup: locked GIF asks for the passphrase');
+  assertEq(ctx.routeState().needsUnlock, true, 'setup: unlock pending');
+  await ctx.openScanner();
+  assertEq(ctx.routeState().needsUnlock, false, 'nothing left to unlock');
+});
+
+test('"Receive another" clears a staged GIF and its pill — final 7', async () => {
+  const { ctx, elements } = freshPage({ camera: false });
+  await stageEncryptedGif(ctx);
+  assert(elements['pillDec'].classList.contains('show'), 'setup: GIF staged');
+  ctx.receiveAnother();
+  assert(!elements['pillDec'].classList.contains('show'), 'pill hidden');
+  assertEq(ctx.routeState().needsUnlock, false, 'no unlock pending');
+  await ctx.startDecode();
+  assertEq(elements['decError'].textContent, 'selectGifFirst', 'decFile cleared');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
