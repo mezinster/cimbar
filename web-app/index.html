@@ -207,7 +207,14 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .text-out { text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; max-height:50vh; overflow:auto; padding:12px; margin:8px 0 12px;
   border:1px solid var(--border); border-radius:8px; background:var(--surface2); font:14px/1.5 var(--mono); }
 
-#present { position:fixed; inset:0; background:#000; z-index:1000; display:none; align-items:center; justify-content:center; cursor:pointer; }
+#present { position:fixed; inset:0; background:#000; z-index:1000; display:none; align-items:center; justify-content:center; }
+.present-close { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; }
+.present-wake { position:fixed; top:calc(18px + env(safe-area-inset-top)); right:12px; }
+.present-wake[hidden] { display:none; }
+.present-hint { position:fixed; left:50%; top:calc(50% + min(46vw, 46vh) + 12px); transform:translateX(-50%); max-width:calc(100% - 32px); padding:8px 14px; border-radius:16px;
+  background:rgba(0,0,0,.55); color:#fff; font:500 13px var(--sans); text-align:center; animation:hint-out 0s 3s forwards; }
+@keyframes hint-out { to { opacity:0; visibility:hidden; } }
+@media (prefers-reduced-motion: no-preference) { .present-hint { animation:hint-out .4s 3s forwards; } }
 #present.open { display:flex; }
 #present canvas { image-rendering:pixelated; display:block; }
 #presentStatus { position:fixed; left:12px; bottom:10px; font:12px/1.4 var(--mono); color:#9aa; opacity:.8; }
@@ -641,7 +648,13 @@ body.scan-lock { overflow:hidden; }
   <ul class="lang-list" id="langList"></ul>
 </dialog>
 
-<div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><canvas id="presentCanvas"></canvas><div id="presentStatus"></div></div>
+<div id="present" class="overlay" role="dialog" aria-modal="true">
+  <canvas id="presentCanvas"></canvas>
+  <button type="button" class="glass-btn present-close" onclick="requestClosePresent()" aria-label="Close" data-i18n-title="scanClose"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <span class="signal-pill present-wake" id="wakePill" hidden><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg><span data-i18n="screenOn">Screen stays on</span></span>
+  <span class="present-hint" id="presentHint" data-i18n="presentHint">Point the other phone's camera here</span>
+  <div id="presentStatus"></div>
+</div>
 
 <div id="scanner" role="dialog" aria-modal="true">
   <video id="scanVideo" playsinline muted autoplay></video>
@@ -1125,7 +1138,7 @@ function presentDraw() {
       catch (e) {
         if (!e.degenerate) throw e;
         presentRepair = (presentRepair + 1) & 0xFFFF;
-        if (++misses >= 64) { closePresent(); return; }
+        if (++misses >= 64) { requestClosePresent(); return; }
       }
     }
     status = t('presentRepair', { r: presentRepair, n });
@@ -1138,28 +1151,68 @@ function presentDraw() {
   document.getElementById('presentStatus').textContent = status;
 }
 
+let presentOpen = false, wakeLock = null;
+
+function openPresentWith(state) { encodeState = state; openPresent(); }    // test seam
+function presentOpenForTest(open) { presentOpen = open; }                   // test seam
+
 function openPresent() {
   if (!encodeState) return;
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
-  presentIdx = 0; presentRepair = 0;
+  presentIdx = 0; presentRepair = 0; presentOpen = true;
   document.getElementById('present').classList.add('open');
+  history.pushState({ cimbarPresent: true }, '');
   layoutPresent();
   presentDraw();
   presentTimer = setInterval(presentDraw, encodeState.delayMs);
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  acquireWakeLock();
+}
+
+// UI close (✕, Esc): go through history so the Back gesture and the button share one path.
+function requestClosePresent() {
+  if (history.state && history.state.cimbarPresent) history.back();   // popstate → closePresent()
+  else closePresent();
 }
 
 function closePresent() {
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
+  presentOpen = false;
   document.getElementById('present').classList.remove('open');
+  releaseWakeLock();
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
+
+function showWakePill() { document.getElementById('wakePill').hidden = !wakeLock; }
+
+async function acquireWakeLock() {
+  if (!presentOpen || !(navigator.wakeLock && navigator.wakeLock.request)) { showWakePill(); return; }
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    wakeLock = lock;
+    lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; showWakePill(); });
+  } catch (_) { wakeLock = null; }
+  showWakePill();
+}
+
+function releaseWakeLock() {
+  const lock = wakeLock; wakeLock = null;
+  if (lock) lock.release().catch(() => {});
+  showWakePill();
+}
+
+// Browsers drop a screen lock whenever the tab is hidden; take it back on return.
+async function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && presentOpen && !wakeLock) await acquireWakeLock();
+}
+document.addEventListener('visibilitychange', onVisibilityChange);
 
 window.addEventListener('resize', layoutPresent);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (scanner) closeScanner(); else closePresent();
+  if (document.querySelector('dialog[open]')) return;   // a dialog (confirm sheet) owns Esc
+  if (scanner) closeScanner(); else if (presentOpen) requestClosePresent();
 });
 
 // ── DECODE ────────────────────────────────────────────────
@@ -1660,7 +1713,10 @@ function resumeScanner() {
 // The browser Back gesture closes the scanner instead of leaving the page;
 // by the time popstate fires our history entry is already gone, so
 // onScanStopped sees history.state without cimbarScanner and does not go back again.
-window.addEventListener('popstate', () => { if (scanner) scanner.scan.stop('back'); });
+window.addEventListener('popstate', () => {
+  if (scanner) scanner.scan.stop('back');
+  if (presentOpen) closePresent();
+});
 
 // ── Utilities ─────────────────────────────────────────────
 function concat(...arrays) {

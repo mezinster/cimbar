@@ -26,7 +26,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -66,7 +66,7 @@ function freshPage(opts = {}) {
   const elements = {};
   function getEl(id) { if (!elements[id]) elements[id] = makeEl(id); return elements[id]; }
 
-  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [], liveScans: [] };
+  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [], liveScans: [], docListeners: {} };
 
   const documentStub = {
     getElementById: getEl,
@@ -83,7 +83,7 @@ function freshPage(opts = {}) {
       return makeEl(tag);
     },
     createTextNode: () => ({}),
-    addEventListener() {},
+    addEventListener(type, fn) { (calls.docListeners[type] = calls.docListeners[type] || []).push(fn); },
     body: makeEl('body'),
     querySelectorAll: () => [],
     querySelector: () => null,
@@ -99,6 +99,7 @@ function freshPage(opts = {}) {
     alert: (msg) => { calls.alerts.push(msg); },
     confirm: (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; },
     addEventListener() {},
+    setInterval: () => 1, clearInterval: () => {},
     Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout,
     Blob: class { constructor() {} },
     File: class { constructor(b, n, o) { this.name = n; this.type = (o || {}).type; } },

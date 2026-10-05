@@ -617,6 +617,50 @@ test('an encode that finishes off the Send screen keeps the GIF without redirect
   assertEq(ctx.routeState().hasGif, true, 'GIF kept for #/send/ready');
 });
 
+test('Present pushes one history entry; closing via the UI pops it exactly once', () => {
+  const { ctx, calls } = freshPage();
+  ctx.setInterval = () => 1; ctx.clearInterval = () => {};
+  ctx.presentDraw = () => {}; ctx.layoutPresent = () => {};   // rendering is covered elsewhere; this test is about history
+  ctx.openPresentWith({ frames: [new Uint8Array(1)], bodies: [], fileId: 1, opts: {}, delayMs: 200, repairEnabled: false });
+  assertEq(calls.pushes, 1, 'one entry pushed');
+  assertEq(ctx.history.state && ctx.history.state.cimbarPresent, true, 'entry marked');
+  ctx.requestClosePresent();
+  assertEq(calls.backs, 1, 'UI close goes through history.back()');
+});
+
+test('Wake Lock: pill shows only while a lock is held, and it is re-acquired on return', async () => {
+  const { ctx, elements } = freshPage();
+  let requests = 0, sentinel = null;
+  ctx.navigator.wakeLock = { request: async () => { requests++; sentinel = { released: false, addEventListener(_e, fn) { this.onrel = fn; }, release: async function () { this.onrel && this.onrel(); } }; return sentinel; } };
+  ctx.presentOpenForTest(true);
+  await ctx.acquireWakeLock();
+  assertEq(elements['wakePill'].hidden, false, 'pill visible with a lock');
+  sentinel.onrel();                       // the browser dropped it (tab hidden)
+  assertEq(elements['wakePill'].hidden, true, 'pill hidden without a lock');
+  await ctx.onVisibilityChange();
+  assertEq(requests, 2, 're-acquired when visible again');
+});
+
+test('no Wake Lock API: no pill and no error', async () => {
+  const { ctx, elements } = freshPage();
+  ctx.presentOpenForTest(true);
+  await ctx.acquireWakeLock();
+  assertEq(elements['wakePill'].hidden, true, 'pill hidden');
+});
+
+test('Escape does nothing while a <dialog> is open; closes Present otherwise', () => {
+  const { ctx, calls } = freshPage();
+  ctx.presentOpenForTest(true);
+  ctx.history.state = { cimbarPresent: true };
+  const esc = calls.docListeners.keydown[0];
+  ctx.document.querySelector = (sel) => (sel === 'dialog[open]' ? {} : null);
+  esc({ key: 'Escape' });
+  assertEq(calls.backs || 0, 0, 'ignored under an open dialog');
+  ctx.document.querySelector = () => null;
+  esc({ key: 'Escape' });
+  assertEq(calls.backs, 1, 'closes Present');
+});
+
 (async () => {
   console.log('\ntest_page_logic.js');
   for (const t of tests) {
