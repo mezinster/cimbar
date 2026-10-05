@@ -51,13 +51,13 @@ html,body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 var
 .wordmark em { color:var(--accent-fg); }
 .topbar-actions { display:flex; gap:6px; }
 .icon-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; min-width:40px; padding:0 10px; border-radius:var(--radius-sm);
-  border:1px solid var(--border); background:var(--surface); color:var(--text2); font:500 13px var(--sans); cursor:pointer; text-decoration:none; white-space:nowrap; }
+  border:1px solid var(--border); background:var(--surface); color:var(--text2); font:500 13px var(--sans); cursor:pointer; text-decoration:none; white-space:nowrap; position:relative; }
 .icon-btn .i { width:18px; height:18px; }
+/* a 40px visual box inside a 48px hit area, for every icon button */
+.icon-btn::after { content:''; position:absolute; inset:-4px; }
 .topbar-sub { display:flex; align-items:center; gap:12px; height:56px; }
 .topbar-sub h1 { margin:0; font:400 22px/1.1 var(--serif); }
-/* a 40px visual button inside a 48px hit area */
-.icon-btn.back { padding:0; width:40px; justify-content:center; position:relative; }
-.icon-btn.back::after { content:''; position:absolute; inset:-4px; }
+.icon-btn.back { padding:0; width:40px; justify-content:center; }
 
 /* surfaces */
 .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
@@ -535,12 +535,12 @@ body.scan-lock { overflow:hidden; }
       <p style="font-size:14px;line-height:1.8;color:var(--text2)" data-i18n-html="aboutIntroHtml">
         <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
         of colored geometric symbols. This tool uses a simplified variant:
-        each cell encodes <strong style="color:var(--accent)">6 bits</strong> —
+        each cell encodes <strong style="color:var(--accent-fg)">6 bits</strong> —
         2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
         Before encoding, your file can optionally be encrypted with
-        <strong style="color:var(--accent)">AES-256-GCM</strong>,
+        <strong style="color:var(--accent-fg)">AES-256-GCM</strong>,
         and each frame's data is protected by
-        <strong style="color:var(--accent)">Reed-Solomon</strong> error correction
+        <strong style="color:var(--accent-fg)">Reed-Solomon</strong> error correction
         (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
         Type a message in the Encode tab's Text mode and the receiver sees it as text, ready to copy or save.
       </p>
