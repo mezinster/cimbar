@@ -61,7 +61,7 @@ test('detect(): stored choice, then browser languages, then English; bad values 
 
 test('every data-i18n* key used by index.html exists in the English table', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const used = [...html.matchAll(/data-i18n(?:-html|-placeholder|-title)?="([^"]+)"/g)].map((m) => m[1]);
+  const used = [...html.matchAll(/data-i18n(?:-html|-placeholder|-title|-aria-label)?="([^"]+)"/g)].map((m) => m[1]);
   assert(used.length >= 40, `expected the page to be tagged, found ${used.length} attributes`);
   const unknown = used.filter((k) => !(k in en));
   assertEq(unknown.join(','), '', 'unknown keys in index.html');
@@ -81,6 +81,29 @@ test('html-bearing strings keep their markup balanced in every language', () => 
       assertEq(open, close, `${code}.${k} <strong> balance`);
     }
   }
+});
+
+test('no orphaned keys: every English key is used by index.html or by i18n.js itself', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const self = new Set(['title']);   // apply() sets document.title from t('title')
+  const orphans = Object.keys(en).filter((k) => !self.has(k) && !html.includes(`'${k}'`) && !html.includes(`"${k}"`));
+  assertEq(orphans.join(','), '', 'unused keys (delete them from all five tables)');
+});
+
+test('apply() translates data-i18n-aria-label; the icon-only language button uses it', () => {
+  const el = { attrs: { 'data-i18n-aria-label': 'language' }, getAttribute(k) { return this.attrs[k]; }, setAttribute(k, v) { this.attrs[k] = v; } };
+  const doc = {
+    documentElement: {}, title: '',
+    querySelectorAll: (sel) => (sel === '[data-i18n-aria-label]' ? [el] : []),
+    getElementById: () => null,
+  };
+  I.setLang('ru', doc);
+  assertEq(el.attrs['aria-label'], I.STRINGS.ru.language, 'aria-label follows the language');
+  I.setLang('en', doc);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const btn = html.match(/<button[^>]*onclick="openLanguageSheet\(\)"[^>]*>/)[0];
+  assert(!/\saria-label="/.test(btn), 'no hard-coded English aria-label on the language button');
+  assert(btn.includes('data-i18n-aria-label="language"'), 'language button aria-label comes from i18n');
 });
 
 (async () => {

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The web app is redesigned for phones.** A Send / Receive hub replaces the Encode / Decode / About tabs. The hub has a live, scannable demo code, and Receive opens the camera directly. The app follows the system dark mode. Present keeps the screen awake (Screen Wake Lock) and closes with the Back gesture. Phones get Share GIF / Share for received files. An encrypted scan asks for the passphrase afterwards, so nothing is re-scanned. Browser `alert`/`confirm` dialogs are gone.
+
 ## [0.13.0] — 2026-10-05
 
 ### Added

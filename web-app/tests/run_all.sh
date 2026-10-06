@@ -41,6 +41,12 @@ node tests/test_browser_load.js
 echo ""; echo "--- Page logic (photo-decode glue: addPhoto/startDecode/handleDecFile) ---"
 node tests/test_page_logic.js
 
+echo ""; echo "--- Markup guards (no CDN, sprite, dark theme, no native dialogs) ---"
+node tests/test_markup.js
+
+echo ""; echo "--- Router (hash routes and guards) ---"
+node tests/test_router.js
+
 echo ""; echo "--- Photo decode geometry (RgbBuffer, LumaPlane, Homography) ---"
 node tests/test_photo_geometry.js
 

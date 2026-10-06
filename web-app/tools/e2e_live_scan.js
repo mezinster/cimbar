@@ -117,11 +117,15 @@ function serve() {
     const context = await browser.newContext({ acceptDownloads: true, permissions: ['camera'] });
     const page = await context.newPage();
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-    await page.goto(url);
-    await page.click('button[onclick*="\'decode\'"]');
-    if (golden.passphrase) await page.fill('#passDec', golden.passphrase);
-    const download = page.waitForEvent('download', { timeout: 120000 });
-    await page.click('#scanBtn');
+    await page.goto(url.replace('index.html?debug=1', 'index.html?debug=1#/receive'));   // Receive opens the camera
+    if (golden.passphrase) {
+      await page.waitForURL(/#\/receive\/unlock$/, { timeout: 120000 });
+      await page.fill('#passDec', golden.passphrase);
+      await page.click('button[onclick="unlock()"]');
+    }
+    await page.waitForURL(/#\/receive\/done$/, { timeout: 120000 });
+    const download = page.waitForEvent('download', { timeout: 30000 });
+    await page.click('#saveFileBtn');
     const d = await download;
     const got = fs.readFileSync(await d.path());
     const want = Buffer.from(golden.fileBytesBase64, 'base64');

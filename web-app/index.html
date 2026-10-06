@@ -9,826 +9,737 @@
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f5f3ef">
+<meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap">
 
 <style>
 :root {
-  --bg:       #f5f3ef;
-  --surface:  #ffffff;
-  --surface2: #f9f8f5;
-  --border:   #e2ddd6;
-  --border2:  #cdc8be;
-  --text:     #1a1714;
-  --text2:    #6b6459;
-  --text3:    #a09890;
-  --accent:   #2d6a4f;        /* forest green */
-  --accent-l: #d8f0e5;
-  --accent-d: #1b4332;
-  --warn:     #c0392b;
-  --warn-l:   #fde8e6;
-  --info:     #1a5276;
-  --info-l:   #d6eaf8;
-  --radius:   14px;
-  --radius-sm: 8px;
-  --shadow:   0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-lg:0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+  --bg:#f5f3ef; --surface:#ffffff; --surface2:#f9f8f5; --border:#e2ddd6;
+  --text:#1a1714; --text2:#5c554e; --text3:#8a827a;
+  --accent:#2d6a4f; --accent-fg:#2d6a4f; --accent-l:#d8f0e5; --accent-d:#1b4332; --accent-line:#bfe3d1;
+  --warn:#c0392b; --warn-l:#fde8e6;
+  --signal:#00FF66; --scrim:rgba(26,23,20,.45); --overlay-glass:rgba(255,255,255,.08);
+  --radius:14px; --radius-sm:8px;
+  --shadow:0 2px 12px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.05);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.10),0 2px 8px rgba(0,0,0,.06);
+  --serif:'DM Serif Display',Georgia,serif; --sans:'DM Sans',system-ui,sans-serif; --mono:'DM Mono',ui-monospace,monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#171512; --surface:#211e1a; --surface2:#1c1916; --border:#3a352f;
+    --text:#efe9e1; --text2:#bdb4a9; --text3:#8f877d;
+    --accent-fg:#7fc8a2; --accent-l:#1d3a2c; --accent-d:#cfeedd; --accent-line:#2c5a43;
+    --warn:#ef8a7e; --warn-l:#3a1f1b; --scrim:rgba(0,0,0,.6);
+    --shadow:0 2px 12px rgba(0,0,0,.4); --shadow-lg:0 8px 32px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+}
+*,*::before,*::after { box-sizing:border-box; }
+html,body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 var(--sans); -webkit-text-size-adjust:100%; }
+.page { max-width:720px; margin:0 auto; padding:0 16px calc(24px + env(safe-area-inset-bottom)); min-height:100dvh; }
+.screen[hidden] { display:none !important; }
+.i { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+/* top bars */
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; height:56px; padding-top:env(safe-area-inset-top); }
+.wordmark { display:flex; flex:none; align-items:center; gap:8px; font:400 22px/1 var(--serif); color:var(--text); text-decoration:none; }
+.wordmark img { width:28px; height:28px; }
+.wordmark em { color:var(--accent-fg); }
+.topbar-actions { display:flex; gap:6px; }
+/* below 380px the ka/ru "How it works" label leaves no room: the globe alone is the language button */
+@media (max-width:379px) { #langCode { display:none; } }
+.icon-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; min-width:40px; padding:0 10px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--surface); color:var(--text2); font:500 13px var(--sans); cursor:pointer; text-decoration:none; white-space:nowrap; position:relative; }
+.icon-btn .i { width:18px; height:18px; }
+/* a 40px visual box inside a 48px hit area, for every icon button */
+.icon-btn::after { content:''; position:absolute; inset:-4px; }
+.topbar-sub { display:flex; align-items:center; gap:12px; height:56px; }
+.topbar-sub h1 { margin:0; font:400 22px/1.1 var(--serif); }
+.icon-btn.back { padding:0; width:40px; justify-content:center; }
+
+/* surfaces */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+
+/* hub */
+.demo { background:#000; border-radius:var(--radius); padding:16px; display:flex; flex-direction:column; align-items:center; box-shadow:0 8px 28px rgba(26,23,20,.18); }
+.demo-chip { align-self:flex-start; font:500 10px var(--mono); letter-spacing:.12em; padding:4px 8px; border-radius:4px; background:rgba(0,255,100,.14); color:var(--signal); }
+.demo-chip::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--signal); margin-right:6px; vertical-align:middle; }
+.demo img { width:240px; height:240px; margin-top:12px; image-rendering:pixelated; border-radius:6px; background:#111; }
+.demo-caption { display:flex; align-items:center; gap:6px; margin-top:12px; font-size:12px; color:rgba(255,255,255,.72); }
+.demo-caption .i { color:var(--signal); width:16px; height:16px; }
+.hero-title { font:400 30px/1.1 var(--serif); margin:20px 0 8px; }
+.hero-sub { color:var(--text2); margin:0; }
+.choices { display:grid; gap:12px; margin-top:20px; }
+.choice { display:flex; flex-direction:column; justify-content:space-between; min-height:120px; padding:16px; border-radius:var(--radius); text-decoration:none; }
+.choice-top { display:flex; justify-content:space-between; }
+.choice-top .i:first-child { width:30px; height:30px; }
+.choice-title { font:400 24px/1 var(--serif); }
+.choice-sub { font-size:13px; margin-top:6px; }
+.choice--primary { background:var(--accent); color:#fff; box-shadow:0 6px 18px rgba(45,106,79,.28); }
+.choice--primary .choice-sub { color:rgba(255,255,255,.85); }
+.choice--tonal { background:var(--accent-l); color:var(--accent-d); border:1px solid var(--accent-line); }
+.choice--tonal .choice-sub { color:var(--accent-fg); }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.chip { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:var(--radius-sm); background:var(--surface);
+  border:1px solid var(--border); color:var(--text2); font:500 13px var(--sans); }
+.chip .i { width:16px; height:16px; color:var(--accent-fg); }
+.disclosure { margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+.disclosure > summary { display:flex; align-items:center; justify-content:space-between; min-height:52px; padding:0 16px; cursor:pointer; list-style:none; font-weight:500; }
+.disclosure > summary::-webkit-details-marker { display:none; }
+.disclosure > summary .i:last-child { color:var(--text3); transition:transform .15s; }
+.disclosure[open] > summary .i:last-child { transform:rotate(180deg); }
+.disclosure-body { padding:0 16px 16px; }
+.steps-mini { display:flex; align-items:center; gap:8px; }
+.steps-mini > div { flex:1; text-align:center; font:12px var(--mono); color:var(--text2); }
+.steps-mini .tile { width:36px; height:36px; margin:0 auto 6px; border-radius:var(--radius-sm); display:grid; place-items:center; background:var(--accent-l); color:var(--accent-fg); }
+.footer { text-align:center; margin-top:24px; font:11px var(--mono); color:var(--text3); }
+.footer a { color:inherit; }
+
+/* buttons */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:0 18px; border-radius:var(--radius);
+  border:1px solid var(--border); background:var(--surface); color:var(--text); font:600 15px var(--sans); cursor:pointer; width:100%; text-decoration:none; }
+.btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 6px 18px rgba(45,106,79,.22); }
+.btn-secondary { background:var(--accent-l); border-color:var(--accent-line); color:var(--accent-d); }
+.btn-link { background:none; border:0; color:var(--accent-fg); width:auto; min-height:48px; font-weight:500; }
+.btn:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+.btn-row { display:flex; gap:10px; }
+.btn-row > .btn { flex:1; }
+.action-bar { position:sticky; bottom:0; padding:12px 0 calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(to top, var(--bg) 70%, transparent); }
+.form-error { display:flex; gap:8px; margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--warn-l); color:var(--warn); font-size:14px; }
+.form-error[hidden] { display:none; }
+
+/* sheets (dialog) */
+.sheet { border:0; padding:8px 16px calc(16px + env(safe-area-inset-bottom)); margin:auto auto 0; width:100%; max-width:560px;
+  border-radius:20px 20px 0 0; background:var(--surface); color:var(--text); }
+.sheet::backdrop { background:var(--scrim); }
+.sheet-handle { width:36px; height:4px; border-radius:2px; background:var(--border); margin:4px auto 12px; }
+.sheet h2 { font:400 24px var(--serif); margin:0 0 12px; }
+.sheet-actions { display:flex; gap:10px; margin-top:16px; }
+.sheet-actions > .btn { flex:1; }
+.lang-list { list-style:none; margin:0; padding:0; }
+.lang-list button { display:flex; align-items:center; gap:10px; width:100%; min-height:52px; padding:0 12px; border:0; border-radius:var(--radius-sm);
+  background:none; color:var(--text); font:15px var(--sans); text-align:left; cursor:pointer; }
+.lang-list button[aria-checked="true"] { background:var(--accent-l); }
+.lang-list .code { font:11px var(--mono); color:var(--text3); border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+.lang-list .i { margin-left:auto; color:var(--accent-fg); visibility:hidden; }
+.lang-list button[aria-checked="true"] .i { visibility:visible; }
+
+/* black overlays (Present, scanner): shared chrome */
+.glass-btn { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; border:0; background:var(--overlay-glass); color:#fff; cursor:pointer; }
+.signal-pill { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:16px; background:rgba(0,0,0,.55);
+  border:1px solid rgba(0,255,102,.35); color:var(--signal); font:500 13px var(--mono); }
+
+@media (min-width:840px) {
+  .hub-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
+  .hub-grid .choices { margin-top:0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .screen:not([hidden]) { animation:screen-in .15s ease-out; }
+  @keyframes screen-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .sheet[open] { animation:sheet-in .2s ease-out; }
+  @keyframes sheet-in { from { transform:translateY(100%); } to { transform:none; } }
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* send: compose */
+.seg { display:flex; gap:4px; margin-top:4px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); }
+.seg-btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:48px; border:0; border-radius:6px;
+  background:none; color:var(--text2); font:500 14px var(--sans); cursor:pointer; }
+.seg-btn .i { width:16px; height:16px; }
+.seg-btn.active { background:var(--accent); color:#fff; }
+.pick { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:150px; margin-top:16px; padding:20px 16px;
+  background:var(--surface); border:2px dashed var(--accent-line); border-radius:var(--radius); cursor:pointer; }
+.pick:focus-within, .pick.over { border-color:var(--accent); }
+.pick-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:var(--accent-l); color:var(--accent-d); }
+.pick-icon .i { width:24px; height:24px; }
+.pick-title { margin-top:12px; font:400 18px/1 var(--serif); color:var(--text); }
+.pick-hint, .pick-drop { margin-top:6px; font-size:12px; color:var(--text3); }
+.pick-drop { display:none; }
+@media (hover:hover) and (pointer:fine) { .pick-drop { display:block; } }
+.file-pill { display:none; align-items:center; gap:10px; margin-top:10px; min-height:48px; padding:0 4px 0 12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow); }
+.file-pill.show { display:flex; }
+.file-pill > .i { color:var(--accent-fg); }
+.file-pill > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+.file-pill .icon-btn { border:0; background:none; color:var(--text3); }
+textarea, select, input[type=password], .pass-field input { width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--text); font:15px var(--sans); }
+textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
+.pass-field { display:flex; align-items:center; gap:8px; }
+.pass-field input { flex:1; min-width:0; font-family:var(--mono); background:var(--bg); }
+.pass-field input::placeholder { font-family:var(--sans); color:var(--text3); }
+.pass-field .icon-btn { width:48px; min-height:48px; padding:0; justify-content:center; }
+.row { display:inline-flex; align-items:center; gap:8px; }
+.row .i { color:var(--accent-fg); }
+.muted { font-size:12px; font-weight:400; color:var(--text3); }
+.disclosure-body > label { display:block; margin-bottom:6px; font-size:13px; color:var(--text2); }
+.field-hint { margin-top:8px; font-size:12px; color:var(--text2); }   /* instructions: --text3 is 3.4:1 on --bg */
+.details-log { margin-top:8px; box-shadow:none; }
+.details-log > summary { min-height:48px; font:500 13px var(--sans); color:var(--text2); }
+.details-log .log { margin:0 12px 12px; }
+.action-bar .progress-section { margin:0 0 12px; padding-top:0; border-top:0; }
 
-html { scroll-behavior: smooth; }
+/* send: ready */
+.demo .ready-gif { width:min(300px,100%); height:auto; aspect-ratio:1; image-rendering:pixelated; }
+.meta { margin:12px 0 16px; text-align:center; font:12px var(--mono); color:var(--text2); }
+.center { text-align:center; }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 400;
-  min-height: 100vh;
-  line-height: 1.6;
-}
+/* ── Shared building blocks: password strength meter, progress bar, log ── */
+.strength-track { height:4px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
+.strength-fill { height:100%; width:0%; border-radius:2px; transition:width .3s, background .3s; background:var(--warn); }
 
-/* ── Layout ── */
-.page {
-  max-width: 740px;
-  margin: 0 auto;
-  padding: 32px 20px 60px;
-}
+.progress-section { display:none; margin-top:22px; padding-top:22px; border-top:1px solid var(--border); }
+.progress-header { display:flex; justify-content:space-between; font:500 12px var(--mono); color:var(--text2); margin-bottom:8px; }
+.progress-track { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:14px; }
+.progress-fill { height:100%; width:0%; border-radius:3px; background:var(--accent); transition:width .35s ease-out; }
 
-/* ── Header ── */
-header {
-  text-align: center;
-  padding: 40px 0 36px;
-}
+.log { font:12px/2 var(--mono); color:var(--text2); max-height:90px; overflow-y:auto; background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; }
+.log-line { display:block; }
+.log-ok   { color:var(--accent-fg); }
+.log-err  { color:var(--warn); }
+.log-info { color:var(--text); }
 
-.logo {
-  font-family: 'DM Serif Display', serif;
-  font-size: clamp(36px, 6vw, 56px);
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1;
-}
+/* receive: unlock / done */
+.badge-icon { display:inline-grid; place-items:center; width:64px; height:64px; border-radius:50%; background:var(--accent-l); color:var(--accent-fg); }
+.badge-icon .i { width:28px; height:28px; }
+.badge-icon.big { width:80px; height:80px; }
+.badge-icon.big .i { width:40px; height:40px; }
+.screen-heading { margin:12px 0 4px; font:400 26px/1.15 var(--serif); }
+.file-card { display:flex; align-items:center; gap:12px; margin:16px 0; }
+.file-card > .i { width:28px; height:28px; color:var(--accent-fg); }
+.file-card > div { min-width:0; }
+.file-name { font-weight:500; word-break:break-all; }
+.file-card .meta { margin:2px 0 0; text-align:left; }
+.copied { display:flex; width:max-content; margin:8px auto 0; }   /* flex, not inline-flex: auto margins only centre a block-level box */
+.btn[hidden], .chip[hidden] { display:none; }
+p.center > .btn-link { display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none; }
+.text-out { text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; max-height:50vh; overflow:auto; padding:12px; margin:8px 0 12px;
+  border:1px solid var(--border); border-radius:8px; background:var(--surface2); font:14px/1.5 var(--mono); }
 
-.logo em {
-  font-style: italic;
-  color: var(--accent);
-}
-
-.tagline {
-  margin-top: 10px;
-  font-size: 15px;
-  color: var(--text2);
-  font-weight: 300;
-  letter-spacing: 0.01em;
-}
-
-.badge-row {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-
-.badge {
-  font-size: 11px;
-  font-family: 'DM Mono', monospace;
-  font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 100px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text2);
-  letter-spacing: 0.03em;
-}
-
-/* ── Tabs ── */
-.tab-bar {
-  display: flex;
-  gap: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
-}
-
-.tab-btn {
-  flex: 1;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 10px 16px;
-  border: none;
-  border-radius: calc(var(--radius) - 4px);
-  background: transparent;
-  color: var(--text2);
-  cursor: pointer;
-  transition: background 0.18s, color 0.18s;
-}
-
-.tab-btn:hover { background: var(--surface2); color: var(--text); }
-
-.tab-btn.active {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 1px 6px rgba(45,106,79,0.25);
-}
-
-/* ── Card ── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-  box-shadow: var(--shadow);
-}
-
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-
-/* ── Form ── */
-.field { margin-bottom: 20px; }
-.field:last-child { margin-bottom: 0; }
-
-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text2);
-  margin-bottom: 7px;
-}
-
-.seg { display: inline-flex; border: 1px solid var(--border2); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
-.seg-btn { border: 0; background: var(--surface); color: var(--text2); padding: 8px 18px; font: inherit; cursor: pointer; }
-.seg-btn.active { background: var(--surface2); color: var(--text); font-weight: 600; }
-#textEnc { width: 100%; box-sizing: border-box; resize: vertical; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); color: var(--text); }
-.field-hint {
-  font-size: 12px;
-  color: var(--text3);
-  margin-top: 5px;
-}
-
-/* Drop zone */
-.drop-zone {
-  position: relative;
-  border: 2px dashed var(--border2);
-  border-radius: var(--radius-sm);
-  padding: 36px 20px;
-  text-align: center;
-  cursor: pointer;
-  background: var(--surface2);
-  transition: border-color 0.2s, background 0.2s;
-}
-
-.drop-zone:hover, .drop-zone.over {
-  border-color: var(--accent);
-  background: var(--accent-l);
-}
-
-.drop-zone input[type=file] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
-}
-
-.drop-icon {
-  font-size: 28px;
-  line-height: 1;
-  margin-bottom: 10px;
-}
-
-.drop-text {
-  font-size: 14px;
-  color: var(--text2);
-}
-
-.drop-text strong { color: var(--accent); }
-
-.file-pill {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  background: var(--accent-l);
-  border: 1px solid var(--accent);
-  border-radius: 100px;
-  padding: 5px 14px 5px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent-d);
-  margin-top: 12px;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.file-pill.show { display: inline-flex; }
-
-/* Inputs */
-input[type=password],
-input[type=text],
-select {
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  padding: 11px 14px;
-  outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s;
-  appearance: none;
-}
-
-input:focus, select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(45,106,79,0.12);
-}
-
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  /* The wrapper, not its last .field (whose margin is zeroed), spaces the
-     Encode button below the frame-delay select. */
-  margin-bottom: 20px;
-}
-
-/* Strength meter */
-.strength-track {
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin-top: 8px;
-  overflow: hidden;
-}
-
-.strength-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: 2px;
-  transition: width 0.3s, background 0.3s;
-  background: var(--warn);
-}
-
-/* Button */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 13px 24px;
-  border-radius: var(--radius-sm);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.18s, transform 0.12s, box-shadow 0.18s;
-  width: 100%;
-  letter-spacing: 0.01em;
-}
-
-.btn:active:not(:disabled) { transform: scale(0.98); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(45,106,79,0.25);
-}
-.btn-primary:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(45,106,79,0.35); }
-
-.btn-danger {
-  background: var(--warn);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(192,57,43,0.2);
-}
-.btn-danger:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(192,57,43,0.32); }
-
-.btn-outline {
-  background: transparent;
-  color: var(--accent);
-  border: 1.5px solid var(--accent);
-}
-.btn-outline:hover:not(:disabled) { background: var(--accent-l); }
-
-.btn + .btn { margin-top: 10px; }
-
-/* Progress */
-.progress-section {
-  display: none;
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid var(--border);
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text2);
-  margin-bottom: 8px;
-  font-family: 'DM Mono', monospace;
-}
-
-.progress-track {
-  height: 6px;
-  background: var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 14px;
-}
-
-.progress-fill {
-  height: 100%;
-  width: 0%;
-  border-radius: 3px;
-  background: var(--accent);
-  transition: width 0.35s ease-out;
-}
-
-.log {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  line-height: 2;
-  color: var(--text2);
-  max-height: 90px;
-  overflow-y: auto;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-}
-
-.log-line { display: block; }
-.log-ok   { color: var(--accent); }
-.log-err  { color: var(--warn); }
-.log-info { color: var(--info); }
-
-/* Stats */
-.stats {
-  display: grid;
-  /* auto-fit, not a fixed count: four stats on encode must not leave an
-     orphaned cell on a second row */
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1px;
-  background: var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  margin-top: 20px;
-  border: 1px solid var(--border);
-}
-
-.stat {
-  background: var(--surface2);
-  padding: 16px 12px;
-  text-align: center;
-}
-
-.stat-val {
-  font-family: 'DM Serif Display', serif;
-  font-size: 24px;
-  color: var(--accent);
-  line-height: 1;
-}
-
-.stat-lbl {
-  font-size: 11px;
-  color: var(--text3);
-  margin-top: 4px;
-  font-weight: 500;
-}
-
-/* Output */
-.text-out { text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; padding: 12px; margin: 8px 0 12px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface2); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.output-section {
-  display: none;
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid var(--border);
-  text-align: center;
-}
-
-.preview-frame {
-  display: inline-block;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  margin-bottom: 16px;
-  background: #111;
-}
-
-.preview-frame img {
-  display: block;
-  image-rendering: pixelated;
-  width: min(100%, 608px);
-  height: auto;
-}
-
-#present {
-  position: fixed; inset: 0; background: #000; z-index: 1000;
-  display: none; align-items: center; justify-content: center; cursor: pointer;
-}
-#present.open { display: flex; }
-#present canvas { image-rendering: pixelated; display: block; }
-#presentStatus { position: fixed; left: 12px; bottom: 10px; font: 12px/1.4 var(--mono, monospace); color: #9aa; opacity: .8; }
+#present { position:fixed; inset:0; background:#000; z-index:1000; display:none; align-items:center; justify-content:center; }
+.present-close { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; }
+.present-wake { position:fixed; top:calc(18px + env(safe-area-inset-top)); right:12px; }
+.present-wake[hidden] { display:none; }
+.present-hint { position:fixed; left:50%; top:calc(50% + min(46vw, 46vh) + 12px); transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); padding:8px 14px; border-radius:16px;
+  background:var(--overlay-glass); color:#fff; font:500 13px var(--sans); text-align:center; animation:hint-out 0s 3s forwards; }
+@keyframes hint-out { to { opacity:0; visibility:hidden; } }
+@media (prefers-reduced-motion: no-preference) { .present-hint { animation:hint-out .4s 3s forwards; } }
+#present.open { display:flex; }
+#present canvas { image-rendering:pixelated; display:block; }
+#presentStatus { position:fixed; left:12px; bottom:10px; font:12px/1.4 var(--mono); color:#9aa; opacity:.8; }
 
 /* Live scan (spec §9.3): full-viewport camera view over the page. */
-body.scan-lock { overflow: hidden; }
-#scanner { position: fixed; inset: 0; background: #000; z-index: 1001; display: none; }
-#scanner.open { display: block; }
-#scanVideo, #scanOverlay { position: absolute; inset: 0; width: 100%; height: 100%; }
-#scanVideo { object-fit: cover; }
-.scan-top, .scan-bottom { position: absolute; left: 0; right: 0; padding: 12px 16px; color: #fff; background: rgba(0,0,0,.45); }
-.scan-top { top: 0; padding-top: calc(12px + env(safe-area-inset-top)); display: flex; justify-content: space-between; align-items: center; }
-.scan-bottom { bottom: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); text-align: center; }
-.scan-close { background: none; border: 0; color: #fff; font-size: 24px; line-height: 1; cursor: pointer; padding: 4px 8px; }
-#scanCount { font: 600 15px/1 var(--mono, monospace); }
-#scanTrack { display: none; margin-bottom: 8px; }
-#scanHint { min-height: 1.4em; font-size: 16px; }
-#scanResumeBtn { display: none; margin-top: 8px; }
-#scanDebug { display: none; max-height: 30vh; overflow: auto; margin: 8px 0 0; text-align: left; font: 11px/1.35 var(--mono, monospace); color: #9f9; white-space: pre-wrap; }
+body.scan-lock { overflow:hidden; }
+#scanner { position:fixed; inset:0; background:#000; z-index:1001; display:none; }
+#scanner.open { display:block; }
+#scanVideo, #scanOverlay { position:absolute; inset:0; width:100%; height:100%; }
+#scanVideo { object-fit:cover; }
+.scan-top { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px; }
+#scanCount:empty { visibility:hidden; }
+.scan-sheet { position:absolute; bottom:0; left:0; right:0; padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+  background:rgba(20,20,20,.82); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border-radius:20px 20px 0 0; color:#fff; }
+.scan-sheet .progress-track { background:rgba(255,255,255,.1); }
+#scanFill { background:var(--signal); }
+#scanTrack { display:none; margin-bottom:12px; }
+#scanHint { min-height:1.5em; font-size:15px; color:rgba(255,255,255,.85); }
+#scanResumeBtn { display:none; margin-top:12px; }
+.btn-ghost-dark { margin-top:16px; background:transparent; border:1px solid rgba(255,255,255,.2); color:#fff; min-height:48px; font-weight:500; }
+.btn-ghost-dark .i { color:var(--signal); }
+#scanDebug { display:none; max-height:30vh; overflow:auto; margin:8px 0 0; text-align:left; font:11px/1.35 var(--mono); color:#9f9; white-space:pre-wrap; }
 
-/* Callout */
-.callout {
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  font-size: 13px;
-  line-height: 1.7;
-  margin-top: 16px;
-}
+/* receive: files */
+.notice { margin:4px 0 12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-size:14px; }
+.notice[hidden] { display:none; }
+.photo-btn { margin-top:12px; }
+#progDec .btn-link { padding:0; align-items:center; gap:6px; }
 
-.callout-info {
-  background: var(--info-l);
-  border-left: 3px solid var(--info);
-  color: var(--info);
-}
+/* how it works */
+.steps { display:grid; gap:12px; margin-top:8px; }
+.step-card { display:flex; align-items:center; gap:12px; }
+.step-card > div { flex:1; min-width:0; }
+.step-num { font:400 26px/1 var(--serif); color:var(--text3); }
+.step-title { margin-top:8px; font:400 20px/1.1 var(--serif); }
+.step-text { margin:6px 0 0; font-size:14px; color:var(--text2); }
+.step-thumb { flex:none; padding:4px; border-radius:6px; background:#000; line-height:0; }
+.step-thumb img { width:72px; height:72px; border-radius:4px; image-rendering:pixelated; background:#111; }
+.hood-intro { margin:0 0 16px; font-size:14px; line-height:1.7; color:var(--text2); }
+.hood-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.hood-card { min-width:0; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); overflow-wrap:break-word; }
+.hood-card .i { width:16px; height:16px; color:var(--accent-fg); }
+.hood-title { margin-top:6px; font-weight:500; font-size:14px; }
+.hood-text { margin-top:4px; font-size:12px; line-height:1.45; color:var(--text2); }
+.hood-capacity { display:flex; gap:12px; margin-top:16px; padding:14px; border-radius:var(--radius); background:var(--accent-l); border:1px solid var(--accent-line);
+  color:var(--accent-d); font-size:13px; line-height:1.6; }
+.hood-capacity > .i { width:24px; height:24px; }
+.hood-capacity > div { min-width:0; overflow-wrap:break-word; }
+.disclosure-body > .notice { margin:12px 0 0; font-size:13px; line-height:1.6; }
 
-.callout-warn {
-  background: var(--warn-l);
-  border-left: 3px solid var(--warn);
-  color: var(--warn);
-}
-
-.callout strong { font-weight: 600; }
-
-/* About cards */
-.about-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.about-card {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 18px 14px;
-}
-
-.about-num {
-  font-family: 'DM Serif Display', serif;
-  font-size: 28px;
-  color: var(--border2);
-  line-height: 1;
-  margin-bottom: 8px;
-}
-
-.about-icon { font-size: 22px; margin-bottom: 8px; }
-
-.about-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.about-text { font-size: 12px; color: var(--text2); line-height: 1.6; }
-
-/* Divider */
-.divider {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 24px 0;
-}
-
-/* Spinner */
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner {
-  display: inline-block;
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-/* Hidden canvas */
-.hidden { display: none !important; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: var(--surface2); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-
-/* Footer */
-footer {
-  text-align: center;
-  padding: 24px 0 0;
-  font-size: 12px;
-  color: var(--text3);
-}
-
-@media (max-width: 480px) {
-  .two-col { grid-template-columns: 1fr; }
-  .stats   { grid-template-columns: 1fr; }
-}
-
-/* language picker */
-.lang-picker { display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:13px; color:var(--text3); }
-.lang-picker select { background:transparent; color:var(--text2); border:1px solid var(--border, #333); border-radius:8px; padding:4px 8px; font:inherit; cursor:pointer; }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 </style>
 </head>
 <body>
 
+<!-- icon-sprite:start — Lucide icons (lucide-static 0.460.0), ISC License, Copyright (c) Lucide Contributors -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1" />
+  <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+  <path d="M10 12h4" /></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7" />
+  <path d="M19 12H5" /></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" />
+  <path d="m12 5 7 7-7 7" /></symbol>
+<symbol id="i-arrow-up-from-line" viewBox="0 0 24 24"><path d="m18 9-6-6-6 6" />
+  <path d="M12 3v14" />
+  <path d="M5 21h14" /></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+  <circle cx="12" cy="13" r="3" /></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+<symbol id="i-circle-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />
+  <line x1="12" x2="12" y1="8" y2="12" />
+  <line x1="12" x2="12.01" y1="16" y2="16" /></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />
+  <path d="m9 12 2 2 4-4" /></symbol>
+<symbol id="i-circle-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />
+  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+  <path d="M12 17h.01" /></symbol>
+<symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="m2 2 20 20" />
+  <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" />
+  <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" /></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+  <polyline points="7 10 12 15 17 10" />
+  <line x1="12" x2="12" y1="15" y2="3" /></symbol>
+<symbol id="i-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6" />
+  <path d="M10 14 21 3" />
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></symbol>
+<symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+  <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+  <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+  <path d="m2 2 20 20" /></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+  <circle cx="12" cy="12" r="3" /></symbol>
+<symbol id="i-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  <path d="M10 9H8" />
+  <path d="M16 13H8" />
+  <path d="M16 17H8" /></symbol>
+<symbol id="i-file-up" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  <path d="M12 12v6" />
+  <path d="m15 15-3-3-3 3" /></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4" />
+  <path d="M3.34 19a10 10 0 1 1 17.32 0" /></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" />
+  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+  <path d="M2 12h20" /></symbol>
+<symbol id="i-grid-3x3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" />
+  <path d="M3 9h18" />
+  <path d="M3 15h18" />
+  <path d="M9 3v18" />
+  <path d="M15 3v18" /></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <circle cx="9" cy="9" r="2" />
+  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 10 0v4" /></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3" />
+  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+  <path d="M16 21h3a2 2 0 0 0 2-2v-3" /></symbol>
+<symbol id="i-monitor-play" viewBox="0 0 24 24"><path d="M10 7.75a.75.75 0 0 1 1.142-.638l3.664 2.249a.75.75 0 0 1 0 1.278l-3.664 2.25a.75.75 0 0 1-1.142-.64z" />
+  <path d="M12 17v4" />
+  <path d="M8 21h8" />
+  <rect x="2" y="3" width="20" height="14" rx="2" /></symbol>
+<symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+  <path d="M21 3v5h-5" />
+  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+  <path d="M8 16H3v5" /></symbol>
+<symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+  <path d="M3 3v5h5" /></symbol>
+<symbol id="i-scan-line" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" />
+  <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+  <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+  <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+  <path d="M7 12h10" /></symbol>
+<symbol id="i-share-2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3" />
+  <circle cx="6" cy="12" r="3" />
+  <circle cx="18" cy="19" r="3" />
+  <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+  <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" /></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></symbol>
+<symbol id="i-sliders-horizontal" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4" />
+  <line x1="10" x2="3" y1="4" y2="4" />
+  <line x1="21" x2="12" y1="12" y2="12" />
+  <line x1="8" x2="3" y1="12" y2="12" />
+  <line x1="21" x2="16" y1="20" y2="20" />
+  <line x1="12" x2="3" y1="20" y2="20" />
+  <line x1="14" x2="14" y1="2" y2="6" />
+  <line x1="8" x2="8" y1="10" y2="14" />
+  <line x1="16" x2="16" y1="18" y2="22" /></symbol>
+<symbol id="i-smartphone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+  <path d="M12 18h.01" /></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+  <path d="M20 3v4" />
+  <path d="M22 5h-4" />
+  <path d="M4 17v2" />
+  <path d="M5 18H3" /></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" />
+  <path d="M12 2v2" />
+  <path d="M12 20v2" />
+  <path d="m4.93 4.93 1.41 1.41" />
+  <path d="m17.66 17.66 1.41 1.41" />
+  <path d="M2 12h2" />
+  <path d="M20 12h2" />
+  <path d="m6.34 17.66-1.41 1.41" />
+  <path d="m19.07 4.93-1.41 1.41" /></symbol>
+<symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01" />
+  <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+  <path d="M5 12.859a10 10 0 0 1 5.17-2.69" />
+  <path d="M19 12.859a10 10 0 0 0-2.007-1.523" />
+  <path d="M2 8.82a15 15 0 0 1 4.177-2.643" />
+  <path d="M22 8.82a15 15 0 0 0-11.288-3.764" />
+  <path d="m2 2 20 20" /></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" />
+  <path d="m6 6 12 12" /></symbol>
+</svg>
+<!-- icon-sprite:end -->
+
 <div class="page">
-
-  <header>
-    <div class="logo">Cim<em>Bar</em></div>
-    <div class="tagline" data-i18n="tagline">Encode any file into an animated image. Optionally encrypt it first.</div>
-    <div class="badge-row">
-      <span class="badge">AES-256-GCM</span>
-      <span class="badge">Reed-Solomon ECC</span>
-      <span class="badge" data-i18n="badgeClientSide">100% client-side</span>
-      <span class="badge" data-i18n="badgeNoUpload">no upload, no tracking</span>
-    </div>
-    <label class="lang-picker" for="langSelect"><span aria-hidden="true">🌐</span>
-      <span class="sr-only" data-i18n="language">Language</span>
-      <select id="langSelect" onchange="CimbarI18n.setLang(this.value)">
-        <option value="en">English</option>
-        <option value="ru">Русский</option>
-        <option value="uk">Українська</option>
-        <option value="tr">Türkçe</option>
-        <option value="ka">ქართული</option>
-      </select>
-    </label>
-  </header>
-
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(event,'encode')" data-i18n="tabEncode">Encode</button>
-    <button class="tab-btn" onclick="switchTab(event,'decode')" data-i18n="tabDecode">Decode</button>
-    <button class="tab-btn" onclick="switchTab(event,'about')" data-i18n="tabAbout">About</button>
-  </div>
-
-  <!-- ═══════════════════ ENCODE ═══════════════════ -->
-  <div class="tab-panel active" id="tab-encode">
-    <div class="card">
-
-      <div class="seg" role="tablist">
-        <button type="button" class="seg-btn active" id="encModeFile" onclick="setEncMode('file')" data-i18n="encModeFile">File</button>
-        <button type="button" class="seg-btn" id="encModeText" onclick="setEncMode('text')" data-i18n="encModeText">Text</button>
+  <section class="screen" data-route="/" hidden>
+    <header class="topbar">
+      <a class="wordmark" href="#/"><img src="favicon.svg" alt="" width="28" height="28"><span>Cim<em>Bar</em></span></a>
+      <div class="topbar-actions">
+        <button type="button" class="icon-btn" onclick="openLanguageSheet()" data-i18n-aria-label="language" data-i18n-title="language">
+          <svg class="i" aria-hidden="true"><use href="#i-globe"/></svg><span id="langCode">EN</span></button>
+        <a class="icon-btn" href="#/how"><svg class="i" aria-hidden="true"><use href="#i-circle-help"/></svg><span data-i18n="howTitle">How it works</span></a>
       </div>
+    </header>
+    <div class="hub-grid">
+      <div>
+        <div class="demo">
+          <span class="demo-chip" data-i18n="demoChip">LIVE DEMO</span>
+          <img id="demoGif" alt="" width="240" height="240">
+          <div class="demo-caption"><svg class="i" aria-hidden="true"><use href="#i-smartphone"/></svg><span data-i18n="demoCaption">Try it: scan this with another phone</span></div>
+        </div>
+        <h1 class="hero-title" data-i18n="heroTitle">Send a file through the air.</h1>
+        <p class="hero-sub" data-i18n="heroSub">Phone to phone, screen to camera. No network, no cable, no pairing.</p>
+      </div>
+      <div>
+        <nav class="choices">
+          <a class="choice choice--primary" href="#/send">
+            <span class="choice-top"><svg class="i" aria-hidden="true"><use href="#i-arrow-up-from-line"/></svg><svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg></span>
+            <span><span class="choice-title" data-i18n="sendTitle">Send</span><span class="choice-sub" data-i18n="sendSub" style="display:block">A file or a message → animated code</span></span>
+          </a>
+          <a class="choice choice--tonal" href="#/receive">
+            <span class="choice-top"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><svg class="i" aria-hidden="true"><use href="#i-camera"/></svg></span>
+            <span><span class="choice-title" data-i18n="receiveTitle">Receive</span><span class="choice-sub" data-i18n="receiveSub" style="display:block">Scan a code with your camera</span></span>
+          </a>
+        </nav>
+        <div class="chips">
+          <span class="chip"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-i18n="chipAes">AES-256</span></span>
+          <span class="chip"><svg class="i" aria-hidden="true"><use href="#i-wifi-off"/></svg><span data-i18n="chipOffline">Works offline</span></span>
+          <span class="chip"><svg class="i" aria-hidden="true"><use href="#i-cloud-off"/></svg><span data-i18n="chipNoUpload">Nothing uploaded</span></span>
+        </div>
+        <details class="disclosure">
+          <summary><span style="display:flex;gap:8px;align-items:center"><svg class="i" aria-hidden="true" style="color:var(--accent-fg)"><use href="#i-sparkles"/></svg><span data-i18n="howTitle">How it works</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+          <div class="disclosure-body">
+            <div class="steps-mini">
+              <div><span class="tile"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg></span><span data-i18n="stepEncode">Encode</span></div>
+              <svg class="i" aria-hidden="true" style="color:var(--text3)"><use href="#i-chevron-right"/></svg>
+              <div><span class="tile"><svg class="i" aria-hidden="true"><use href="#i-monitor-play"/></svg></span><span data-i18n="stepPresent">Present</span></div>
+              <svg class="i" aria-hidden="true" style="color:var(--text3)"><use href="#i-chevron-right"/></svg>
+              <div><span class="tile"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg></span><span data-i18n="stepScan">Scan</span></div>
+            </div>
+            <a class="btn-link" href="#/how" data-i18n="howMore">More about how it works</a>
+          </div>
+        </details>
+      </div>
+    </div>
+    <p class="footer">v<span class="js-version">0.13.0</span> · <a href="https://github.com/mezinster/cimbar" data-i18n="openSource">open source</a></p>
+  </section>
 
-      <div class="field" id="encFileField">
-        <label data-i18n="fileToEncode">File to encode</label>
-        <div class="drop-zone" id="dropEnc">
-          <input type="file" id="fileEnc" onchange="onFileSelect(this,'enc')">
-          <div class="drop-icon">📄</div>
-          <div class="drop-text" data-i18n-html="dropFileHtml">Drop a file here, or <strong>click to browse</strong></div>
-          <div class="drop-text" style="font-size:12px;margin-top:4px;color:var(--text3)" data-i18n="dropHint">
-            Recommended max ≈ 80 KB for fast GIF output
+  <!-- ═══════════════════ SEND ═══════════════════ -->
+  <section class="screen" data-route="/send" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="sendTitle">Send</h1></header>
+    <div class="seg" role="tablist">
+      <button type="button" role="tab" class="seg-btn active" id="encModeFile" onclick="setEncMode('file')"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span data-i18n="encModeFile">File</span></button>
+      <button type="button" role="tab" class="seg-btn" id="encModeText" onclick="setEncMode('text')"><span data-i18n="encModeText">Text</span></button>
+    </div>
+    <div id="encFileField">
+      <label class="pick" id="dropEnc">
+        <input type="file" id="fileEnc" class="sr-only" onchange="onFileSelect(this,'enc')">
+        <span class="pick-icon"><svg class="i" aria-hidden="true"><use href="#i-file-up"/></svg></span>
+        <span class="pick-title" data-i18n="chooseFile">Choose a file</span>
+        <span class="pick-hint" data-i18n="chooseFileHint">Any type · up to ~80 KB is quickest</span>
+        <span class="pick-drop" data-i18n="dropHere">or drop it here</span>
+      </label>
+      <div class="file-pill" id="pillEnc"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillEncText"></span>
+        <button type="button" class="icon-btn" onclick="clearEncFile()" aria-label="Remove"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+    </div>
+    <div id="encTextField" style="display:none">
+      <label for="textEnc" class="sr-only" data-i18n="textToEncode">Text to send</label>
+      <textarea id="textEnc" rows="8" data-i18n-placeholder="textEncPlaceholder" oninput="updateTextInfo()"></textarea>
+      <div class="field-hint" id="textEncInfo"></div>
+    </div>
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-i18n="addPassphrase">Add a passphrase</span> <span class="muted" data-i18n="optional">(optional)</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <div class="pass-field"><input type="password" id="passEnc" autocomplete="new-password" data-i18n-placeholder="passEncPlaceholder" oninput="updateStrength(this.value,'strengthFillEnc')">
+          <button type="button" class="icon-btn" onclick="togglePass('passEnc', this)" aria-label="Show"><svg class="i" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
+        <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
+        <div class="field-hint" data-i18n="passEncHintShort">Receiver needs it to open the file</div>
+      </div>
+    </details>
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-sliders-horizontal"/></svg><span data-i18n="advanced">Advanced</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <label for="frameDelay" data-i18n="frameSpeed">Frame speed</label>
+        <select id="frameDelay">
+          <option value="10" data-i18n="delayFast">100 ms (fast)</option>
+          <option value="20" selected data-i18n="delayNormal">200 ms</option>
+          <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
+        </select>
+      </div>
+    </details>
+    <div class="form-error" id="encError" role="alert" hidden></div>
+    <div class="action-bar">
+      <div class="progress-section" id="progEnc">
+        <div class="progress-header"><span id="progEncLabel" data-i18n="processing">Processing…</span><span id="progEncPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progEncFill"></div></div>
+        <details class="disclosure details-log"><summary data-i18n="details">Details</summary><div class="log" id="logEnc"></div></details>
+      </div>
+      <button type="button" class="btn btn-primary" id="encBtn" onclick="startEncode()"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg><span data-i18n="createCode">Create code</span></button>
+    </div>
+  </section>
+
+  <section class="screen" data-route="/send/ready" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="readyTitle">Ready to send</h1></header>
+    <div class="demo"><span class="demo-chip" data-i18n="readyChip">READY</span><img id="gifOut" alt="" class="ready-gif"></div>
+    <p class="meta" id="readyMeta"></p>
+    <button type="button" class="btn btn-primary" onclick="openPresent()"><svg class="i" aria-hidden="true"><use href="#i-maximize"/></svg><span data-i18n="presentFullScreen">Present full screen</span></button>
+    <div class="btn-row" style="margin-top:10px">
+      <button type="button" class="btn btn-secondary" id="shareGifBtn" onclick="shareGif()" hidden><svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg><span data-i18n="shareGif">Share GIF</span></button>
+      <button type="button" class="btn btn-secondary" onclick="downloadGif()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="download">Download</span></button>
+    </div>
+    <div class="form-error" id="readyError" role="alert" hidden></div>
+    <p class="field-hint center" id="readyHelp"></p>
+    <div class="field-hint center" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
+    <p class="center"><a class="btn-link" href="#/send" data-i18n="sendAnother">Send something else</a></p>
+  </section>
+
+  <!-- ═══════════════════ RECEIVE ═══════════════════ -->
+  <section class="screen" data-route="/receive/files" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receiveTitle">Receive</h1></header>
+    <div class="notice" id="decNotice" role="status" hidden></div>
+    <a class="btn btn-primary" id="scanBtn" href="#/receive" style="display:none"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="scanCamera">Scan with camera</span></a>
+    <label class="pick" id="dropDec">
+      <input type="file" id="fileDec" class="sr-only" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
+      <span class="pick-icon"><svg class="i" aria-hidden="true"><use href="#i-image"/></svg></span>
+      <span class="pick-title" data-i18n="chooseGif">Choose a GIF</span>
+      <span class="pick-hint" data-i18n="chooseGifHint">A CimBar GIF, or a photo of one frame</span>
+      <span class="pick-drop" data-i18n="dropHere">or drop it here</span>
+    </label>
+    <input type="file" id="photoDec" accept="image/*" capture="environment" class="sr-only" onchange="onFileSelect(this,'dec')">
+    <button type="button" class="btn btn-secondary photo-btn" onclick="document.getElementById('photoDec').click()"><svg class="i" aria-hidden="true"><use href="#i-camera"/></svg><span data-i18n="photographFrames">Photograph frames</span></button>
+    <p class="field-hint" data-i18n="photoFramesHint">One photo per frame — keep going until every frame is in.</p>
+    <div class="file-pill" id="pillDec"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillDecText"></span></div>
+    <div class="form-error" id="decError" role="alert" hidden></div>
+    <div class="progress-section" id="progDec">
+      <div class="progress-header"><span id="progDecLabel" data-i18n="decoding">Decoding…</span><span id="progDecPct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progDecFill"></div></div>
+      <details class="disclosure details-log"><summary data-i18n="details">Details</summary><div class="log" id="logDec"></div></details>
+      <button type="button" class="btn-link" id="photoStartOverBtn" style="display:none" onclick="resetPhotoSession()"><svg class="i" aria-hidden="true"><use href="#i-rotate-ccw"/></svg><span data-i18n="photoStartOver">Start over</span></button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ RECEIVE: UNLOCK ═══════════════════ -->
+  <section class="screen" data-route="/receive/unlock" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receiveTitle">Receive</h1></header>
+    <div class="card center">
+      <span class="badge-icon"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg></span>
+      <h2 class="screen-heading" data-i18n="unlockTitle">This file is protected</h2>
+      <p class="field-hint" data-i18n="unlockSub">All frames are in. Enter the passphrase to open it — no need to scan again.</p>
+      <div class="pass-field"><input type="password" id="passDec" autocomplete="off" data-i18n-placeholder="passphrase" onkeydown="if(event.key==='Enter')unlock()">
+        <button type="button" class="icon-btn" onclick="togglePass('passDec', this)" aria-label="Show"><svg class="i" aria-hidden="true"><use href="#i-eye"/></svg></button></div>
+      <div class="form-error" id="unlockError" role="alert" hidden></div>
+    </div>
+    <button type="button" class="btn btn-primary" style="margin-top:16px" onclick="unlock()"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg><span data-i18n="unlockBtn">Unlock</span></button>
+    <p class="center"><button type="button" class="btn-link" onclick="discardAndRescan()"><svg class="i" aria-hidden="true"><use href="#i-rotate-ccw"/></svg><span data-i18n="discardScan">Discard and scan again</span></button></p>
+  </section>
+
+  <!-- ═══════════════════ RECEIVE: DONE ═══════════════════ -->
+  <section class="screen" data-route="/receive/done" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="receivedTitle">Received</h1></header>
+    <div id="fileOut" style="display:none">
+      <div class="center"><span class="badge-icon big"><svg class="i" aria-hidden="true"><use href="#i-circle-check"/></svg></span>
+        <h2 class="screen-heading" data-i18n="fileReceived">File received</h2></div>
+      <div class="card file-card"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><div><div id="fileOutName" class="file-name"></div><div id="fileOutMeta" class="meta"></div></div></div>
+      <button type="button" class="btn btn-primary" id="saveFileBtn" onclick="saveFile()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="saveToDevice">Save to device</span></button>
+      <div class="btn-row" style="margin-top:10px">
+        <button type="button" class="btn" id="openFileBtn" onclick="openFile()" hidden><svg class="i" aria-hidden="true"><use href="#i-external-link"/></svg><span data-i18n="openFile">Open</span></button>
+        <button type="button" class="btn" id="shareFileBtn" onclick="shareFile()" hidden><svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg><span data-i18n="share">Share</span></button>
+      </div>
+    </div>
+    <div id="textOut" style="display:none">
+      <div class="center"><span class="badge-icon"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <h2 class="screen-heading" data-i18n="messageReceived">Message received</h2></div>
+      <pre id="textOutBody" class="text-out card"></pre>
+      <button type="button" class="btn btn-primary" onclick="copyText()"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span data-i18n="copyText">Copy</span></button>
+      <span class="chip copied" id="copiedChip" hidden><svg class="i" aria-hidden="true"><use href="#i-check"/></svg><span data-i18n="copied">Copied</span></span>
+      <button type="button" class="btn btn-secondary" style="margin-top:10px" onclick="saveText()"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span data-i18n="saveTxt">Save as .txt</span></button>
+    </div>
+    <div class="form-error" id="doneError" role="alert" hidden></div>
+    <p class="center"><a class="btn-link" href="#/receive" onclick="receiveAnother()"><svg class="i" aria-hidden="true"><use href="#i-scan-line"/></svg><span data-i18n="receiveAnother">Receive another</span></a></p>
+  </section>
+
+  <!-- ═══════════════════ HOW IT WORKS ═══════════════════ -->
+  <section class="screen" data-route="/how" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="howTitle">How it works</h1></header>
+    <div class="steps">
+      <div class="card step-card">
+        <div>
+          <div class="step-num">01</div>
+          <div class="step-title" data-i18n="stepEncode">Encode</div>
+          <p class="step-text" data-i18n="howStep1">Your file becomes an animated code, optionally locked with a passphrase.</p>
+        </div>
+        <span class="step-thumb"><img id="howDemo" alt="" width="72" height="72"></span>
+      </div>
+      <div class="card step-card">
+        <div>
+          <div class="step-num">02</div>
+          <div class="step-title" data-i18n="stepPresent">Present</div>
+          <p class="step-text" data-i18n="howStep2">Show it full screen, or share the GIF.</p>
+        </div>
+      </div>
+      <div class="card step-card">
+        <div>
+          <div class="step-num">03</div>
+          <div class="step-title" data-i18n="stepScan">Scan</div>
+          <p class="step-text" data-i18n="howStep3">The other phone reads the frames in any order; any N of them rebuild the file.</p>
+        </div>
+      </div>
+    </div>
+
+    <details class="disclosure">
+      <summary><span class="row"><svg class="i" aria-hidden="true"><use href="#i-sliders-horizontal"/></svg><span data-i18n="underHood">Under the hood</span></span><svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+      <div class="disclosure-body">
+        <p class="hood-intro" data-i18n-html="aboutIntroHtml">
+          <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
+          of colored geometric symbols. This tool uses a simplified variant:
+          each cell encodes <strong style="color:var(--accent-fg)">6 bits</strong> —
+          2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
+          Before encoding, your file can optionally be encrypted with
+          <strong style="color:var(--accent-fg)">AES-256-GCM</strong>,
+          and each frame's data is protected by
+          <strong style="color:var(--accent-fg)">Reed-Solomon</strong> error correction
+          (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
+          Files are zlib-compressed first when that saves space, and every GIF — like present mode — carries extra
+          <strong style="color:var(--accent-fg)">repair frames</strong>, so any N frames out of the stream rebuild the file.
+          Type a message in Send's Text mode and the receiver sees it as text, ready to copy or save.
+        </p>
+
+        <div class="hood-grid">
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-lock"/></svg>
+            <div class="hood-title" data-i18n="about1Title">Encrypt</div>
+            <div class="hood-text" data-i18n="about1Text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>
+            <div class="hood-title" data-i18n="about2Title">ECC</div>
+            <div class="hood-text" data-i18n="about2Text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-grid-3x3"/></svg>
+            <div class="hood-title" data-i18n="about3Title">Map</div>
+            <div class="hood-text" data-i18n="about3Text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-refresh-cw"/></svg>
+            <div class="hood-title" data-i18n="about4Title">Animate</div>
+            <div class="hood-text" data-i18n="about4Text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder; extra repair frames are appended so any N frames rebuild the file.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-share-2"/></svg>
+            <div class="hood-title" data-i18n="about5Title">Transmit</div>
+            <div class="hood-text" data-i18n="about5Text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
+          </div>
+          <div class="hood-card">
+            <svg class="i" aria-hidden="true"><use href="#i-cloud-off"/></svg>
+            <div class="hood-title" data-i18n="about6Title">Private</div>
+            <div class="hood-text" data-i18n="about6Text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
           </div>
         </div>
-        <div class="file-pill" id="pillEnc">
-          <span>✓</span><span id="pillEncText"></span>
+
+        <div class="hood-capacity">
+          <svg class="i" aria-hidden="true"><use href="#i-gauge"/></svg>
+          <div data-i18n-html="capacityHtml">
+            <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
+            One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
+            3 840 usable cells × 6 bits = 2 880 raw bytes.
+            After RS(255,191): 2 112 protected bytes; minus an 8-byte frame header = 2 104 file bytes per frame.
+            A 50 KB file needs ≈ 25 frames.
+          </div>
         </div>
+
+        <p class="notice" data-i18n-html="paletteHtml">
+          <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
+          so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
+        </p>
       </div>
+    </details>
 
-      <div class="field" id="encTextField" style="display:none">
-        <label for="textEnc" data-i18n="textToEncode">Text to send</label>
-        <textarea id="textEnc" rows="8" data-i18n-placeholder="textEncPlaceholder" placeholder="Type or paste text…" oninput="updateTextInfo()"></textarea>
-        <div class="field-hint" id="textEncInfo"></div>
-      </div>
-
-      <div class="field">
-        <label data-i18n="passphrase">Passphrase</label>
-        <input type="password" id="passEnc" placeholder="Enter a passphrase (optional)…" data-i18n-placeholder="passEncPlaceholder" oninput="updateStrength(this.value,'strengthFillEnc')">
-        <div class="strength-track"><div class="strength-fill" id="strengthFillEnc"></div></div>
-        <div class="field-hint" data-i18n="passEncHint">Optional — leave empty for no encryption. AES-256-GCM via PBKDF2 (150 000 iterations)</div>
-      </div>
-
-      <div class="two-col">
-        <div class="field">
-          <label data-i18n="frameDelay">Frame delay</label>
-          <select id="frameDelay">
-            <option value="10" data-i18n="delayFast">100 ms (fast)</option>
-            <option value="20" selected data-i18n="delayNormal">200 ms</option>
-            <option value="40" data-i18n="delaySlow">400 ms (slow)</option>
-          </select>
-          <div class="field-hint" id="delayHint" style="display:none" data-i18n="delayHint">Over 100 frames: 400 ms is safer for phone capture</div>
-        </div>
-      </div>
-
-      <button class="btn btn-primary" id="encBtn" onclick="startEncode()" data-i18n="encodeBtn">
-        Encode to GIF
-      </button>
-
-      <!-- Progress -->
-      <div class="progress-section" id="progEnc">
-        <div class="progress-header">
-          <span id="progEncLabel" data-i18n="processing">Processing…</span>
-          <span id="progEncPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progEncFill"></div>
-        </div>
-        <div class="log" id="logEnc"></div>
-      </div>
-
-      <!-- Output -->
-      <div class="output-section" id="outEnc">
-        <div class="stats" id="statsEnc">
-          <div class="stat"><div class="stat-val" id="sFrames">—</div><div class="stat-lbl" data-i18n="statFrames">Frames</div></div>
-          <div class="stat"><div class="stat-val" id="sBytes">—</div><div class="stat-lbl" data-i18n="statBytes">Encoded bytes</div></div>
-          <div class="stat"><div class="stat-val" id="sPerFrame">—</div><div class="stat-lbl" data-i18n="statPerFrame">Bytes / frame</div></div>
-          <div class="stat"><div class="stat-val" id="sCompressed">—</div><div class="stat-lbl" data-i18n="statCompressed">Compressed</div></div>
-        </div>
-        <div class="preview-frame" style="margin-top:16px;">
-          <img id="gifOut" alt="Encoded GIF">
-        </div>
-        <button class="btn btn-primary" onclick="downloadGif()" data-i18n="downloadGif">Download GIF</button>
-        <button class="btn" onclick="openPresent()" data-i18n="presentFullScreen">Present full screen</button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ═══════════════════ DECODE ═══════════════════ -->
-  <div class="tab-panel" id="tab-decode">
-    <div class="card">
-
-      <div class="field">
-        <label data-i18n="choosePhotoOrGif">Choose a GIF or a photo of a barcode</label>
-        <div class="drop-zone" id="dropDec">
-          <input type="file" id="fileDec" accept="image/gif,image/*" onchange="onFileSelect(this,'dec')">
-          <div class="drop-icon">🎞️</div>
-          <div class="drop-text" data-i18n-html="dropGifHtml">Drop a <strong>GIF or photo</strong> here, or click to browse</div>
-        </div>
-        <input type="file" id="photoDec" accept="image/*" capture="environment" style="display:none" onchange="onFileSelect(this,'dec')">
-        <button type="button" class="btn btn-outline" style="margin-top:12px;" data-i18n="takePhoto" onclick="document.getElementById('photoDec').click()">Take a photo</button>
-        <button type="button" class="btn btn-outline" id="scanBtn" style="margin-top:12px;display:none;" data-i18n="scanCamera" onclick="openScanner()">Scan with camera</button>
-        <div class="file-pill" id="pillDec">
-          <span>✓</span><span id="pillDecText"></span>
-        </div>
-      </div>
-
-      <div class="field">
-        <label data-i18n="passphrase">Passphrase</label>
-        <input type="password" id="passDec" placeholder="Enter passphrase (leave empty if not encrypted)…" data-i18n-placeholder="passDecPlaceholder">
-      </div>
-
-      <button class="btn btn-danger" id="decBtn" onclick="startDecode()" data-i18n="decodeBtn">
-        Decode
-      </button>
-
-      <div class="progress-section" id="progDec">
-        <div class="progress-header">
-          <span id="progDecLabel" data-i18n="decoding">Decoding…</span>
-          <span id="progDecPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progDecFill" style="background:var(--warn)"></div>
-        </div>
-        <div class="log" id="logDec"></div>
-        <button type="button" class="btn btn-outline" id="photoStartOverBtn" style="display:none;margin-top:10px;" data-i18n="photoStartOver" onclick="resetPhotoSession()">Start over</button>
-      </div>
-
-      <div class="output-section" id="textOut" style="display:none">
-        <label data-i18n="textReceivedTitle">Received text</label>
-        <pre id="textOutBody" class="text-out"></pre>
-        <button type="button" class="btn btn-primary" onclick="copyText()" data-i18n="copyText">Copy</button>
-        <button type="button" class="btn" onclick="saveText()" data-i18n="saveTxt">Save as .txt</button>
-      </div>
-
-      <div class="callout callout-info" style="margin-top:20px;" data-i18n-html="howDecodingHtml">
-        <strong>How decoding works:</strong> A GIF is parsed frame-by-frame in your browser;
-        a photo is located, straightened and read one frame at a time, so you can photograph a
-        looping animation shot by shot until every frame is in. Scanning with the camera does the
-        same continuously, several frames a second. Pixels are decoded back to bytes
-        via color + symbol detection, Reed-Solomon error correction is applied per block, and the
-        frames are reassembled. If the data was encrypted, AES-256-GCM decryption restores the
-        original file. Nothing leaves your device.
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ═══════════════════ ABOUT ═══════════════════ -->
-  <div class="tab-panel" id="tab-about">
-    <div class="card">
-      <p style="font-size:14px;line-height:1.8;color:var(--text2)" data-i18n-html="aboutIntroHtml">
-        <strong style="color:var(--text)">CimBar</strong> (Color Icon Matrix Barcode) encodes binary data into a grid
-        of colored geometric symbols. This tool uses a simplified variant:
-        each cell encodes <strong style="color:var(--accent)">6 bits</strong> —
-        2 bits select one of 4 colors, 4 bits select one of 16 tile shapes.
-        Before encoding, your file can optionally be encrypted with
-        <strong style="color:var(--accent)">AES-256-GCM</strong>,
-        and each frame's data is protected by
-        <strong style="color:var(--accent)">Reed-Solomon</strong> error correction
-        (64 ECC bytes per 255-byte block, RS(255, 191), up to 32 byte errors per block).
-        Type a message in the Encode tab's Text mode and the receiver sees it as text, ready to copy or save.
-      </p>
-
-      <div class="about-grid">
-        <div class="about-card">
-          <div class="about-num">01</div>
-          <div class="about-title" data-i18n="about1Title">Encrypt</div>
-          <div class="about-text" data-i18n="about1Text">AES-256-GCM via WebCrypto. PBKDF2 key derivation, 150k iterations, random salt + IV per file.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">02</div>
-          <div class="about-title" data-i18n="about2Title">ECC</div>
-          <div class="about-text" data-i18n="about2Text">Reed-Solomon RS(255, 191) applied to each 255-byte block: 64 ECC bytes, correcting up to 32 byte errors per block.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">03</div>
-          <div class="about-title" data-i18n="about3Title">Map</div>
-          <div class="about-text" data-i18n="about3Text">ECC'd bytes mapped to cells: 2 bits → color (4) + 4 bits → tile (16) = 6 bits per cell.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">04</div>
-          <div class="about-title" data-i18n="about4Title">Animate</div>
-          <div class="about-text" data-i18n="about4Text">Frames rendered to Canvas and compiled into GIF89a using a built-in pure-JS LZW encoder.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">05</div>
-          <div class="about-title" data-i18n="about5Title">Transmit</div>
-          <div class="about-text" data-i18n="about5Text">Share the GIF publicly. Without the passphrase the data is fully opaque.</div>
-        </div>
-        <div class="about-card">
-          <div class="about-num">06</div>
-          <div class="about-title" data-i18n="about6Title">Private</div>
-          <div class="about-text" data-i18n="about6Text">100% client-side. All crypto and encoding runs in your browser. No server, no storage, no analytics.</div>
-        </div>
-      </div>
-
-      <hr class="divider">
-
-      <div style="font-size:13px;color:var(--text2);line-height:1.8;" data-i18n-html="capacityHtml">
-        <strong style="color:var(--text)">Capacity example (608×608 frame):</strong><br>
-        One 608×608 px frame is a 64×64 grid of 8 px tiles (1 px gaps) with four 7×7-cell finders.
-        3 840 usable cells × 6 bits = 2 880 raw bytes.
-        After RS(255,191): 2 112 protected bytes; minus an 8-byte frame header = 2 104 file bytes per frame.
-        A 50 KB file needs ≈ 25 frames.
-      </div>
-
-      <!-- Language-neutral on purpose: i18n apply() would overwrite the build
-           stamp the deploy workflow writes into #buildSha. -->
-      <div style="margin-top:16px;font-size:12px;color:var(--text2);">
-        CimBar web <span id="appVersion" data-version="0.13.0">v0.13.0</span> · build <span id="buildSha">dev</span>
-      </div>
-
-      <div class="callout callout-warn" style="margin-top:16px;" data-i18n-html="paletteHtml">
-        <strong>GIF palette:</strong> The GIF palette holds the four v2 colors plus black and white exactly,
-        so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
-      </div>
-    </div>
-  </div>
-
-  <footer data-i18n="footer">
-    CimBar Encoder · Client-side only · AES-256-GCM + Reed-Solomon ECC
-  </footer>
+    <!-- Language-neutral on purpose: i18n apply() would overwrite the build
+         stamp the deploy workflow writes into #buildSha. -->
+    <p class="footer">
+      CimBar web <span id="appVersion" data-version="0.13.0">v0.13.0</span> · build <span id="buildSha">dev</span>
+    </p>
+  </section>
 </div>
 
-<!-- Hidden canvas for rendering frames -->
-<canvas id="workCanvas" class="hidden"></canvas>
+<dialog class="sheet" id="confirmSheet" aria-labelledby="confirmText">
+  <p id="confirmText"></p>
+  <div class="sheet-actions">
+    <button type="button" class="btn" id="confirmKeep" data-i18n="confirmKeep">Keep</button>
+    <button type="button" class="btn btn-primary" id="confirmDiscard" data-i18n="confirmDiscard">Discard</button>
+  </div>
+</dialog>
 
-<div id="present" onclick="closePresent()" title="Click or press Esc to exit" data-i18n-title="presentTitle"><canvas id="presentCanvas"></canvas><div id="presentStatus"></div></div>
+<dialog class="sheet" id="langSheet" aria-labelledby="langSheetTitle">
+  <div class="sheet-handle"></div>
+  <h2 id="langSheetTitle" data-i18n="languageTitle">Language</h2>
+  <ul class="lang-list" id="langList"></ul>
+</dialog>
+
+<div id="present" class="overlay" role="dialog" aria-modal="true">
+  <canvas id="presentCanvas"></canvas>
+  <button type="button" class="glass-btn present-close" onclick="requestClosePresent()" aria-label="Close" data-i18n-title="scanClose"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <span class="signal-pill present-wake" id="wakePill" hidden><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg><span data-i18n="screenOn">Screen stays on</span></span>
+  <span class="present-hint" id="presentHint" data-i18n="presentHint">Point the other phone's camera here</span>
+  <div id="presentStatus"></div>
+</div>
 
 <div id="scanner" role="dialog" aria-modal="true">
   <video id="scanVideo" playsinline muted autoplay></video>
   <canvas id="scanOverlay"></canvas>
   <div class="scan-top">
-    <button type="button" class="scan-close" id="scanCloseBtn" title="Close" aria-label="Close" data-i18n-title="scanClose" onclick="closeScanner()">✕</button>
-    <span id="scanCount"></span>
+    <button type="button" class="glass-btn" id="scanCloseBtn" aria-label="Close" data-i18n-title="scanClose" onclick="closeScanner()"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+    <span class="signal-pill" id="scanCount"></span>
+    <span style="width:48px"></span>
   </div>
-  <div class="scan-bottom">
+  <div class="scan-sheet">
     <div class="progress-track" id="scanTrack"><div class="progress-fill" id="scanFill"></div></div>
     <div id="scanHint"></div>
     <button type="button" class="btn btn-primary" id="scanResumeBtn" data-i18n="scanResume" onclick="resumeScanner()">Resume</button>
+    <a class="btn btn-ghost-dark" href="#/receive/files" onclick="loadInsteadOfScanning(event)"><svg class="i" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="loadInstead">Load a GIF or photo instead</span></a>
     <pre id="scanDebug"></pre>
   </div>
 </div>
@@ -858,13 +769,123 @@ footer {
 <script>
 const t = (key, params) => CimbarI18n.t(key, params);
 CimbarI18n.apply();
+updateLangCode();
+// #appVersion (stamped by the deploy workflow) stays the single source of the version.
+document.querySelectorAll('.js-version').forEach(e => e.textContent = document.getElementById('appVersion').dataset.version);
 
-// ── Tab switching ─────────────────────────────────────────
-function switchTab(evt, name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  evt.currentTarget.classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
+// ── Routing (hash-based, spec §1) ─────────────────────────
+// Hashes never reach the server, so this works on the static S3/CloudFront
+// deploy with no rewrite rules. resolveRoute is pure (tests/test_router.js);
+// navigate/renderRoute are the thin glue around it.
+const ROUTES = ['/', '/send', '/send/ready', '/receive', '/receive/files', '/receive/unlock', '/receive/done', '/how'];
+let currentRoute = null;
+let unlockPending = false;   // a completion failed for lack of / a wrong passphrase (Task 3)
+
+function resolveRoute(hash, s) {
+  const asked = String(hash || '').replace(/^#/, '') || '/';
+  let route = ROUTES.includes(asked) ? asked : '/';
+  for (let i = 0; i < ROUTES.length; i++) {   // guards can chain (unlock → receive → files)
+    const next =
+      route === '/send/ready' && !s.hasGif ? '/send' :
+      route === '/receive' && !s.hasCamera ? '/receive/files' :
+      route === '/receive/unlock' && !s.needsUnlock ? '/receive' :
+      route === '/receive/done' && !s.hasResult ? '/' : null;
+    if (!next) break;
+    route = next;
+  }
+  return { route, redirect: route === asked ? null : '#' + route };
+}
+
+function routeState() {
+  return {
+    hasGif: !!outputBlob,
+    hasCamera: !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function'),
+    needsUnlock: unlockPending,
+    hasResult: !!(textResult || fileResult),
+  };
+}
+
+// '/receive' has no screen of its own: the scanner overlay opens over the files screen.
+function screenFor(route) { return route === '/receive' ? '/receive/files' : route; }
+
+function navigate(hash, opts) {
+  if (opts && opts.replace) history.replaceState(history.state, '', hash);
+  else history.pushState(null, '', hash);
+  renderRoute();
+}
+
+function renderRoute() {
+  const { route, redirect } = resolveRoute(location.hash, routeState());
+  if (redirect) history.replaceState(history.state, '', redirect);
+  if (route === currentRoute) return;
+  const prev = currentRoute;
+  currentRoute = route;
+  const screen = screenFor(route);
+  document.querySelectorAll('.screen').forEach((el) => { el.hidden = el.dataset.route !== screen; });
+  if (typeof scrollTo === 'function') scrollTo(0, 0);
+  onEnterRoute(route, prev);
+}
+
+// Per-route side effects; later tasks add cases.
+function onEnterRoute(route, prev) {
+  if (route === '/send') updateTextInfo();   // Create code is disabled until something is staged
+  if (route === '/receive') openScanner(prev);   // Receive opens the camera directly (spec §1)
+}
+
+window.addEventListener('hashchange', renderRoute);
+
+// ── In-page dialogs and messages (spec §3: no native alert/confirm dialogs) ──
+function askConfirm(message) {
+  const dlg = document.getElementById('confirmSheet');
+  document.getElementById('confirmText').textContent = message;
+  return new Promise((resolve) => {
+    const done = (v) => { dlg.close(); resolve(v); };
+    document.getElementById('confirmDiscard').onclick = () => done(true);
+    document.getElementById('confirmKeep').onclick = () => done(false);
+    dlg.oncancel = (e) => { e.preventDefault(); done(false); };   // Esc / back = Keep (the safe choice)
+    dlg.showModal();
+  });
+}
+
+const ERROR_IDS = { enc: 'encError', dec: 'decError', ready: 'readyError', done: 'doneError', unlock: 'unlockError' };
+function showError(side, message) {
+  const el = document.getElementById(ERROR_IDS[side]);
+  el.textContent = message;          // messages may quote untrusted names: never innerHTML
+  el.hidden = false;
+}
+function clearError(side) {
+  const el = document.getElementById(ERROR_IDS[side]);
+  el.textContent = ''; el.hidden = true;
+}
+
+// ── Language sheet ────────────────────────────────────────
+function openLanguageSheet() {
+  const list = document.getElementById('langList');
+  list.innerHTML = '';
+  for (const l of CimbarI18n.LANGUAGES) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitemradio');
+    b.setAttribute('aria-checked', String(l.code === CimbarI18n.getLang()));
+    b.onclick = () => chooseLanguage(l.code);
+    if (l.code === CimbarI18n.getLang()) b.setAttribute('autofocus', '');   // showModal focuses the current language, not the first row
+    const name = document.createElement('span'); name.textContent = l.name;
+    const code = document.createElement('span'); code.className = 'code'; code.textContent = l.code.toUpperCase();
+    b.append(name, code);
+    b.insertAdjacentHTML('beforeend', '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>');
+    li.appendChild(b); list.appendChild(li);
+  }
+  document.getElementById('langSheet').showModal();
+}
+function chooseLanguage(code) {
+  CimbarI18n.setLang(code);
+  document.getElementById('langSheet').close();
+  updateLangCode();
+}
+function updateLangCode() {
+  const el = document.getElementById('langCode');
+  if (el && CimbarI18n.getLang) el.textContent = CimbarI18n.getLang().toUpperCase();
 }
 
 // ── File selection ────────────────────────────────────────
@@ -874,7 +895,7 @@ let encMode = 'file';
 function onFileSelect(input, side) {
   const file = input.files[0];
   if (!file) return;
-  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); return; }
+  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); updateTextInfo(); return; }
   handleDecFile(file);
   input.value = '';   // allow re-selecting/re-shooting the same file
 }
@@ -891,13 +912,13 @@ function setEncMode(mode) {
 // Byte count and an upper bound on frames (before compression; encryption adds 48 bytes).
 function updateTextInfo() {
   const btn = document.getElementById('encBtn');
-  if (encMode !== 'text') { btn.disabled = false; return; }
+  if (encMode !== 'text') { btn.disabled = encoding || !encFile; return; }
   const text = document.getElementById('textEnc').value;
   const bytes = new TextEncoder().encode(text).length;
   const framed = 4 + 4 + 27 + bytes + 48; // len prefix + name len + 'message-YYYYMMDD-HHMMSS.txt' + text + crypto
   const frames = Math.max(1, Math.ceil(framed / CimbarFormat.fileBytesPerFrame()));
   document.getElementById('textEncInfo').textContent = t('textEncInfo', { bytes: fmtBytes(bytes), frames });
-  btn.disabled = text.length === 0;
+  btn.disabled = encoding || text.length === 0;
 }
 
 // What the Encode button sends: the staged file, or the typed text as a text message.
@@ -919,7 +940,9 @@ function isGifBytes(u8) {
 }
 
 async function handleDecFile(file) {
-  hideTextResult();
+  // Results (and a pending unlock) are cleared only once the new input is
+  // accepted: answering Keep to the GIF prompt must leave a locked session
+  // unlockable. resetPhotoSession() clears them on the GIF path.
   try {
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
     if (isGifBytes(head)) {
@@ -927,7 +950,7 @@ async function handleDecFile(file) {
       // mutually exclusive). Ask first, the same way a photo of a foreign
       // file does — accumulated frames are expensive to re-photograph.
       if (photoSession && !photoSession.done && photoSession.asm.rank > 0) {
-        if (!confirm(t('gifDiscardsSession', { n: photoSession.asm.rank }))) {
+        if (!(await askConfirm(t('gifDiscardsSession', { n: photoSession.asm.rank })))) {
           log(t('photoProgressKept'), 'info', 'logDec');
           return;
         }
@@ -935,10 +958,12 @@ async function handleDecFile(file) {
       resetPhotoSession();
       decFile = file;
       showPill('pillDec', 'pillDecText', file.name, file.size);
+      await startDecode();   // no Decode button: choosing a GIF is the request to decode it (spec §1)
     } else {
       // Stale GIF state must not survive into a photo session: clear the
       // previously staged GIF file and its pill so #pillDec doesn't keep
       // showing "foo.gif (12 KB)" while a photo accumulation runs.
+      hideTextResult();
       decFile = null;
       document.getElementById('pillDec').classList.remove('show');
       await addPhoto(file);
@@ -970,7 +995,7 @@ function fmtBytes(b) {
     e.preventDefault(); el.classList.remove('over');
     const f = e.dataTransfer.files[0];
     if (!f) return;
-    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); }
+    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); updateTextInfo(); }
     else if (id === 'dropDec') { handleDecFile(f); }
   });
 });
@@ -1003,6 +1028,72 @@ function setProgress(pct, label, fillId, pctId, labelId) {
 // ── ENCODE ────────────────────────────────────────────────
 let outputBlob = null;
 let encodeState = null;
+let encoding = false;   // the whole startEncode run: Create code stays disabled even if the user leaves and comes back
+
+// The whole encode pipeline (spec: CLAUDE.md "Encoding pipeline"), UI-free so
+// both the Send screen and the hub demo use it. Its own canvas: the demo may
+// encode while the user is encoding.
+async function encodeToGif(input, opts) {
+  const progress = opts.onProgress || (() => {});
+  const say = opts.onLog || (() => {});
+  const isEncrypted = opts.pass.length > 0;
+  progress(5, t('reading'));
+  const payload = Cimbar.buildPayload(input.name, input.bytes);
+  say(t('fileInfo', { name: input.name, size: fmtBytes(input.bytes.length) }), 'ok');
+  const z = await CimbarCompress.maybeDeflate(payload);
+  say(z.compressed ? t('compressedInfo', { size: fmtBytes(z.bytes.length), pct: Math.round(100 * z.bytes.length / payload.length) }) : t('notCompressed'), z.compressed ? 'ok' : 'info');
+  let framedPayload;
+  if (isEncrypted) {
+    progress(15, t('encryptingShort'));
+    framedPayload = await CimbarCrypto.encryptBytes(z.bytes, opts.pass);
+    say(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok');
+  } else {
+    progress(15, t('encoding'));
+    framedPayload = z.bytes;
+    say(t('payloadNoEnc', { size: fmtBytes(framedPayload.length) }), 'ok');
+  }
+  const framedData = Cimbar.withLengthPrefix(framedPayload);
+  const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
+  const fopts = { encrypted: isEncrypted, compressed: z.compressed };
+  const frames = Cimbar.splitIntoFrames(framedData, fileId, fopts);
+  say(t('framesInfo', { n: frames.length, per: CimbarFormat.fileBytesPerFrame(), id: fileId.toString(16) }), 'info');
+  const maxN = CimbarFormat.SPEC.coding.maxFrames;
+  const R = frames.length > maxN ? 0 : Cimbar.gifRepairCount(frames.length);
+  if (frames.length > maxN) say(t('tooLargeForCoding', { max: maxN }), 'err');
+  const bodies = Cimbar.frameBodies(frames);
+  const state = { frames, bodies, fileId, opts: fopts, delayMs: opts.frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
+
+  const size = CimbarFormat.SPEC.grid.framePx;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
+  const gif = new GifEncoder(size, size, opts.frameDelay);
+  // Source frames first, then R repair frames generated inside this loop —
+  // building them up front would block the UI thread for the whole batch.
+  const totalFrames = frames.length + R;
+  let repairId = 0;
+  for (let f = 0; f < totalFrames; f++) {
+    progress(25 + (f / totalFrames) * 65, t('encodingFrame', { i: f + 1, n: totalFrames }));
+    let data;
+    if (f < frames.length) data = frames[f];
+    else {
+      for (let misses = 0; ; ) {
+        try { data = Cimbar.repairFrame(bodies, fileId, repairId, fopts); break; }
+        catch (e) { if (!e.degenerate) throw e; repairId = (repairId + 1) & 0xFFFF; if (++misses >= 64) throw new Error('no usable repair id'); }
+      }
+      repairId = (repairId + 1) & 0xFFFF;
+    }
+    Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(data, rs));
+    gif.addFrame(canvas);
+    if (f % 4 === 0) await sleep(0);
+  }
+  progress(93, t('compiling'));
+  await sleep(10);
+  const blob = gif.finish();
+  return { blob, state, stats: { frames: frames.length, repair: R, bytes: framedPayload.length,
+    compressedPct: z.compressed ? Math.round(100 * z.bytes.length / payload.length) : null, encrypted: isEncrypted } };
+}
 
 async function startEncode() {
   // Disable first: reading a staged file is async, and a second click during
@@ -1010,137 +1101,89 @@ async function startEncode() {
   const btn = document.getElementById('encBtn');
   if (btn.disabled) return;
   btn.disabled = true;
-  const input = await encodeInput();
-  if (!input) {
-    btn.disabled = false;
-    updateTextInfo();
-    alert(t(encMode === 'text' ? 'enterTextFirst' : 'selectFileFirst'));
-    return;
-  }
-  const pass = document.getElementById('passEnc').value.trim();
-  const isEncrypted = pass.length > 0;
-
-  const frameDelay = parseInt(document.getElementById('frameDelay').value);
-
-  btn.innerHTML = '<span class="spinner"></span> ' + t('processing');
-
-  document.getElementById('progEnc').style.display = 'block';
-  document.getElementById('outEnc').style.display  = 'none';
-  document.getElementById('logEnc').innerHTML = '';
-  outputBlob = null;
-  encodeState = null;
-
+  encoding = true;
+  clearError('enc');
   try {
-    // 1. Read file and build payload
-    log(t('readingFile'), 'info', 'logEnc');
-    setProgress(5, t('reading'), 'progEncFill', 'progEncPct', 'progEncLabel');
-    const payload = Cimbar.buildPayload(input.name, input.bytes);
-    log(t('fileInfo', { name: input.name, size: fmtBytes(input.bytes.length) }), 'ok', 'logEnc');
-
-    // 1b. Compress (optional, skipped when it doesn't save enough)
-    const z = await CimbarCompress.maybeDeflate(payload);
-    if (z.compressed) log(t('compressedInfo', { size: fmtBytes(z.bytes.length), pct: Math.round(100 * z.bytes.length / payload.length) }), 'ok', 'logEnc');
-    else log(t('notCompressed'), 'info', 'logEnc');
-
-    // 2. Encrypt (optional)
-    let framedPayload;
-    if (isEncrypted) {
-      log(t('encrypting'), 'info', 'logEnc');
-      setProgress(15, t('encryptingShort'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = await CimbarCrypto.encryptBytes(z.bytes, pass);
-      log(t('encrypted', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
-    } else {
-      setProgress(15, t('encoding'), 'progEncFill', 'progEncPct', 'progEncLabel');
-      framedPayload = z.bytes;
-      log(t('payloadNoEnc', { size: fmtBytes(framedPayload.length) }), 'ok', 'logEnc');
-    }
-    const framedData = Cimbar.withLengthPrefix(framedPayload);
-
-    // 3. Split into frames with headers
-    const fileId = crypto.getRandomValues(new Uint16Array(1))[0];
-    const opts = { encrypted: isEncrypted, compressed: z.compressed };
-    const frames = Cimbar.splitIntoFrames(framedData, fileId, opts);
-    const perFrame = CimbarFormat.fileBytesPerFrame();
-    log(t('framesInfo', { n: frames.length, per: perFrame, id: fileId.toString(16) }), 'info', 'logEnc');
-
-    const maxN = CimbarFormat.SPEC.coding.maxFrames;
-    const R = frames.length > maxN ? 0 : Cimbar.gifRepairCount(frames.length);
-    if (frames.length > maxN) log(t('tooLargeForCoding', { max: maxN }), 'err', 'logEnc');
-    const bodies = Cimbar.frameBodies(frames);
-    encodeState = { frames, bodies, fileId, opts, delayMs: frameDelay * 10, repairEnabled: frames.length > 1 && frames.length <= maxN };
-
-    // Big-number cell: keep the value short ("45 + 12") and move the words
-    // into the label, which is re-translated on language switch via data-i18n.
-    document.getElementById('sFrames').textContent = R ? frames.length + ' + ' + R : String(frames.length);
-    const framesLbl = document.querySelector('#sFrames + .stat-lbl');
-    framesLbl.dataset.i18n = R ? 'statFramesCoded' : 'statFrames';
-    framesLbl.textContent = t(framesLbl.dataset.i18n);
-    document.getElementById('sBytes').textContent = fmtBytes(framedPayload.length);
-    document.getElementById('sPerFrame').textContent = perFrame;
-    document.getElementById('sCompressed').textContent = z.compressed ? Math.round(100 * z.bytes.length / payload.length) + '%' : '—';
-    document.getElementById('delayHint').style.display = frames.length > 100 ? 'block' : 'none';
-
-    // 4. Render source frames, then repair frames
-    const size = CimbarFormat.SPEC.grid.framePx;
-    const canvas = document.getElementById('workCanvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const rs = new ReedSolomon(CimbarFormat.SPEC.rs.eccBytes);
-    const gif = new GifEncoder(size, size, frameDelay);
-    // Source frames first, then R repair frames generated inside this loop —
-    // building them up front would block the UI thread for the whole batch.
-    const totalFrames = frames.length + R;
-    let repairId = 0;
-    for (let f = 0; f < totalFrames; f++) {
-      setProgress(25 + (f / totalFrames) * 65, t('encodingFrame', { i: f + 1, n: totalFrames }), 'progEncFill', 'progEncPct', 'progEncLabel');
-      let data;
-      if (f < frames.length) {
-        data = frames[f];
-      } else {
-        for (let misses = 0; ; ) {
-          try { data = Cimbar.repairFrame(bodies, fileId, repairId, opts); break; }
-          catch (e) {
-            if (!e.degenerate) throw e;
-            repairId = (repairId + 1) & 0xFFFF;
-            if (++misses >= 64) throw new Error('no usable repair id');
-          }
-        }
-        repairId = (repairId + 1) & 0xFFFF;
-      }
-      Cimbar.renderFrame(ctx, Cimbar.encodeRSFrame(data, rs));
-      gif.addFrame(canvas);
-      if (f % 4 === 0) await sleep(0);
-    }
-
-    log(t('compilingGif'), 'info', 'logEnc');
-    setProgress(93, t('compiling'), 'progEncFill', 'progEncPct', 'progEncLabel');
-    await sleep(10); // let progress render
-
-    outputBlob = gif.finish();
-    const url = URL.createObjectURL(outputBlob);
-    document.getElementById('gifOut').src = url;
-    document.getElementById('outEnc').style.display = 'block';
-
+    // Inside the try: reading a staged file can reject (NotReadableError when
+    // the file changed or vanished), and that must not leave encoding stuck.
+    const input = await encodeInput();
+    if (!input) return;
+    const pass = document.getElementById('passEnc').value.trim();
+    const frameDelay = parseInt(document.getElementById('frameDelay').value);
+    document.getElementById('progEnc').style.display = 'block';
+    document.getElementById('logEnc').innerHTML = '';
+    outputBlob = null; encodeState = null;
+    const res = await encodeToGif(input, {
+      pass, frameDelay,
+      onProgress: (pct, label) => setProgress(pct, label, 'progEncFill', 'progEncPct', 'progEncLabel'),
+      onLog: (msg, cls) => log(msg, cls, 'logEnc'),
+    });
+    outputBlob = res.blob; encodeState = res.state; encodeName = input.name;
+    showReady(res.stats);
     setProgress(100, t('done'), 'progEncFill', 'progEncPct', 'progEncLabel');
     log(t('gifReady', { size: fmtBytes(outputBlob.size) }), 'ok', 'logEnc');
-
+    // replace: Back from the ready screen goes to the hub, not to compose.
+    // Only from compose: a user who left mid-encode (e.g. to scan) stays put;
+    // the GIF is kept and the #/send/ready guard lets them in later.
+    if (currentRoute === '/send') navigate('#/send/ready', { replace: true });
   } catch (err) {
     log(t('errorPrefix', { msg: err.message }), 'err', 'logEnc');
+    showError('enc', t('errorPrefix', { msg: err.message }));
     console.error(err);
+  } finally {
+    document.getElementById('progEnc').style.display = 'none';
+    encoding = false;
+    btn.disabled = false;
+    updateTextInfo();
   }
-
-  btn.disabled = false;
-  btn.innerHTML = t('encodeBtn');
-  updateTextInfo();
 }
+
+let encodeName = '';
+function showReady(stats) {
+  const img = document.getElementById('gifOut');
+  if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(outputBlob);
+  const parts = [t('readyFrames', { n: stats.repair ? stats.frames + ' + ' + stats.repair : stats.frames }), fmtBytes(outputBlob.size)];
+  if (stats.compressedPct !== null) parts.push(t('metaCompressed'));
+  if (stats.encrypted) parts.push(t('metaEncrypted'));
+  document.getElementById('readyMeta').textContent = parts.join(' · ');
+  document.getElementById('readyHelp').textContent = t('readyHelp', { n: stats.frames });
+  document.getElementById('shareGifBtn').hidden = !canShareFiles('image/gif');
+  document.getElementById('delayHint').style.display = stats.frames > 100 ? 'block' : 'none';
+}
+
+function gifFileName() { return 'cimbar-' + (encodeName.replace(/\.[^.]*$/, '') || 'message') + '.gif'; }
 
 function downloadGif() {
   if (!outputBlob) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(outputBlob);
-  a.download = 'cimbar_' + Date.now() + '.gif';
+  a.download = gifFileName();
   a.click();
+}
+
+function canShareFiles(type) {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(1)], 'x', { type })] })); }
+  catch (_) { return false; }
+}
+
+// side names the screen's error box (showError) — the one the user is looking at.
+async function shareBlob(blob, name, type, side) {
+  try { await navigator.share({ files: [new File([blob], name, { type })] }); }
+  catch (e) { if (e && e.name !== 'AbortError') showError(side, t('errorPrefix', { msg: e.message })); }
+}
+function shareGif() {
+  if (!outputBlob) return;
+  clearError('ready');
+  return shareBlob(outputBlob, gifFileName(), 'image/gif', 'ready');
+}
+
+function clearEncFile() { encFile = null; document.getElementById('pillEnc').classList.remove('show'); document.getElementById('fileEnc').value = ''; updateTextInfo(); }
+function togglePass(id, btn) {
+  const el = document.getElementById(id);
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.querySelector('use').setAttribute('href', show ? '#i-eye-off' : '#i-eye');
 }
 
 // ── Present mode (spec §5): integer scale unless that wastes >40% of the screen ──
@@ -1177,7 +1220,7 @@ function presentDraw() {
       catch (e) {
         if (!e.degenerate) throw e;
         presentRepair = (presentRepair + 1) & 0xFFFF;
-        if (++misses >= 64) { closePresent(); return; }
+        if (++misses >= 64) { requestClosePresent(); return; }
       }
     }
     status = t('presentRepair', { r: presentRepair, n });
@@ -1190,65 +1233,109 @@ function presentDraw() {
   document.getElementById('presentStatus').textContent = status;
 }
 
+let presentOpen = false, presentClosing = false, wakeLock = null;
+
+function openPresentWith(state) { encodeState = state; openPresent(); }    // test seam
+function presentOpenForTest(open) { presentOpen = open; }                   // test seam
+
 function openPresent() {
-  if (!encodeState) return;
+  if (presentOpen || !encodeState) return;   // re-entry would push a second history entry
+  presentClosing = false;
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
-  presentIdx = 0; presentRepair = 0;
+  presentIdx = 0; presentRepair = 0; presentOpen = true;
   document.getElementById('present').classList.add('open');
+  history.pushState({ cimbarPresent: true }, '');
   layoutPresent();
   presentDraw();
   presentTimer = setInterval(presentDraw, encodeState.delayMs);
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  acquireWakeLock();
+}
+
+// UI close (✕, Esc): go through history so the Back gesture and the button share one path.
+// history.back() is asynchronous, so a second ✕/Esc before popstate lands
+// would go back twice and leave the page: at most one back() per open.
+function requestClosePresent() {
+  if (presentClosing) return;
+  if (history.state && history.state.cimbarPresent) { presentClosing = true; history.back(); }   // popstate → closePresent()
+  else closePresent();
 }
 
 function closePresent() {
   if (presentTimer) { clearInterval(presentTimer); presentTimer = null; }
+  presentOpen = false; presentClosing = false;
   document.getElementById('present').classList.remove('open');
+  releaseWakeLock();
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
+
+function showWakePill() { document.getElementById('wakePill').hidden = !wakeLock; }
+
+let wakeLockPending = false;
+async function acquireWakeLock() {
+  if (!presentOpen || wakeLockPending || !(navigator.wakeLock && navigator.wakeLock.request)) { showWakePill(); return; }
+  wakeLockPending = true;
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    if (!presentOpen) { lock.release().catch(() => {}); }   // Present closed while we waited
+    else {
+      wakeLock = lock;
+      lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; showWakePill(); });
+    }
+  } catch (_) { wakeLock = null; }
+  finally { wakeLockPending = false; }
+  showWakePill();
+}
+
+function releaseWakeLock() {
+  const lock = wakeLock; wakeLock = null;
+  if (lock) lock.release().catch(() => {});
+  showWakePill();
+}
+
+// Browsers drop a screen lock whenever the tab is hidden; take it back on return.
+async function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && presentOpen && !wakeLock) await acquireWakeLock();
+}
+document.addEventListener('visibilitychange', onVisibilityChange);
 
 window.addEventListener('resize', layoutPresent);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (scanner) closeScanner(); else closePresent();
+  if (document.querySelector('dialog[open]')) return;   // a dialog (confirm sheet) owns Esc
+  if (scanner) closeScanner(); else if (presentOpen) requestClosePresent();
 });
 
 // ── DECODE ────────────────────────────────────────────────
 async function startDecode() {
-  // The Decode button means "decode what I have given you", and a GIF and a
-  // photo session can never both be staged (handleDecFile clears decFile the
-  // moment a photo is chosen, and staging a GIF resets the session), so the
-  // button dispatches on whichever one exists:
+  // startDecode means "decode what I have given you" (choosing a GIF calls it;
+  // so does the unlock screen's retry). A GIF and a photo session can never
+  // both be staged (handleDecFile clears decFile the moment a photo is
+  // chosen, and staging a GIF resets the session), so it dispatches on
+  // whichever one exists:
   //   * a GIF          -> decode it (and drop any session, they are exclusive)
   //   * a complete session -> retry finishDecode against the intact assembler.
   //     This is the recovery route for a completion that threw (missing or
   //     wrong passphrase, inflate failure): the passphrase is only read at
-  //     completion time, so typing it and pressing Decode finishes the file
+  //     completion time, so typing it and retrying finishes the file
   //     without re-photographing anything.
   //   * an incomplete session -> say how far along it is; do NOT destroy it.
+  clearError('dec');
   if (!decFile) {
-    if (!photoSession) { alert(t('selectGifFirst')); return; }
+    if (!photoSession) { showError('dec', t('selectGifFirst')); return; }
     const asm = photoSession.asm;
     if (!asm.isComplete()) {
       log(t('photoKeepGoing', { rank: asm.rank, total: asm.total }), 'info', 'logDec');
       return;
     }
-    const retryBtn = document.getElementById('decBtn');
-    retryBtn.disabled = true;
-    retryBtn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
-    try { await completePhotoSession(); }
-    finally { retryBtn.disabled = false; retryBtn.innerHTML = t('decodeBtn'); }
+    await completePhotoSession();
     return;
   }
 
   // A stale photo session cannot coexist with a staged GIF, but reset anyway
   // so the GIF path never writes into a half-overwritten photo-session UI.
   resetPhotoSession();
-
-  const btn = document.getElementById('decBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> ' + t('decoding');
 
   document.getElementById('progDec').style.display = 'block';
   document.getElementById('logDec').innerHTML = '';
@@ -1297,18 +1384,20 @@ async function startDecode() {
   } catch (err) {
     logDecodeError(err);
   }
-
-  btn.disabled = false;
-  btn.innerHTML = t('decodeBtn');
 }
 
 // Shared error logging for both the GIF path (startDecode's own try/catch)
-// and the photo path (addPhoto wraps its finishDecode call separately, since
-// there is no decBtn spinner to reset there).
+// and the photo path (addPhoto wraps its finishDecode call separately).
 function logDecodeError(err) {
-  if (err.unsupported) log(t('noDecompressionSupport'), 'err', 'logDec');
-  else if (err.tooLarge) log(t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) }), 'err', 'logDec');
-  else log(t('errorPrefix', { msg: err.message }), 'err', 'logDec');
+  if (err.needPass) { console.error(err); showUnlock(!!err.wrongPass); return; }   // logged: a non-auth decrypt failure surfaces as needPass too
+  const msg = err.unsupported ? t('noDecompressionSupport')
+    : err.tooLarge ? t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) })
+    : t('errorPrefix', { msg: err.message });
+  log(msg, 'err', 'logDec');
+  // An Unlock retry that fails for another reason (inflate, parse) must say so
+  // where the user is; #decError sits on the hidden files screen.
+  if (currentRoute === '/receive/unlock') showError('unlock', msg);
+  else showError('dec', msg);
   console.error(err);
 }
 
@@ -1317,32 +1406,116 @@ function logDecodeError(err) {
 // have been accumulated): strip the length prefix, auto-detect encryption,
 // inflate if compressed, parse the container and offer the file for
 // download.
+let fileResult = null;
 let textResult = null;   // { name, bytes } of the text message on screen
 
 function showTextResult(name, bytes, text) {
   textResult = { name, bytes };
+  clearError('dec');
+  clearError('done');
   document.getElementById('textOutBody').textContent = text;   // never innerHTML: untrusted
   document.getElementById('textOut').style.display = 'block';
+  document.getElementById('fileOut').style.display = 'none';
+  navigate('#/receive/done', { replace: true });
 }
 
 function hideTextResult() {
   textResult = null;
+  fileResult = null;
+  unlockPending = false;
+  clearError('done');
   document.getElementById('textOutBody').textContent = '';
   document.getElementById('textOut').style.display = 'none';
+  document.getElementById('fileOut').style.display = 'none';
 }
 
+// A completion that needs the passphrase (none typed, or a wrong one) keeps
+// its session intact; the unlock screen's button retries via startDecode.
+function showUnlock(wrongPass) {
+  unlockPending = true;
+  clearError('dec');
+  const err = document.getElementById('unlockError');
+  err.textContent = wrongPass ? t('wrongPass') : '';
+  err.hidden = !wrongPass;
+  navigate('#/receive/unlock', { replace: true });
+}
+
+function showFileResult(name, bytes) {
+  fileResult = { name, bytes };
+  clearError('dec');
+  unlockPending = false;
+  document.getElementById('fileOutName').textContent = name;              // untrusted
+  document.getElementById('fileOutMeta').textContent = [fmtBytes(bytes.length), extOf(name).toUpperCase()].filter(Boolean).join(' · ');
+  document.getElementById('openFileBtn').hidden = !canOpen(name);
+  document.getElementById('shareFileBtn').hidden = !canShareFiles(mimeFor(name));
+  clearError('done');
+  document.getElementById('fileOut').style.display = 'block';
+  document.getElementById('textOut').style.display = 'none';
+  navigate('#/receive/done', { replace: true });
+}
+
+function saveFile() {
+  if (!fileResult) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([fileResult.bytes]));
+  a.download = fileResult.name;
+  a.click();
+}
+
+let copiedTimer = null;
 async function copyText() {
   if (!textResult) return;
   const body = document.getElementById('textOutBody');
   try {
     await navigator.clipboard.writeText(body.textContent);
     log(t('textCopied'), 'ok', 'logDec');
+    const chip = document.getElementById('copiedChip');
+    chip.hidden = false;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => { chip.hidden = true; }, 2000);
   } catch (e) {
     const sel = typeof getSelection === 'function' ? getSelection() : null;
     if (sel) sel.selectAllChildren(body);
     log(t('copyFailedHint'), 'err', 'logDec');
   }
 }
+
+// ── Received file: Open / Share (spec §3) ─────────────────
+// Open uses a blob: URL in a new tab. A blob URL inherits THIS page's origin,
+// so a received .svg/.html with script would run as us — those are never
+// openable. Only inert, browser-rendered types are listed.
+const OPENABLE = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', txt: 'text/plain', md: 'text/plain', csv: 'text/csv', json: 'application/json',
+  mp3: 'audio/mpeg', mp4: 'video/mp4', webm: 'video/webm' };
+const SHARE_TYPES = Object.assign({ zip: 'application/zip', doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }, OPENABLE);
+
+function extOf(name) { const m = /\.([A-Za-z0-9]+)$/.exec(name || ''); return m ? m[1].toLowerCase() : ''; }
+// Own keys only: 'x.constructor' / 'x.toString' must not match Object.prototype.
+function mimeFor(name) { const e = extOf(name); return Object.prototype.hasOwnProperty.call(SHARE_TYPES, e) ? SHARE_TYPES[e] : 'application/octet-stream'; }
+function canOpen(name) { return Object.prototype.hasOwnProperty.call(OPENABLE, extOf(name)); }
+
+function openFile() {
+  if (!fileResult || !canOpen(fileResult.name)) return;
+  const url = URL.createObjectURL(new Blob([fileResult.bytes], { type: OPENABLE[extOf(fileResult.name)] }));
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function shareFile() {
+  if (!fileResult) return;
+  clearError('done');
+  return shareBlob(new Blob([fileResult.bytes]), fileResult.name, mimeFor(fileResult.name), 'done');
+}
+
+async function unlock() { clearError('dec'); clearError('unlock'); await startDecode(); }   // startDecode retries a GIF or a complete session
+// "Receive another": a fresh start whether or not #/receive opens a camera
+// (without one it lands on the files screen, which must not show the old GIF).
+function receiveAnother() {
+  resetPhotoSession();
+  decFile = null;
+  document.getElementById('pillDec').classList.remove('show');
+}
+function discardAndRescan() { resetPhotoSession(); decFile = null; navigate('#/receive', { replace: true }); }
 
 function saveText() {
   if (!textResult) return;
@@ -1361,10 +1534,11 @@ async function finishDecode(asm) {
 
   let decrypted;
   if (isEncrypted) {
-    if (!pass) { alert(t('encryptedNeedPass')); throw new Error(t('passRequired')); }
+    if (!pass) { const e = new Error(t('passRequired')); e.needPass = true; e.wrongPass = false; throw e; }
     log(t('decrypting'), 'info', 'logDec');
     setProgress(80, t('decryptingShort'), 'progDecFill', 'progDecPct', 'progDecLabel');
-    decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass);
+    try { decrypted = await CimbarCrypto.decryptBytes(payloadBytes, pass); }
+    catch (e) { e.needPass = true; e.wrongPass = true; throw e; }
   } else {
     log(t('unencrypted'), 'info', 'logDec');
     setProgress(80, t('parsing'), 'progDecFill', 'progDecPct', 'progDecLabel');
@@ -1384,17 +1558,12 @@ async function finishDecode(asm) {
   const text = Cimbar.decodeTextMessage(filename, fileData);
   if (text !== null) {
     showTextResult(filename, fileData, text);
+    unlockPending = false;
     log(t('textReceivedLog', { size: fmtBytes(fileData.length) }), 'ok', 'logDec');
     return;
   }
 
-  // Download the file
-  const blob = new Blob([fileData]);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  log(t('savedDownloads'), 'ok', 'logDec');
+  showFileResult(filename, fileData);
 }
 
 // ── PHOTO DECODE (accumulate frames across several photos) ───
@@ -1402,6 +1571,7 @@ let photoSession = null;   // { asm, photos, accepted, done, finishing }
 
 function resetPhotoSession() {
   hideTextResult();
+  clearError('dec');
   photoSession = null;
   document.getElementById('progDec').style.display = 'none';
   document.getElementById('logDec').innerHTML = '';
@@ -1464,7 +1634,7 @@ function photoSessionGate() {
 // (addPhoto) and live scan. Reports what happened; the caller decides what to
 // tell the user and runs completePhotoSession() when `complete` is true (a
 // live scan closes the scanner first so the passphrase field is visible).
-function addFrame(r) {
+async function addFrame(r) {
   const gate = photoSessionGate();
   if (gate) return { kind: gate };
   if (!photoSession) photoSession = newPhotoSession();
@@ -1475,7 +1645,7 @@ function addFrame(r) {
   // the header ourselves and ask before that reset would happen.
   const h = CimbarFormat.decodeHeader(r.data);
   if (h.valid && photoSession.asm.fileId !== null && h.fileId !== photoSession.asm.fileId) {
-    if (!confirm(t('photoWrongFile', { n: photoSession.asm.rank }))) {
+    if (!(await askConfirm(t('photoWrongFile', { n: photoSession.asm.rank })))) {
       return { kind: 'kept', fileId: h.fileId, rank: photoSession.asm.rank, total: photoSession.asm.total, complete: false };
     }
     photoSession = newPhotoSession();
@@ -1497,9 +1667,16 @@ function addFrame(r) {
            rank: asm.rank, total: asm.total, complete: asm.isComplete() };
 }
 
+// A photo that added nothing must say why where the user is: the log sits
+// behind a collapsed Details. The next accepted photo clears it.
+function photoNotice(msg, cls) {
+  log(msg, cls, 'logDec');
+  showError('dec', msg);
+}
+
 async function addPhoto(file) {
   const gate = photoSessionGate();
-  if (gate === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  if (gate === 'done') { photoNotice(t('photoAlreadyDone'), 'info'); return; }
   if (gate === 'busy') return;   // transient, so no log line
 
   document.getElementById('progDec').style.display = 'block';
@@ -1517,15 +1694,16 @@ async function addPhoto(file) {
     const key = { notLocated: 'errNotLocated', tooSmall: 'errTooSmall',
                   unsupportedGrid: 'errUnsupportedGrid', rsFailed: 'errRsFailed',
                   badHeader: 'errBadHeader' }[r.status];
-    log(t(key), 'err', 'logDec');
+    photoNotice(t(key), 'err');
     return;
   }
 
-  const res = addFrame(r);
-  if (res.kind === 'kept') { log(t('photoWrongFileKept'), 'info', 'logDec'); return; }
+  const res = await addFrame(r);
+  if (res.kind === 'kept') { photoNotice(t('photoWrongFileKept'), 'info'); return; }
   if (res.kind === 'busy') return;
-  if (res.kind === 'done') { log(t('photoAlreadyDone'), 'info', 'logDec'); return; }
+  if (res.kind === 'done') { photoNotice(t('photoAlreadyDone'), 'info'); return; }
   if (res.kind === 'accepted') {
+    clearError('dec');
     log(t('photoAccepted', { seq: res.header.seq, rank: res.rank, total: res.total }), 'ok', 'logDec');
   } else {
     // duplicate/dependent are the normal result of re-photographing a
@@ -1540,7 +1718,8 @@ async function addPhoto(file) {
 }
 
 // ── LIVE SCAN (camera → worker → the same photo session) ─────
-let scanner = null;   // { scan, ignoreFileId, debugLines } while the scanner view is open
+let scanner = null;   // { scan, ignoreFileId, debugLines, ownEntry, from } while the scanner view is open
+let lastScanError = null;   // the last onError code of the current scan, for the fallback notice
 const SCAN_DEBUG = /[?&]debug=1(&|$)/.test(location.search);
 
 if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
@@ -1573,25 +1752,34 @@ function showScanProgress() {
   const count = document.getElementById('scanCount');
   const track = document.getElementById('scanTrack');
   if (!asm || !asm.total) { count.textContent = ''; track.style.display = 'none'; return; }
-  count.textContent = `${asm.rank} / ${asm.total}`;
+  count.textContent = t('scanFrames', { rank: asm.rank, total: asm.total });
   track.style.display = 'block';
   document.getElementById('scanFill').style.width = Math.round(100 * asm.rank / asm.total) + '%';
 }
 
-async function openScanner() {
+// `from` is the route the scanner was entered from (#/receive's previous
+// route): a plain close returns there when it was the files screen.
+async function openScanner(from) {
   if (scanner) return;
   const gate = photoSessionGate();
-  if (gate === 'busy') return;
+  if (gate === 'busy') { leaveScanRoute(); return; }        // the running completion routes when it lands
   if (gate === 'done') resetPhotoSession();                  // the finished file was delivered; a new scan starts fresh
   if (photoSession && photoSession.asm.isComplete()) {       // complete but unfinished (e.g. passphrase missing)
     await completePhotoSession();
+    leaveScanRoute();
     return;
   }
   decFile = null;                                             // a GIF and a session are mutually exclusive
+  unlockPending = false;                                      // so a locked GIF's unlock goes with it (no complete session can be left here)
   document.getElementById('pillDec').classList.remove('show');
 
-  const s = { scan: null, ignoreFileId: null, debugLines: [] };
+  // Opened from #/receive, that route entry is the Back target: Back pops it
+  // (popstate stops the scan). An entry of our own would have to be popped
+  // with history.back() on close, which is asynchronous: it would land on
+  // #/receive again after the close routed away, and reopen the scanner.
+  const s = { scan: null, ignoreFileId: null, debugLines: [], ownEntry: currentRoute !== '/receive', from };
   scanner = s;
+  document.getElementById('decNotice').hidden = true;        // a camera that failed before may work now
   document.getElementById('scanner').classList.add('open');
   document.body.classList.add('scan-lock');
   document.getElementById('scanHint').textContent = t('scanStarting');
@@ -1599,10 +1787,11 @@ async function openScanner() {
   document.getElementById('scanDebug').style.display = SCAN_DEBUG ? 'block' : 'none';
   document.getElementById('scanDebug').textContent = '';
   showScanProgress();
-  history.pushState({ cimbarScanner: true }, '');
+  if (s.ownEntry) history.pushState({ cimbarScanner: true }, '');
   document.getElementById('progDec').style.display = 'block';
   log(t('scanStarting'), 'info', 'logDec');
 
+  lastScanError = null;
   s.scan = new CimbarLiveScan.LiveScan({
     video: document.getElementById('scanVideo'),
     overlay: document.getElementById('scanOverlay'),
@@ -1622,7 +1811,7 @@ async function openScanner() {
       pre.textContent = s.debugLines.join('\n');
       pre.scrollTop = pre.scrollHeight;
     },
-    onError: (code) => log(scanErrorText(code), 'err', 'logDec'),
+    onError: (code) => { lastScanError = code; log(scanErrorText(code), 'err', 'logDec'); },
     onPaused: () => {
       if (scanner !== s) return;
       document.getElementById('scanHint').textContent = t('scanPaused');
@@ -1637,12 +1826,12 @@ async function openScanner() {
 // chose to keep their session over a different file, that file's frames are
 // ignored silently for the rest of this scan — otherwise pointing at the
 // other screen would re-prompt several times a second.
-function onScanFrame(s, r) {
+async function onScanFrame(s, r) {
   const h = CimbarFormat.decodeHeader(r.data);
   if (h.valid && s.ignoreFileId !== null && h.fileId === s.ignoreFileId) {
     return { kind: 'kept', fileId: h.fileId, complete: false };
   }
-  const res = addFrame(r);
+  const res = await addFrame(r);
   if (res.kind === 'kept') s.ignoreFileId = res.fileId;
   return res;
 }
@@ -1654,15 +1843,50 @@ async function onScanStopped(s, info) {
   document.body.classList.remove('scan-lock');
   // reason === 'back' means popstate already consumed our history entry; a stale
   // {cimbarScanner:true} entry left by a reload/Forward would otherwise cause a second back().
-  if (info.reason !== 'back' && history.state && history.state.cimbarScanner) history.back();
+  if (s.ownEntry && info.reason !== 'back' && history.state && history.state.cimbarScanner) history.back();
   log(t('scanSummary', { frames: info.frames, accepted: info.accepted }), 'info', 'logDec');
   // A close that races the completing frame (reason !== 'complete', but the
   // session is already complete and not yet done) must still finish the
-  // file — otherwise it sits waiting for a Decode press with no indication
+  // file — otherwise it sits waiting for a retry with no indication
   // why, since the log line above already claims the scan is over.
   if (info.reason === 'complete' || (photoSession && !photoSession.done && photoSession.asm.isComplete())) {
     await completePhotoSession();
   }
+  // Where to land after the scanner closes (spec §1): a completion routed
+  // itself (done/unlock); a Back gesture already traversed to where the user
+  // asked; an error falls back to the files screen; a plain close from
+  // #/receive returns to where the scan was entered from (the files screen,
+  // else the hub); a completion that failed for any other
+  // reason than the passphrase shows its error on the files screen.
+  if (currentRoute !== '/receive' || info.reason === 'back') return;
+  if (info.reason === 'error' || info.reason === 'decoderFailed') {
+    navigate('#/receive/files', { replace: true });
+    showNotice(lastScanError === 'scanDecoderFailed' ? scanErrorText('scanDecoderFailed') : t('camUnavailable'));
+  } else if (photoSession && photoSession.asm.isComplete()) {
+    leaveScanRoute();
+  } else {
+    navigate(s.from === '/receive/files' ? '#/receive/files' : '#/', { replace: true });
+  }
+}
+
+// #/receive with no scanner open strands the user: the files screen shows,
+// but its Scan button (href="#/receive") is the current hash and does
+// nothing. Move to the files screen unless a completion already routed away.
+function leaveScanRoute() {
+  if (currentRoute === '/receive' && !scanner) navigate('#/receive/files', { replace: true });
+}
+
+function showNotice(message) {
+  const el = document.getElementById('decNotice');
+  el.textContent = message; el.hidden = false;
+}
+
+// The scanner's "Load a GIF or photo instead": stop first (its plain-close
+// routing sends #/receive to the hub), then replace that with the files screen.
+function loadInsteadOfScanning(e) {
+  e.preventDefault();
+  if (scanner) scanner.scan.stop('closed');
+  navigate('#/receive/files', { replace: true });
 }
 
 function closeScanner() { if (scanner) scanner.scan.stop('closed'); }
@@ -1677,7 +1901,10 @@ function resumeScanner() {
 // The browser Back gesture closes the scanner instead of leaving the page;
 // by the time popstate fires our history entry is already gone, so
 // onScanStopped sees history.state without cimbarScanner and does not go back again.
-window.addEventListener('popstate', () => { if (scanner) scanner.scan.stop('back'); });
+window.addEventListener('popstate', () => {
+  if (scanner) scanner.scan.stop('back');
+  if (presentOpen) closePresent();
+});
 
 // ── Utilities ─────────────────────────────────────────────
 function concat(...arrays) {
@@ -1690,6 +1917,31 @@ function concat(...arrays) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ── Hub demo: a real, scannable CimBar of the app icon (spec §2) ──
+// icon-512.png is already deployed; even after deflate (~85%) it spans
+// four frames + a repair frame: a genuinely animated loop.
+// Scanning it from another phone yields cimbar.png.
+async function renderDemo() {
+  if (typeof fetch !== 'function') return;
+  const img = document.getElementById('demoGif');
+  let input;
+  try {
+    const res = await fetch('icon-512.png');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    input = { name: 'cimbar.png', bytes: new Uint8Array(await res.arrayBuffer()) };
+  } catch (_) {
+    input = { name: 'hello.txt', bytes: new TextEncoder().encode('Hello from CimBar') };
+  }
+  try {
+    const { blob } = await encodeToGif(input, { pass: '', frameDelay: 20 });
+    img.src = URL.createObjectURL(blob);
+    const how = document.getElementById('howDemo');
+    if (how) how.src = img.src;
+  } catch (e) { console.error(e); }   // the tile stays an empty black square: never an error UI
+}
+
+renderRoute();
+setTimeout(renderDemo, 0);
 </script>
 </body>
 </html>
