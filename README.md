@@ -1,13 +1,15 @@
 # CimBar — Color Icon Matrix Barcode
 
+**English** · [Русский](README.ru.md)
+
 CimBar encodes any file into an animated GIF where each frame is a grid of colored tile shapes, then decodes it back.
 
 Try it now at **https://nfcarchiver.com/cimbar/**
 
 This repo contains:
 
-- **`web-app/`** — A browser-based encoder/decoder. Everything runs client-side — no server, no install, no data leaves your machine.
-- **`app/`** — A Flutter Android app that decodes CimBar GIFs via GIF import, live camera scanning, or a photo.
+- **`web-app/`** — A phone-first web app that sends and receives CimBar barcodes in the browser. Everything runs client-side — no server, no install, no data leaves your machine.
+- **`app/`** — A Flutter app for Android and iOS that sends (full-screen barcode or shared GIF) and receives (live camera scanning, a photo, or GIF import).
 
 Each cell in the grid carries 6 bits of data: 2 bits select one of 4 bright colors (green, cyan, yellow, light magenta — RGB (255, 85, 255)), and 4 bits select one of 16 tile shapes drawn on a black background. A single 608 px frame size fits four QR-style finder patterns, one at each corner, so the decoder can locate and orient the grid at a glance — from a camera as well as from an exact image. Every frame carries a header with a sequence number and total frame count. Files are compressed automatically when that helps, and can optionally be encrypted with AES-256-GCM before encoding, so the GIF is unreadable without the passphrase.
 
@@ -19,56 +21,42 @@ This is the CimBar v2 format (v2.1 adds compression and repair frames on top of 
 
 ## Quick Start
 
-### Option A — Open directly
-
-Just open `web-app/index.html` in a modern browser (Chrome, Edge, Firefox). No web server needed.
-
-### Option B — Local server (recommended for Firefox)
-
-Firefox requires a server for the Web Crypto API to work:
+The web app is plain HTML and JavaScript — no install, no build step — but it must be served over http(s): live scanning runs in a Web Worker, which browsers refuse to start from a `file://` page, and the camera and Web Crypto need a secure context (`https://` or `localhost`).
 
 ```bash
 cd web-app
 python3 -m http.server 8080
 ```
 
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:8080` in your browser. To test the camera from a phone, serve it over HTTPS or use the deployed site.
 
 ---
 
-## Encoding a file
+## Using the web app
 
-1. Click the **Encode** tab.
-2. Drag and drop any file onto the drop zone, or click it to browse. Compression is automatic and needs no toggle: the log reports whether the file was compressed (and by how much) or left as-is, e.g. because it was already a `.zip` or JPEG.
-3. Optionally enter a passphrase. Encryption is off when the field is left empty; if you do use one, keep it — you'll need it to decode.
-4. Optionally choose a **frame delay** — `100 ms` (fast), `200 ms` (default), or `400 ms` (slow). There is no frame-size choice in v2: every barcode is a single 608×608 px frame. A hint appears for files over 100 frames recommending `400 ms`, which gives a phone camera more time to catch each frame.
-5. Click **Encode to GIF**.
-6. Watch the preview animate as frames are rendered.
-7. Click **Download GIF** to save the result, or **Present full screen** to show the barcode full-screen (scaled to fit the viewport) for another device's camera to scan.
+The start screen is a hub with two choices, **Send** and **Receive**, above a live demo barcode you can scan with another phone right away. **How it works** (top right) explains the steps and, under **Under the hood**, the format and per-frame capacity. The app follows the system light/dark theme.
 
-The stats panel shows the frame count as "N source + R repair" (see "Why large files finish faster" below), the encoded size in bytes, and the bytes carried per frame.
+### Sending
+
+1. Tap **Send** and choose **File** or **Text**. For a file, pick one or drop it on the picker; for text, type the message — the hint below shows its size and how many frames it will take. A text message arrives at the receiver as text, ready to copy, not as a bare file.
+2. Optionally open **Add a passphrase** and enter one. Encryption is off when the field is empty; if you use one, the receiver needs it to open the file.
+3. Optionally open **Advanced** to set the **frame speed** — `100 ms` (fast), `200 ms` (default) or `400 ms` (slow). There is no frame-size choice: every barcode is a single 608×608 px frame.
+4. Tap **Create code**. Compression is automatic: the **Details** log reports whether the file was compressed (and by how much) or left as-is, e.g. because it was already a `.zip` or JPEG.
+5. On **Ready to send**, the preview animates and the line below it gives the frame count as "N + R" — source plus repair frames (see below) — the GIF size, and whether the data was compressed and encrypted. A hint recommends `400 ms` for files over 100 frames, which gives a phone camera more time to catch each frame.
+6. **Present full screen** shows the barcode scaled to the screen for another device's camera. The screen is kept awake (Screen Wake Lock, where supported); close it with ✕, Esc or the phone's Back gesture. **Share GIF** (shown where the browser can share files, i.e. on phones) hands the GIF to the system share sheet, and **Download** saves it.
 
 ### Why large files finish faster
 
-A downloaded GIF carries its N source frames plus about 25% extra *repair* frames, and **Present full screen** doesn't loop at all: it shows the N source frames once, then keeps generating and showing repair frames for as long as the window stays open (for a single-frame file, or one above the 4096-frame coding cap, there are no repair frames and present mode loops the source pass instead). Either way, a decoder — GIF import, live scan, or a photo of a single-frame barcode — only ever needs to capture *any* N of those frames, source or repair, in any order, to reconstruct the file. That removes the old failure mode where a scan would catch almost everything quickly and then stall waiting to specifically re-catch the one or two frames it kept missing.
+A GIF carries its N source frames plus about 25% extra *repair* frames, and **Present full screen** doesn't loop at all: it shows the N source frames once, then keeps generating and showing repair frames for as long as it stays open (for a single-frame file, or one above the 4096-frame coding cap, there are no repair frames and present mode loops the source pass instead). Either way, a decoder — live scan, photos or GIF import — only ever needs to capture *any* N of those frames, source or repair, in any order, to reconstruct the file. That removes the old failure mode where a scan would catch almost everything quickly and then stall waiting to specifically re-catch the one or two frames it kept missing.
 
----
+### Receiving
 
-## Decoding a GIF
+1. Tap **Receive**: the camera opens directly. Line the barcode up in the frame; the counter and progress bar show "r / N frames" — the rank, i.e. the number of independent frames captured so far out of the frames needed (GIF import shows the same as "Rank r / N"). It climbs on both source and repair frames and holds steady on a frame that repeats information already captured.
+2. No camera, or the permission is refused? **Load a GIF or photo instead** opens the files screen, where you can pick a CimBar GIF, or **Photograph frames** — one photo per frame, until every frame is in. The same screen is the fallback when the camera can't start.
+3. If the barcode is encrypted, an unlock screen asks for the passphrase *after* all frames are in — a wrong passphrase doesn't mean scanning again. Encryption is auto-detected from the recovered payload's `CB 42` magic bytes, and decompression is read from the frame header.
+4. A received file is shown with its name and size: **Save to device**, plus **Open** (for types the browser renders safely — PDF, images, plain text, audio/video) and **Share** where the browser can share files. A received text message is shown as text, with **Copy** and **Save as .txt**.
 
-1. Click the **Decode GIF** tab.
-2. Drag and drop the GIF file, or click to browse.
-3. Enter the same passphrase used during encoding — leave the field empty if the GIF is not encrypted. Encryption is auto-detected from the recovered payload's `CB 42` magic bytes; decompression (if any) is read from the frame header and needs no input from you.
-4. Click **Decode GIF**. Progress is shown as "Rank r / N" — the number of independent frames captured so far out of the frames needed, which climbs on both source and repair frames and holds steady on a frame that repeats information already captured.
-5. The original file is downloaded automatically with its original filename.
-
-If the passphrase is wrong or the GIF is corrupted, you will see an error message in the log.
-
-The third tab, **About**, explains the format and shows the per-frame capacity numbers.
-
----
-
-The web app's interface is available in English, Russian, Ukrainian, Turkish and Georgian (the same five languages as the Android app); pick one with the globe selector in the header — the choice is remembered in the browser, and the browser language is used by default.
+The web app's interface is available in English, Russian, Ukrainian, Turkish and Georgian (the same five languages as the mobile app); pick one with the language button in the hub's top bar — the choice is remembered in the browser, and the browser language is used by default.
 
 ## Deploying the web app
 
@@ -133,7 +121,7 @@ F-Droid builds each release from the committed source at its `vX.Y.Z` tag and le
 
 1. Bump the version in `app/pubspec.yaml` — name **and** `+versionCode` (the code always goes up by one) — and in `web-app/index.html` (`data-version` and the visible `vX.Y.Z`).
 2. Move the CHANGELOG's `[Unreleased]` entries under `## [X.Y.Z] — <date>`.
-3. Write `fastlane/metadata/android/<locale>/changelogs/<versionCode>.txt` for all five locales (≤ 500 characters each).
+3. Write the changelogs in `fastlane/metadata/android/<locale>/changelogs/` for all five locales (≤ 500 characters each). They are named by the version code of each **published APK**, not the pubspec's `+N`: F-Droid builds one APK per ABI with code `10 × N + 1/2/3`, so release `+190` needs `1901.txt`, `1902.txt` and `1903.txt`.
 4. `python3 tools/validate_store_metadata.py` and both test suites pass; merge via PR.
 5. Run the **Release** workflow on `master` with the same version; it refuses to run if the committed pubspec disagrees. It tags `vX.Y.Z`, builds the APK/AAB with Flutter from `FLUTTER_VERSION` in `release.yml` (the F-Droid recipe reads the same line), and publishes the GitHub release.
 
@@ -187,19 +175,31 @@ Individual tests:
 
 ```bash
 cd web-app
-node tests/test_tiles.js          # tile rules and generator
-node tests/test_format.js         # format spec, header, bit packing
-node tests/test_frame.js          # frame render/decode, RS framing, assembler
-node tests/test_rateless.js       # GF(256) repair-frame coding and RatelessAssembler
-node tests/test_rs.js             # Reed-Solomon correction
-node tests/test_compress.js       # zlib compression/decompression
-node tests/test_goldens.js        # golden GIFs vs. ground-truth sidecars
-node tests/test_pipeline_node.js  # full GIF pipeline with length prefix
-node tests/test_i18n.js           # UI strings in five languages
-node tests/test_browser_load.js   # page scripts in one shared global scope
-node tests/test_healthcheck.js    # post-deploy healthcheck tool
-node tests/test_web_icons.js      # icons, manifest and deploy staging
-python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # orchestrator (six of the twelve Node tests) + GIF structure check
+node tests/test_tiles.js            # tile rules and generator
+node tests/test_format.js           # format spec, header, bit packing
+node tests/test_frame.js            # frame render/decode, RS framing, assembler
+node tests/test_rateless.js         # GF(256) repair-frame coding and RatelessAssembler
+node tests/test_rs.js               # Reed-Solomon correction
+node tests/test_compress.js         # zlib compression/decompression
+node tests/test_goldens.js          # golden GIFs vs. ground-truth sidecars
+node tests/test_text_message.js     # Text mode container and UTF-8 detection
+node tests/test_pipeline_node.js    # full GIF pipeline with length prefix
+node tests/test_i18n.js             # UI strings in five languages
+node tests/test_browser_load.js     # page scripts in one shared global scope
+node tests/test_page_logic.js       # page script: photo session and decode completion
+node tests/test_markup.js           # static guards over index.html markup
+node tests/test_router.js           # hash router and screen switching
+node tests/test_photo_geometry.js   # RGB/luma buffers for photo decode
+node tests/test_finder_locator.js   # finder pattern locator
+node tests/test_cell_decode.js      # cell sampling and classification
+node tests/test_drift.js            # drift solver
+node tests/test_photo_decode.js     # photo decode end to end
+node tests/test_capture_policy.js   # live-scan capture policy
+node tests/test_scan_worker.js      # scan Web Worker
+node tests/test_live_scan.js        # live-scan controller
+node tests/test_healthcheck.js      # post-deploy healthcheck tool
+node tests/test_web_icons.js        # icons, manifest and deploy staging
+python3 tests/test_pipeline.py ../test-data/goldens/hello.gif 608   # orchestrator (a six-test subset) + GIF structure check
 python3 tests/test_gif.py path/to/output.gif 608                    # GIF structure (needs Pillow)
 ```
 
@@ -218,9 +218,11 @@ The suite (452 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the
 
 ## Compatibility
 
-**Web App:** Requires Web Crypto API (`crypto.subtle`). Works in all modern browsers on HTTPS or `localhost`. Does not work on `file://` in Firefox (use the local server method above).
+**Web App:** Requires a modern browser on HTTPS or `localhost` (Web Crypto, camera access and Web Workers need it); it does not work from `file://` (use the local server above). Sharing (Share GIF, Share) appears only where the browser supports sharing files, typically on phones; the screen stays awake while presenting where Screen Wake Lock is supported.
 
 **Android App:** Requires Android 7.0+ (API 24). Built with Flutter 3.44+.
+
+**iOS App:** Requires iOS 14+; not distributed yet (see above).
 
 ---
 
@@ -230,7 +232,7 @@ Neither app collects anything: no analytics, no trackers, no ads, and the files 
 
 ## Issues
 
-Bug reports and feature requests are welcome in [GitHub issues](https://github.com/mezinster/cimbar/issues). For a decoding problem, say which app (web or Android) and path (GIF import, photo, live scan), and attach the GIF if you can share it.
+Bug reports and feature requests are welcome in [GitHub issues](https://github.com/mezinster/cimbar/issues). For a decoding problem, say which app (web, Android or iOS) and path (GIF import, photo, live scan), and attach the GIF if you can share it.
 
 ## Credits
 
