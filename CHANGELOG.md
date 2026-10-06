@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **The web app is redesigned for phones.** A Send / Receive hub replaces the Encode / Decode / About tabs. The hub has a live, scannable demo code, and Receive opens the camera directly. The app follows the system dark mode. Present keeps the screen awake (Screen Wake Lock) and closes with the Back gesture. Phones get Share GIF / Share for received files. An encrypted scan asks for the passphrase afterwards, so nothing is re-scanned. Browser `alert`/`confirm` dialogs are gone.
+- **The README describes the redesigned web app, and has a Russian translation** (`README.ru.md`). The Encode / Decode GIF / About walkthroughs are replaced by Send and Receive; Quick Start no longer offers opening `index.html` from disk, which can't run live scan (browsers won't start its Web Worker from `file://`); the web test list covers all 24 Node tests; the release steps name the per-ABI changelog files (`1901.txt`/`1902.txt`/`1903.txt` for `+190`) that F-Droid looks up; Compatibility and Issues mention iOS.
 
 ## [0.13.0] — 2026-10-05
 
