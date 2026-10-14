@@ -27,6 +27,6 @@ No data collection, no analytics, no trackers, no ads. The only permission the a
 
 <b>Open source</b>
 
-CimBar Scanner is a successor to libcimbar and CFC by sz3 (https://github.com/sz3/libcimbar), the original Color Icon Matrix Barcode projects. It uses its own, newer format, so it does not read barcodes made by libcimbar or CFC.
+CimBar Scanner is inspired by libcimbar and CFC by sz3 (https://github.com/sz3/libcimbar), the original Color Icon Matrix Barcode projects, but it is a separate project, not an official cimbar app. It uses its own format, CimBar-XL, so it does not read barcodes made by libcimbar or CFC.
 
 MIT licensed. Source code, format specification and the web encoder: https://github.com/mezinster/cimbar

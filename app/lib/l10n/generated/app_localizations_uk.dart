@@ -178,7 +178,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get aboutSuccessor =>
-      'CimBar Сканер — наступник libcimbar і CFC від sz3, першопочаткових проєктів кольорових матричних штрих-кодів (Color Icon Matrix Barcode). Він використовує власний, новіший формат штрих-коду, тому не читає штрих-коди libcimbar і CFC, а вони не читають його штрих-коди.';
+      'CimBar Сканер натхненний libcimbar і CFC від sz3, першопочатковими проєктами кольорових матричних штрих-кодів (Color Icon Matrix Barcode), але це окремий проєкт, а не офіційний застосунок cimbar. Він використовує власний формат штрих-коду CimBar-XL, тому не читає штрих-коди libcimbar і CFC, а вони не читають його штрих-коди.';
 
   @override
   String get webAppLabel => 'Веб-додаток';
