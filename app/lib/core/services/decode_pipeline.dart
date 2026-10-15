@@ -37,7 +37,7 @@ class DecodePipeline {
       if (r.status == DecodeStatus.unsupportedGrid) {
         yield DecodeProgress(
           state: DecodeState.error,
-          message: 'Not a CimBar v2 GIF: frames must be 608x608 px (${r.diag.note}). v1 GIFs must be re-encoded.',
+          message: 'Not a CimBar-XL GIF: frames must be 608x608 px (${r.diag.note}). GIFs from early releases must be re-encoded.',
         );
         return;
       }
@@ -70,7 +70,7 @@ class DecodePipeline {
       if (assembler.total == 0) {
         yield DecodeProgress(
           state: DecodeState.error,
-          message: 'No CimBar v2 frames decoded ($rejected rejected)',
+          message: 'No CimBar-XL frames decoded ($rejected rejected)',
         );
         return;
       }

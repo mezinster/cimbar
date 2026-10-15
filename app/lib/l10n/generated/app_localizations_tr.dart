@@ -178,7 +178,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get aboutSuccessor =>
-      'CimBar Tarayıcı, sz3\'ün özgün Renkli Simge Matris Barkodu (Color Icon Matrix Barcode) projeleri libcimbar ve CFC\'nin halefidir. Kendine ait, daha yeni bir barkod biçimi kullanır; bu nedenle libcimbar veya CFC ile oluşturulan barkodları okuyamaz, onlar da bu uygulamanın barkodlarını okuyamaz.';
+      'CimBar Tarayıcı, sz3\'ün özgün Renkli Simge Matris Barkodu (Color Icon Matrix Barcode) projeleri libcimbar ve CFC\'den esinlenmiştir, ancak ayrı bir projedir; resmî bir cimbar uygulaması değildir. Kendine ait CimBar-XL barkod biçimini kullanır; bu nedenle libcimbar veya CFC ile oluşturulan barkodları okuyamaz, onlar da bu uygulamanın barkodlarını okuyamaz.';
 
   @override
   String get webAppLabel => 'Web Uygulaması';

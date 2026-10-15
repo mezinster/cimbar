@@ -178,7 +178,7 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get aboutSuccessor =>
-      'CimBar სკანერი არის sz3-ის libcimbar-ისა და CFC-ის — ფერადი ხატულების მატრიცული შტრიხკოდის (Color Icon Matrix Barcode) თავდაპირველი პროექტების — მემკვიდრე. ის იყენებს საკუთარ, უფრო ახალ შტრიხკოდის ფორმატს, ამიტომ ვერ კითხულობს libcimbar-ით ან CFC-ით შექმნილ შტრიხკოდებს, ისინი კი ვერ კითხულობენ მის შტრიხკოდებს.';
+      'CimBar სკანერი შთაგონებულია sz3-ის libcimbar-ითა და CFC-ით — ფერადი ხატულების მატრიცული შტრიხკოდის (Color Icon Matrix Barcode) თავდაპირველი პროექტებით, მაგრამ ის ცალკე პროექტია და არა cimbar-ის ოფიციალური აპლიკაცია. ის იყენებს საკუთარ შტრიხკოდის ფორმატს, CimBar-XL-ს, ამიტომ ვერ კითხულობს libcimbar-ით ან CFC-ით შექმნილ შტრიხკოდებს, ისინი კი ვერ კითხულობენ მის შტრიხკოდებს.';
 
   @override
   String get webAppLabel => 'ვებ-აპლიკაცია';

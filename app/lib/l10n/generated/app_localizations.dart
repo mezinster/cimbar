@@ -416,10 +416,10 @@ abstract class AppLocalizations {
   /// **'CimBar Scanner decodes Color Icon Matrix Barcodes. Compatible with the CimBar web encoder at nfcarchiver.com/cimbar.'**
   String get aboutDescription;
 
-  /// About screen: credits sz3's libcimbar and CFC as the predecessors and says the formats are not compatible
+  /// About screen: credits sz3's libcimbar and CFC as the inspiration, says this is a separate project with its own CimBar-XL format, and that the formats are not compatible
   ///
   /// In en, this message translates to:
-  /// **'CimBar Scanner is a successor to libcimbar and CFC by sz3, the original Color Icon Matrix Barcode projects. It uses its own, newer barcode format, so it cannot read barcodes made by libcimbar or CFC, and they cannot read its barcodes.'**
+  /// **'CimBar Scanner is inspired by libcimbar and CFC by sz3, the original Color Icon Matrix Barcode projects, but it is a separate project, not an official cimbar app. It uses its own barcode format, CimBar-XL, so it cannot read barcodes made by libcimbar or CFC, and they cannot read its barcodes.'**
   String get aboutSuccessor;
 
   /// Label for the web app link

@@ -29,7 +29,9 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.textContaining('successor to libcimbar and CFC by sz3'), findsOneWidget);
+    expect(find.textContaining('inspired by libcimbar and CFC by sz3'), findsOneWidget);
+    expect(find.textContaining('not an official cimbar app'), findsOneWidget);
+    expect(find.textContaining('CimBar-XL'), findsOneWidget);
     expect(find.textContaining('cannot read barcodes made by libcimbar or CFC'), findsOneWidget);
     expect(find.text('libcimbar: github.com/sz3/libcimbar'), findsOneWidget);
     expect(find.text('CFC: github.com/sz3/cfc'), findsOneWidget);

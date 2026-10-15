@@ -177,7 +177,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutSuccessor =>
-      'CimBar Scanner is a successor to libcimbar and CFC by sz3, the original Color Icon Matrix Barcode projects. It uses its own, newer barcode format, so it cannot read barcodes made by libcimbar or CFC, and they cannot read its barcodes.';
+      'CimBar Scanner is inspired by libcimbar and CFC by sz3, the original Color Icon Matrix Barcode projects, but it is a separate project, not an official cimbar app. It uses its own barcode format, CimBar-XL, so it cannot read barcodes made by libcimbar or CFC, and they cannot read its barcodes.';
 
   @override
   String get webAppLabel => 'Web App';
