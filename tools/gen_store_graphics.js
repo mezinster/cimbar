@@ -10,6 +10,8 @@
  *   app/android/app/src/main/res/drawable/ic_launcher_foreground.xml   adaptive icon foreground (vector)
  *   app/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml     adaptive icon (API 26+)
  *   app/android/app/src/main/res/values/ic_launcher_background.xml     adaptive icon background colour
+ *   app/ios/Runner/Assets.xcassets/LaunchImage.imageset/               iOS launch image, 120 pt at 1x/2x/3x
+ *                                                                      (rasterized in Node, opaque, on the icon's black)
  *
  * Also writes, when Playwright is resolvable (e.g. NODE_PATH=<dir>/node_modules
  * with its Chromium installed), the raster images:
@@ -35,6 +37,7 @@ const SPEC = JSON.parse(fs.readFileSync(path.join(REPO, 'spec', 'cimbar-v2.json'
 const RES = path.join(REPO, 'app', 'android', 'app', 'src', 'main', 'res');
 const IMAGES = path.join(REPO, 'fastlane', 'metadata', 'android', 'en-US', 'images');
 const IOS_ICONSET = path.join(REPO, 'app', 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset');
+const IOS_LAUNCHSET = path.join(REPO, 'app', 'ios', 'Runner', 'Assets.xcassets', 'LaunchImage.imageset');
 const WEB = path.join(REPO, 'web-app');
 
 const TILE = 8;   // tile pixels per side
@@ -259,6 +262,71 @@ function pngWithoutAlpha(buf) {
   return Buffer.concat([buf.slice(0, 8), pngChunk('IHDR', hdr), pngChunk('IDAT', zlib.deflateSync(out)), pngChunk('IEND', Buffer.alloc(0))]);
 }
 
+// ---------------------------------------------------------------- launch image
+
+/**
+ * Rasterizes shapes (axis-aligned rects in mosaic units) onto an opaque BG
+ * square in plain Node, so it needs no browser. Each pixel takes the exact
+ * area a shape's rects cover in it. Coverage is summed per shape before
+ * blending, so rects that abut inside a pixel (a tile's row runs) leave no seam.
+ */
+function rasterizeShapes(shapes, size, scale, ox, oy) {
+  const bg = [1, 3, 5].map((i) => parseInt(BG.slice(i, i + 2), 16));
+  const rgb = new Float64Array(size * size * 3);
+  for (let p = 0; p < size * size; p++) rgb.set(bg, p * 3);
+  const cov = new Float64Array(size * size);
+  for (const { color, rects } of shapes) {
+    const c = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+    cov.fill(0);
+    for (const [x, y, w, h] of rects) {
+      const x0 = ox + x * scale, y0 = oy + y * scale, x1 = x0 + w * scale, y1 = y0 + h * scale;
+      for (let py = Math.max(0, Math.floor(y0)); py < Math.min(size, Math.ceil(y1)); py++) {
+        const cy = Math.min(py + 1, y1) - Math.max(py, y0);
+        for (let px = Math.max(0, Math.floor(x0)); px < Math.min(size, Math.ceil(x1)); px++) {
+          cov[py * size + px] += cy * (Math.min(px + 1, x1) - Math.max(px, x0));
+        }
+      }
+    }
+    for (let p = 0; p < size * size; p++) {
+      const a = Math.min(1, cov[p]);
+      if (a > 0) for (let k = 0; k < 3; k++) rgb[p * 3 + k] += (c[k] - rgb[p * 3 + k]) * a;
+    }
+  }
+  const raw = Buffer.alloc(size * (size * 3 + 1));
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size * 3; x++) raw[y * (size * 3 + 1) + 1 + x] = Math.round(rgb[y * size * 3 + x]);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type RGB
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(raw, { level: 9 })), pngChunk('IEND', Buffer.alloc(0))]);
+}
+
+// iOS launch screen: the icon mosaic, LAUNCH_POINTS square, centred on BG.
+// LaunchScreen.storyboard paints the same BG and centres this image at its
+// natural size, so the screen iOS zooms out of the icon looks like the icon.
+const LAUNCH_POINTS = 120;
+const IOS_LAUNCH_CONTENTS = JSON.stringify({
+  images: [1, 2, 3].map((s) => ({
+    filename: s === 1 ? 'LaunchImage.png' : `LaunchImage@${s}x.png`, idiom: 'universal', scale: `${s}x`,
+  })),
+  info: { author: 'xcode', version: 1 },
+}, null, 2) + '\n';
+
+function writeLaunchImages() {
+  if (!fs.existsSync(IOS_LAUNCHSET)) return;
+  for (const f of fs.readdirSync(IOS_LAUNCHSET)) fs.unlinkSync(path.join(IOS_LAUNCHSET, f));
+  write(path.join(IOS_LAUNCHSET, 'Contents.json'), IOS_LAUNCH_CONTENTS);
+  for (const s of [1, 2, 3]) {
+    const size = LAUNCH_POINTS * s;
+    const png = rasterizeShapes(mosaicShapes(), size, size / ICON_EXTENT, 0, 0);
+    write(path.join(IOS_LAUNCHSET, s === 1 ? 'LaunchImage.png' : `LaunchImage@${s}x.png`), png);
+  }
+}
+
 // The web app's page background (index.html's --bg), used for the browser
 // chrome and the splash colour of an installed shortcut.
 const WEB_THEME = '#f5f3ef';
@@ -374,9 +442,14 @@ async function main() {
   write(path.join(RES, 'drawable', 'ic_launcher_foreground.xml'), adaptiveForeground());
   write(path.join(RES, 'mipmap-anydpi-v26', 'ic_launcher.xml'), ADAPTIVE_ICON);
   write(path.join(RES, 'values', 'ic_launcher_background.xml'), ICON_BACKGROUND);
+  writeLaunchImages();
 
   if (fs.existsSync(IOS_ICONSET)) {
-    for (const f of fs.readdirSync(IOS_ICONSET)) fs.unlinkSync(path.join(IOS_ICONSET, f));
+    // Drop stale files, but keep AppIcon-1024.png: only the Playwright pass
+    // below redraws it, and a run without Playwright must not lose it.
+    for (const f of fs.readdirSync(IOS_ICONSET)) {
+      if (f !== 'AppIcon-1024.png') fs.unlinkSync(path.join(IOS_ICONSET, f));
+    }
     write(path.join(IOS_ICONSET, 'Contents.json'), IOS_ICON_CONTENTS);
   }
 

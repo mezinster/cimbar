@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -174,6 +175,26 @@ void main() {
       expect(plistString(e, 'destination'), 'upload');
       expect(plistString(e, 'signingStyle'), 'automatic');
       expect(plistString(e, 'teamID'), team);
+    });
+  });
+
+  group('launch screen', () {
+    const set = 'ios/Runner/Assets.xcassets/LaunchImage.imageset';
+
+    test('launch images are the generated 120 pt mosaic, not Flutter\'s 1x1 placeholder', () {
+      for (final (name, px) in [('LaunchImage.png', 120), ('LaunchImage@2x.png', 240), ('LaunchImage@3x.png', 360)]) {
+        final png = File('$set/$name').readAsBytesSync();
+        final ihdr = ByteData.sublistView(png, 16, 24);
+        expect([ihdr.getUint32(0), ihdr.getUint32(4)], [px, px], reason: name);
+      }
+      expect(File('$set/README.md').existsSync(), isFalse, reason: 'Flutter template placeholder README');
+    });
+
+    test('storyboard paints the icon\'s black and sizes the image at 120 pt', () {
+      final sb = read('ios/Runner/Base.lproj/LaunchScreen.storyboard');
+      expect(sb, contains('<color key="backgroundColor" red="0" green="0" blue="0" alpha="1"'));
+      expect(sb, contains('<image name="LaunchImage" width="120" height="120"/>'));
+      expect(sb, contains('image="LaunchImage"'));
     });
   });
 }
