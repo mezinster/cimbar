@@ -1,2 +1,3 @@
 "NSCameraUsageDescription" = "CimBar სკანერი კამერას იყენებს CimBar შტრიხკოდების სკანირებისთვის.";
 "NSPhotoLibraryUsageDescription" = "CimBar სკანერი ხსნის თქვენ მიერ არჩეულ ფოტოებს მათზე არსებული შტრიხკოდის დეკოდირებისთვის.";
+"NSMicrophoneUsageDescription" = "CimBar სკანერი არასდროს იწერს ხმას და არ ითხოვს მიკროფონზე წვდომას.";

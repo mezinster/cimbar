@@ -49,6 +49,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>CimBar Scanner uses the camera to scan CimBar barcodes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CimBar Scanner never records audio and never asks for the microphone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CimBar Scanner opens the photos you choose to decode the barcode in them.</string>
 	<key>UIApplicationSceneManifest</key>

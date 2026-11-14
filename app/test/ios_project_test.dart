@@ -41,10 +41,12 @@ void main() {
     expect(plistString(info, 'CFBundleName'), 'CimBar Scanner');
   });
 
-  test('camera and photo library usage strings; no microphone', () {
+  test('camera, photo library and (never-requested) microphone usage strings', () {
     expect(plistString(info, 'NSCameraUsageDescription'), isNotEmpty);
     expect(plistString(info, 'NSPhotoLibraryUsageDescription'), isNotEmpty);
-    expect(info, isNot(contains('NSMicrophoneUsageDescription')));
+    // camera_avfoundation links audio-capture APIs, which App Store Connect
+    // flags as ITMS-90683 without this string. The app never asks for the mic.
+    expect(plistString(info, 'NSMicrophoneUsageDescription'), contains('never'));
   });
 
   test('share_handler URL scheme is registered', () {
@@ -68,10 +70,11 @@ void main() {
 
   group('localized permission prompts', () {
     for (final lang in arbLocales()) {
-      test('$lang.lproj/InfoPlist.strings has both usage strings and is in the project', () {
+      test('$lang.lproj/InfoPlist.strings has every usage string and is in the project', () {
         final s = read('ios/Runner/$lang.lproj/InfoPlist.strings');
         expect(s, contains('"NSCameraUsageDescription" = "'));
         expect(s, contains('"NSPhotoLibraryUsageDescription" = "'));
+        expect(s, contains('"NSMicrophoneUsageDescription" = "'));
         expect(pbx, contains('$lang.lproj/InfoPlist.strings'));
       });
     }
@@ -112,6 +115,59 @@ void main() {
       final podfile = read('ios/Podfile');
       expect(podfile, contains("target 'ShareExtension' do"));
       expect(podfile, contains('share_handler_ios_models'));
+    });
+  });
+
+  group('App Store / TestFlight', () {
+    const team = 'C6LYTC662B';
+
+    test('every signing xcconfig sets the team; project.pbxproj never does', () {
+      for (final f in [
+        'ios/Flutter/Debug.xcconfig',
+        'ios/Flutter/Release.xcconfig',
+        'ios/ShareExtension/Debug.xcconfig',
+        'ios/ShareExtension/Release.xcconfig',
+      ]) {
+        expect(read(f), contains('DEVELOPMENT_TEAM = $team'), reason: f);
+      }
+      // Target settings beat xcconfig values; Xcode's Signing tab writes one there.
+      expect(pbx, isNot(contains('DEVELOPMENT_TEAM')));
+    });
+
+    test('deployment target is iOS 15 everywhere (App Store Connect refuses less from April 2027)', () {
+      final targets = RegExp(r'IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);')
+          .allMatches(pbx)
+          .map((m) => m.group(1))
+          .toSet();
+      expect(targets, {'15.0'});
+      expect(read('ios/Podfile'), contains("platform :ios, '15.0'"));
+      expect(read('ios/tool/configure_xcode_project.rb'), contains("DEPLOYMENT = '15.0'"));
+    });
+
+    test('privacy manifest: no tracking, FileTimestamp C617.1, in Runner resources', () {
+      final p = read('ios/Runner/PrivacyInfo.xcprivacy');
+      expect(p, matches(RegExp(r'<key>NSPrivacyTracking</key>\s*<false/>')));
+      expect(p, contains('NSPrivacyAccessedAPICategoryFileTimestamp'));
+      expect(p, contains('<string>C617.1</string>'));
+      expect(pbx, contains('PrivacyInfo.xcprivacy in Resources'));
+    });
+
+    test('export compliance: no YES without the code Apple issues', () {
+      // A YES without ITSEncryptionExportComplianceCode is rejected at upload
+      // ("Invalid Export Compliance Code"); NFC Archiver hit it. Answered per
+      // build in App Store Connect instead.
+      final m = RegExp('<key>ITSAppUsesNonExemptEncryption</key>\\s*<(true|false)/>').firstMatch(info);
+      if (m?.group(1) == 'true') {
+        expect(info, contains('ITSEncryptionExportComplianceCode'));
+      }
+    });
+
+    test('ExportOptions.plist uploads to App Store Connect with automatic signing', () {
+      final e = read('ios/ExportOptions.plist');
+      expect(plistString(e, 'method'), 'app-store-connect');
+      expect(plistString(e, 'destination'), 'upload');
+      expect(plistString(e, 'signingStyle'), 'automatic');
+      expect(plistString(e, 'teamID'), team);
     });
   });
 }
