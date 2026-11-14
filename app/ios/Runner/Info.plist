@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AppGroupId</key>
+	<string>group.com.nfcarchiver.cimbarscanner</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -49,6 +51,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>CimBar Scanner uses the camera to scan CimBar barcodes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CimBar Scanner never records audio and never asks for the microphone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CimBar Scanner opens the photos you choose to decode the barcode in them.</string>
 	<key>UIApplicationSceneManifest</key>

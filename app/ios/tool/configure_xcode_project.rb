@@ -11,8 +11,13 @@
 # 1. Localized permission prompts: Runner/<lang>.lproj/InfoPlist.strings as a
 #    variant group in Runner's resources, and the languages in knownRegions.
 # 2. Runner's App Group entitlements (share_handler hands files over through
-#    group.com.nfcarchiver.cimbar).
+#    group.com.nfcarchiver.cimbarscanner, named by the AppGroupId key in both
+#    Info.plists; share_handler's default, group.<bundle id>, belongs to
+#    another team).
 # 3. The ShareExtension target (share_handler), embedded in Runner.
+# 4. The deployment target, on the project and on every target that pins one.
+# 5. Runner/PrivacyInfo.xcprivacy in Runner's resources (App Store Connect
+#    requires an app-level privacy manifest).
 require 'xcodeproj'
 
 IOS = File.expand_path('..', __dir__)
@@ -23,8 +28,10 @@ LANGS = %w[en ru uk tr ka].freeze
 project = Xcodeproj::Project.open(File.join(IOS, 'Runner.xcodeproj'))
 runner = project.targets.find { |t| t.name == 'Runner' } or abort('no Runner target')
 runner_group = project.main_group['Runner'] or abort('no Runner group')
-# file_picker_darwin 2.x needs iOS 14; the Podfile's `platform :ios` must match.
-DEPLOYMENT = '14.0'
+# App Store Connect warns on every upload targeting less than iOS 15 and refuses
+# them from April 2027 (file_picker_darwin 2.x alone would need 14). Every device
+# that ran iOS 14 runs 15. The Podfile's `platform :ios` must match.
+DEPLOYMENT = '15.0'
 
 # --- 1. localized InfoPlist.strings -------------------------------------------
 project.root_object.known_regions = (project.root_object.known_regions + LANGS).uniq
@@ -99,6 +106,14 @@ end
   next unless project.build_configurations.include?(config) || s.key?('IPHONEOS_DEPLOYMENT_TARGET')
 
   s['IPHONEOS_DEPLOYMENT_TARGET'] = DEPLOYMENT
+end
+
+# --- 5. Privacy manifest ---------------------------------------------------------
+# A file that is not in the Resources phase never reaches the bundle.
+privacy = runner_group.files.find { |f| f.path == 'PrivacyInfo.xcprivacy' } ||
+          runner_group.new_reference('PrivacyInfo.xcprivacy')
+unless runner.resources_build_phase.files_references.include?(privacy)
+  runner.resources_build_phase.add_file_reference(privacy, true)
 end
 
 project.save

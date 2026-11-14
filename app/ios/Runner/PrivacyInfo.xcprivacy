@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App-level privacy manifest, required by App Store Connect.
+
+  CimBar is offline: no tracking, no analytics, no network. Nothing leaves the
+  device except through a Share / Save that the user starts themselves.
+
+  Plugins (shared_preferences, path_provider, camera, ...) ship their own
+  manifests; this file only covers what the app's OWN code does:
+
+  - FileTimestamp / C617.1: the Files tab lists decoded files sorted by
+    modification date (files_controller.dart, `entry.statSync()`). The files
+    live in the app container.
+
+  Added by ios/tool/configure_xcode_project.rb to Runner's Resources phase.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

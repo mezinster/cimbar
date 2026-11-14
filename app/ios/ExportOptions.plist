@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Export options for a TestFlight / App Store upload. With `destination upload`
+  the export step sends the build straight to App Store Connect:
+
+    cd app
+    flutter build ipa --release
+    xcodebuild -exportArchive -allowProvisioningUpdates \
+      -archivePath build/ios/archive/Runner.xcarchive \
+      -exportOptionsPlist ios/ExportOptions.plist \
+      -exportPath build/ios/ipa
+
+  Automatic signing: Xcode (signed in with an account on team C6LYTC662B)
+  creates the distribution certificate and profiles for the app and its
+  ShareExtension.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>C6LYTC662B</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
