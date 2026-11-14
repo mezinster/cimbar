@@ -11,7 +11,9 @@
 # 1. Localized permission prompts: Runner/<lang>.lproj/InfoPlist.strings as a
 #    variant group in Runner's resources, and the languages in knownRegions.
 # 2. Runner's App Group entitlements (share_handler hands files over through
-#    group.com.nfcarchiver.cimbar).
+#    group.com.nfcarchiver.cimbarscanner, named by the AppGroupId key in both
+#    Info.plists; share_handler's default, group.<bundle id>, belongs to
+#    another team).
 # 3. The ShareExtension target (share_handler), embedded in Runner.
 # 4. The deployment target, on the project and on every target that pins one.
 # 5. Runner/PrivacyInfo.xcprivacy in Runner's resources (App Store Connect

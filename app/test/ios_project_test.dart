@@ -89,9 +89,15 @@ void main() {
       expect(pbx, contains('ShareExtension.appex in Embed Foundation Extensions'));
     });
 
-    test('both targets share the App Group', () {
+    test('both targets share the App Group, and share_handler is told its name', () {
+      // group.com.nfcarchiver.cimbar (share_handler's default, group.<bundle id>)
+      // belongs to another team; without AppGroupId share_handler would look there.
+      const group = 'group.com.nfcarchiver.cimbarscanner';
       for (final f in ['ios/Runner/Runner.entitlements', 'ios/ShareExtension/ShareExtension.entitlements']) {
-        expect(read(f), contains('<string>group.com.nfcarchiver.cimbar</string>'), reason: f);
+        expect(plistStrings(read(f), 'com.apple.security.application-groups'), [group], reason: f);
+      }
+      for (final f in ['ios/Runner/Info.plist', 'ios/ShareExtension/Info.plist']) {
+        expect(plistString(read(f), 'AppGroupId'), group, reason: f);
       }
       expect(pbx, contains('CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;'));
       expect(pbx, contains('CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;'));

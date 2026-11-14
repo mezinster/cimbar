@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Send text, not just files: the web app's Encode tab has a Text mode, and every receiver (web, Android, iOS) shows a received text message with Copy and Save as .txt instead of a bare file.
 - Android/iOS can now send: a new Send tab encodes text or a file and shows it full screen (Present) or shares an animated GIF.
 
+### Changed
+- iOS is ready for TestFlight: signed by the developer team in the build settings, minimum iOS 15.0, an app privacy manifest, and a microphone usage string (the app never asks for the microphone; App Store Connect rejects camera apps without one). The Share Extension's App Group is now `group.com.nfcarchiver.cimbarscanner`: `group.com.nfcarchiver.cimbar` belongs to another team.
+
 ### Fixed
 - `CryptoService.encrypt` drew its salt and IV from a 256-value seed space; it now uses the platform CSPRNG. Only tests used it before this release.
 
