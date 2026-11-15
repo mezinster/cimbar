@@ -136,6 +136,16 @@ The Android app's application id is **`com.nfcarchiver.cimbar`** (namespace too;
 - **Release flow:** bump pubspec (name + code), `index.html` version, CHANGELOG heading, and write the five `changelogs/<code>.txt` → PR → merge → run the Release workflow on master (`gh workflow run release.yml --ref master -f version=X.Y.Z -f branch=master -f prerelease=false`). The fdroiddata update after that is automatic (the bot copies the previous build entry with the new tag's commit); an MR is only needed when the build steps themselves change. A failed F-Droid build is pinned to its tag commit — fixing master doesn't help it, only a new release does. Signing: GitHub APKs are signed with the CI runner's debug key (no release keystore yet); F-Droid signs its builds with its own key, so the two can't upgrade each other.
 - **iOS goes through TestFlight, by hand.** `app/ios/` is signed by team `C6LYTC662B` (automatic signing, team in the xcconfigs) and uploaded from the Mac with `flutter build ipa` plus `xcodebuild -exportArchive` and `app/ios/ExportOptions.plist`. CI only compile-checks it (*Build iOS (unsigned)*). There is no App Store listing or store metadata yet. See `app/CLAUDE.md`'s "iOS" section for the upload steps, the NFC Archiver lessons, and the first-device checklist.
 
+## Docs site (`site-docs/`)
+
+User guide, privacy policy and support page in the app's five languages (MkDocs + Material, modelled on NFC Archiver's `site-docs/`). See [`site-docs/README.md`](site-docs/README.md).
+
+- **Two copies from one source:** `nfcarchiver.com/cimbar/docs/` (canonical; App Store Connect's privacy and support URLs are `/cimbar/docs/privacy/` and `/cimbar/docs/support/`) and the GitHub Pages mirror `mezinster.github.io/cimbar/`. English at the root, other languages under their code. `check_site.py` checks the sources and each built tree; CI's *Build docs* job runs it.
+- **Stored under `cimbar-docs/`, served at `/cimbar/docs/`.** The web app deploy syncs `cimbar/` with `--delete`, so the docs live in their own bucket prefix, and a CloudFront viewer-request rewrite in the terraform repo (`websites/functions/directory-index.js`) maps the public path onto it. Never move the docs under `cimbar/`.
+- **One privacy policy** covers the web app, Android and iPhone; English is authoritative. A change to permissions, plugins, storage or network use updates it in every language, and the docs deploy goes out **before** the release carrying that change.
+- **Deploy:** manual only, from `master`: `gh workflow run deploy-docs.yml --ref master`, with `-f dry_run=true` first. It syncs to `cimbar-docs/` (the guard refuses any other prefix), invalidates `/cimbar/docs/*`, verifies the full-SHA `cimbar-docs-build` marker on the live pages, then deploys Pages.
+- **Public-repo hygiene:** never commit or print the AWS account ID, the role ARN or the CloudFront distribution ID. The docs workflow reads the distribution ID from the `CLOUDFRONT_DISTRIBUTION_ID` environment secret, so it is masked.
+
 ## Web App Tests
 
 All tests live in `web-app/tests/`. Run from the `web-app/` directory (no install needed beyond Node.js):

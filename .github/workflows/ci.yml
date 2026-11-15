@@ -123,6 +123,45 @@ jobs:
       - name: Validate F-Droid recipe and fastlane listings
         run: python3 tools/validate_store_metadata.py
 
+  build-docs:
+    name: Build docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Material prints a banner about MkDocs 2 on every build; it is noise here.
+      NO_MKDOCS_2_WARNING: '1'
+      DOCS_BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install site dependencies
+        run: pip install --require-hashes -r site-docs/requirements.txt
+
+      - name: Source checks
+        run: python site-docs/check_site.py
+
+      - name: Build for nfcarchiver.com/cimbar/docs/
+        working-directory: site-docs
+        run: mkdocs build --strict -d site/main
+
+      - name: Build for GitHub Pages
+        working-directory: site-docs
+        env:
+          DOCS_SITE_URL: https://mezinster.github.io/cimbar/
+        run: mkdocs build --strict -d site/pages
+
+      # Each tree may only link under its own base path. The Pages base
+      # /cimbar/ contains the main copy's /cimbar/docs/, hence --forbid.
+      - name: Built-tree checks
+        run: |
+          python site-docs/check_site.py --built site-docs/site/main --base /cimbar/docs/ --sha "$DOCS_BUILD_SHA"
+          python site-docs/check_site.py --built site-docs/site/pages --base /cimbar/ --forbid /cimbar/docs/ --sha "$DOCS_BUILD_SHA"
+
   build-ios:
     name: Build iOS (unsigned)
     runs-on: macos-latest

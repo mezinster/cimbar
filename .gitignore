@@ -39,3 +39,5 @@ app/android/app/src/main/java/io/
 *.gif
 !test-data/goldens/*.gif
 !app/test/fixtures/test_hello.gif
+site-docs/site/
+site-docs/.venv/

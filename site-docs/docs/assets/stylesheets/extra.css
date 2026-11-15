@@ -1,0 +1,15 @@
+/* CimBar's colours, taken from the web app's tokens (web-app/index.html). */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #2d6a4f;
+  --md-primary-fg-color--light: #52917a;
+  --md-primary-fg-color--dark: #1b4332;
+  --md-accent-fg-color: #2d6a4f;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #2d6a4f;
+  --md-primary-fg-color--light: #52917a;
+  --md-primary-fg-color--dark: #1b4332;
+  --md-accent-fg-color: #7fc8a2;
+}
