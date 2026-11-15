@@ -111,5 +111,8 @@
   "sendFailed": "Kodowanie nie powiodło się: {error}",
   "presentSource": "Klatka {i} z {n}",
   "presentRepair": "Klatka naprawcza {r}",
-  "sendFileTooBig": "Plik jest za duży: {size} (limit {max})."
+  "sendFileTooBig": "Plik jest za duży: {size} (limit {max}).",
+  "sizeBytes": "{value} B",
+  "sizeKilobytes": "{value} KB",
+  "sizeMegabytes": "{value} MB"
 }

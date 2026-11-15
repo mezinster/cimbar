@@ -321,7 +321,11 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String textTruncated(int count) {
-    return 'ნაჩვენებია პირველი $count სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'ნაჩვენებია პირველი $countString სიმბოლო — კოპირება, გაზიარება და შენახვა მთლიან ტექსტს იყენებს.';
   }
 
   @override
@@ -376,5 +380,20 @@ class AppLocalizationsKa extends AppLocalizations {
   @override
   String sendFileTooBig(String size, String max) {
     return 'ფაილი ზედმეტად დიდია: $size (ლიმიტი $max).';
+  }
+
+  @override
+  String sizeBytes(String value) {
+    return '$value B';
+  }
+
+  @override
+  String sizeKilobytes(String value) {
+    return '$value KB';
+  }
+
+  @override
+  String sizeMegabytes(String value) {
+    return '$value MB';
   }
 }

@@ -86,6 +86,33 @@ test('t() picks the plural form for the count', () => {
   } finally { I.setLang('en'); }
 });
 
+test('every language translates every message (allow-listed technical strings excepted)', () => {
+  // Same in every language: abbreviations and unit-only strings. Anything else
+  // equal to English shipped untranslated ("LIVE DEMO" did, in four languages).
+  const SAME = new Set(['about2Title', 'chipAes', 'delayNormal', 'sizeB', 'sizeKB', 'sizeMB']);
+  for (const code of LANGS.filter((c) => c !== 'en')) {
+    const same = Object.keys(en).filter((k) => !SAME.has(k) && I.STRINGS[code][k] === en[k]);
+    assertEq(same.join(','), '', `${code}: messages identical to English`);
+  }
+});
+
+test('counts agree with the noun in the strings fixed after the 0.13 audit', () => {
+  try {
+    I.setLang('ru');
+    assertEq(I.t('presentRepair', { r: 0, n: 3 }), 'Восстанавливающий кадр 0 — любые 3 кадра собирают файл');
+    assertEq(I.t('scanFrames', { rank: 2, total: 21 }), '2 / 21 кадра');
+    assertEq(I.t('photoKeepGoing', { rank: 1, total: 3 }), '1 из 3 кадров — сфотографируйте следующий');
+    I.setLang('pl');
+    assertEq(I.t('presentRepair', { r: 1, n: 2 }), 'Klatka naprawcza 1 — dowolne 2 klatki uzupełniają plik');
+    assertEq(I.t('incomplete', { filled: 0, total: 1, rejected: 1 }), 'Niekompletne: zdekodowano 0 z 1 klatki (odrzucone: 1)');
+    I.setLang('en');
+    assertEq(I.t('scanFrames', { rank: 0, total: 1 }), '0 / 1 frame');
+    assert(I.t('readyHelpSingle').includes('one frame'), 'one-frame help text');
+    I.setLang('ru');
+    assertEq(I.t('sizeKB', { value: '14,8' }), '14,8 КБ');
+  } finally { I.setLang('en'); }
+});
+
 test('detect(): stored choice, then browser languages, then English; bad values ignored', () => {
   const store = (v) => ({ getItem: () => v });
   assertEq(I.detect(store('ka'), ['en-US']), 'ka', 'stored wins');

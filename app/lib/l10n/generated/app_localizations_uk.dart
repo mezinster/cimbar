@@ -196,7 +196,15 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String liveScanProgress(int captured, int total) {
-    return 'Сканування... $captured/$total кадрів';
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: 'кадрів',
+      many: 'кадрів',
+      few: 'кадрів',
+      one: 'кадру',
+    );
+    return 'Сканування... $captured/$total $_temp0';
   }
 
   @override
@@ -329,7 +337,11 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String textTruncated(int count) {
-    return 'Показано перші $count символів — «Копіювати», «Поділитися» та «Зберегти» використовують увесь текст.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Показано перші $countString символів — «Копіювати», «Поділитися» та «Зберегти» використовують увесь текст.';
   }
 
   @override
@@ -400,5 +412,20 @@ class AppLocalizationsUk extends AppLocalizations {
   @override
   String sendFileTooBig(String size, String max) {
     return 'Файл завеликий: $size (ліміт $max).';
+  }
+
+  @override
+  String sizeBytes(String value) {
+    return '$value Б';
+  }
+
+  @override
+  String sizeKilobytes(String value) {
+    return '$value КБ';
+  }
+
+  @override
+  String sizeMegabytes(String value) {
+    return '$value МБ';
   }
 }

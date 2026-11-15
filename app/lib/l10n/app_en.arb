@@ -146,7 +146,7 @@
 
   "liveScanButton": "Live Scan",
   "@liveScanButton": { "description": "Button to start live camera scanning" },
-  "liveScanProgress": "Scanning... {captured}/{total} frames",
+  "liveScanProgress": "Scanning... {captured}/{total} {total, plural, =1{frame} other{frames}}",
   "@liveScanProgress": {
     "description": "Progress during live scanning",
     "placeholders": {
@@ -251,7 +251,7 @@
   "shareText": "Share text",
   "@shareText": { "description": "Button that shares the received text via the system share sheet" },
   "textTruncated": "Showing the first {count} characters — Copy, Share and Save use the full text.",
-  "@textTruncated": { "description": "Note under a long received text that only the first characters are displayed", "placeholders": { "count": { "type": "int" } } },
+  "@textTruncated": { "description": "Note under a long received text that only the first characters are displayed", "placeholders": { "count": { "type": "int", "format": "decimalPattern" } } },
   "tabSend": "Send",
   "@tabSend": {"description": "Bottom tab: encode and send"},
   "sendModeText": "Text",
@@ -279,5 +279,11 @@
   "presentRepair": "Repair frame {r}",
   "@presentRepair": {"description": "Present screen caption for a repair frame", "placeholders": {"r": {"type": "int"}}},
   "sendFileTooBig": "File too large: {size} (limit {max}).",
-  "@sendFileTooBig": {"description": "Error when a picked file is larger than receivers accept", "placeholders": {"size": {"type": "String"}, "max": {"type": "String"}}}
+  "@sendFileTooBig": {"description": "Error when a picked file is larger than receivers accept", "placeholders": {"size": {"type": "String"}, "max": {"type": "String"}}},
+  "sizeBytes": "{value} B",
+  "@sizeBytes": {"description": "A size under 1 KB; value is the byte count", "placeholders": {"value": {"type": "String"}}},
+  "sizeKilobytes": "{value} KB",
+  "@sizeKilobytes": {"description": "A size in kilobytes; value is already formatted with one decimal in the locale", "placeholders": {"value": {"type": "String"}}},
+  "sizeMegabytes": "{value} MB",
+  "@sizeMegabytes": {"description": "A size in megabytes; value is already formatted with one decimal in the locale", "placeholders": {"value": {"type": "String"}}}
 }

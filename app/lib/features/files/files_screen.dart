@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/format_size.dart';
 import '../../shared/widgets/file_actions.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import 'files_controller.dart';
@@ -71,7 +72,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            '${_formatSize(file.sizeBytes)} \u2022 ${_formatDate(file.modified)}',
+                            '${formatSize(l10n, file.sizeBytes)} \u2022 ${_formatDate(file.modified)}',
                           ),
                           trailing: PopupMenuButton<String>(
                             onSelected: (action) async {
@@ -240,12 +241,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       default:
         return Icons.insert_drive_file;
     }
-  }
-
-  static String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   static String _formatDate(DateTime dt) {

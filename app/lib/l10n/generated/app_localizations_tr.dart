@@ -320,7 +320,11 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String textTruncated(int count) {
-    return 'İlk $count karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'İlk $countString karakter gösteriliyor — Kopyala, Paylaş ve Kaydet metnin tamamını kullanır.';
   }
 
   @override
@@ -375,5 +379,20 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String sendFileTooBig(String size, String max) {
     return 'Dosya çok büyük: $size (sınır $max).';
+  }
+
+  @override
+  String sizeBytes(String value) {
+    return '$value B';
+  }
+
+  @override
+  String sizeKilobytes(String value) {
+    return '$value KB';
+  }
+
+  @override
+  String sizeMegabytes(String value) {
+    return '$value MB';
   }
 }

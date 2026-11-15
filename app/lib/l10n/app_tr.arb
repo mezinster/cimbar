@@ -111,5 +111,8 @@
   "sendFailed": "Kodlama başarısız: {error}",
   "presentSource": "Kare {i} / {n}",
   "presentRepair": "Onarım karesi {r}",
-  "sendFileTooBig": "Dosya çok büyük: {size} (sınır {max})."
+  "sendFileTooBig": "Dosya çok büyük: {size} (sınır {max}).",
+  "sizeBytes": "{value} B",
+  "sizeKilobytes": "{value} KB",
+  "sizeMegabytes": "{value} MB"
 }
