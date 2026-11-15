@@ -14,6 +14,9 @@ Giriş alanının altındaki satır, boyutu ve kodun en fazla kaç kareden oluş
 
 Gösterim sırasında uygulama ekranı açık tutar ve parlaklığı artırır. Çıktığınızda ikisi de normale döner.
 
+![Bir mesaj yazılmış Gönder sekmesi](../assets/screenshots/app-send.png){ width="280" }
+![Kodu tam ekranda gösterme](../assets/screenshots/app-present.png){ width="280" }
+
 ## Web uygulamasında
 
 1. **Gönder**'i açın.
@@ -21,6 +24,9 @@ Gösterim sırasında uygulama ekranı açık tutar ve parlaklığı artırır. 
 3. İsteğe bağlı: **Parola ekle**.
 4. İsteğe bağlı: **Gelişmiş** altında **Kare hızı**'nı seçin.
 5. **Kod oluştur**'a dokunun. **Göndermeye hazır** ekranında **Tam ekranda göster**, **GIF paylaş** (paylaşımı destekleyen telefonlarda) veya **İndir**'i seçin.
+
+![Web uygulamasının Gönder ekranı](../assets/screenshots/web-send.png){ width="280" }
+![Göndermeye hazır ekranı](../assets/screenshots/web-ready.png){ width="280" }
 
 ## Oynamaya devam etsin
 

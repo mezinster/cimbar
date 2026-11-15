@@ -13,3 +13,11 @@
   --md-primary-fg-color--dark: #1b4332;
   --md-accent-fg-color: #7fc8a2;
 }
+
+/* Screenshots: a gap between side-by-side shots and an edge in both themes. */
+.md-typeset img[src*="/screenshots/"] {
+  margin: 0 0.6rem 0.6rem 0;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.6rem;
+  vertical-align: top;
+}

@@ -14,6 +14,9 @@ This is the way to receive a code that someone is presenting on a screen.
 
 The frames can arrive in any order, and frames you missed don't matter: any frames of the file will do, as long as there are enough of them.
 
+![The Camera tab](../assets/screenshots/app-camera.png){ width="280" }
+![Live scan in the web app, with the barcode found](../assets/screenshots/web-scan.png){ width="280" }
+
 ## Import a GIF
 
 When someone shared a CimBar GIF with you:
@@ -28,6 +31,8 @@ When someone shared a CimBar GIF with you:
 
 If a photo belongs to a different file than the one you are collecting, the web app asks before it starts over.
 
+![The web app's Receive screen](../assets/screenshots/web-receive.png){ width="280" }
+
 ## Encrypted files
 
 If the file was encrypted, you are asked for the passphrase once all frames are in. There is no need to scan again: if you get the passphrase wrong, just enter it again. See [Encryption](encryption.md).
@@ -37,3 +42,7 @@ If the file was encrypted, you are asked for the passphrase once all frames are 
 **App:** a received file is kept in the app and listed in the **Files** tab. From there, **Open** it in another app, **Save to device**, share it, or **Delete** it. A text message is shown with **Copy** and **Share text**. Uninstalling the app deletes the files it kept, so save the ones you need.
 
 **Web app:** nothing is downloaded automatically. Choose **Save to device**, **Open** (for file types that are safe to show), or **Share**. A text message is shown with **Copy** and **Save as .txt**.
+
+![A received text message in the app](../assets/screenshots/app-received.png){ width="220" }
+![The Files tab](../assets/screenshots/app-files.png){ width="220" }
+![A received text message in the web app](../assets/screenshots/web-received-text.png){ width="220" }
