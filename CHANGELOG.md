@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] — 2026-11-15
 
 ### Added
 - **Polish and Belarusian** in the Android/iPhone app, the web app, the F-Droid listings, the iOS permission prompts and the documentation site (seven languages in all). Belarusian uses the official Cyrillic orthography. Frame counts take the right plural form in both.

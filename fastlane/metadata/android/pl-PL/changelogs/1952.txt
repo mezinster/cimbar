@@ -1,0 +1,4 @@
+• Nowe języki: polski i białoruski
+• Podpowiedzi skanera i komunikaty o błędach są przetłumaczone na wszystkie języki
+• Liczba klatek ma poprawną formę, a rozmiary plików są zapisane zgodnie z zasadami Twojego języka
+• O aplikacji → Polityka prywatności otwiera opublikowaną politykę w Twoim języku
