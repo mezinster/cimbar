@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Documentation site** at https://nfcarchiver.com/cimbar/docs/ (mirrored at https://mezinster.github.io/cimbar/), in all five app languages: getting the app, sending, receiving, encryption, how it works, troubleshooting, support, and one privacy policy covering the web app, Android and iPhone.
 
+### Fixed
+- Ten app messages were still English in Russian, Ukrainian, Turkish and Georgian: the live-scan hints (Move closer / Move back / Hold still / Adjust angle or lighting), the aiming instruction, the "use Live Scan" error for multi-frame photos, the no-barcode and decoder errors, and the debug capture messages. A test now fails on any message left untranslated.
+
 ### Changed
 - **The web app is redesigned for phones.** A Send / Receive hub replaces the Encode / Decode / About tabs. The hub has a live, scannable demo code, and Receive opens the camera directly. The app follows the system dark mode. Present keeps the screen awake (Screen Wake Lock) and closes with the Back gesture. Phones get Share GIF / Share for received files. An encrypted scan asks for the passphrase afterwards, so nothing is re-scanned. Browser `alert`/`confirm` dialogs are gone.
 - **The README describes the redesigned web app, and has a Russian translation** (`README.ru.md`). The Encode / Decode GIF / About walkthroughs are replaced by Send and Receive; Quick Start no longer offers opening `index.html` from disk, which can't run live scan (browsers won't start its Web Worker from `file://`); the web test list covers all 24 Node tests; the release steps name the per-ABI changelog files (`1901.txt`/`1902.txt`/`1903.txt` for `+190`) that F-Droid looks up; Compatibility and Issues mention iOS.

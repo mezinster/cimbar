@@ -221,41 +221,41 @@ class AppLocalizationsKa extends AppLocalizations {
   }
 
   @override
-  String get liveScanAim => 'Fit the barcode inside the square';
+  String get liveScanAim => 'მოათავსეთ შტრიხკოდი კვადრატში';
 
   @override
-  String get hintMoveCloser => 'Move closer';
+  String get hintMoveCloser => 'მიიტანეთ უფრო ახლოს';
 
   @override
-  String get hintMoveBack => 'Move back';
+  String get hintMoveBack => 'გასწიეთ უფრო შორს';
 
   @override
-  String get hintHoldStill => 'Hold still';
+  String get hintHoldStill => 'დაიჭირეთ უძრავად';
 
   @override
-  String get hintAdjustAngle => 'Adjust angle or lighting';
+  String get hintAdjustAngle => 'შეცვალეთ კუთხე ან განათება';
 
   @override
   String errorMultiFrameNeedsLive(int total) {
-    return 'This file spans $total frames — use Live Scan';
+    return 'ფაილი $total კადრისგან შედგება — გამოიყენეთ „პირდაპირი სკანირება“';
   }
 
   @override
-  String get captureSaved => 'Frame captured to app documents';
+  String get captureSaved => 'კადრი შეინახა აპის დოკუმენტებში';
 
   @override
-  String get captureFailed => 'Capture failed';
+  String get captureFailed => 'კადრის შენახვა ვერ მოხერხდა';
 
   @override
   String get errorPassphraseRequired => 'ფაილი დაშიფრულია: საჭიროა პაროლი';
 
   @override
   String errorDecoderFailed(String detail) {
-    return 'Decoder failed: $detail';
+    return 'დეკოდერის შეცდომა: $detail';
   }
 
   @override
-  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
+  String get errorNoBarcodeFound => 'ფოტოში CimBar შტრიხკოდი ვერ მოიძებნა';
 
   @override
   String get shareReadFailed =>

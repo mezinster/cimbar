@@ -220,41 +220,41 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get liveScanAim => 'Fit the barcode inside the square';
+  String get liveScanAim => 'Barkodu kutunun içine sığdırın';
 
   @override
-  String get hintMoveCloser => 'Move closer';
+  String get hintMoveCloser => 'Yaklaştırın';
 
   @override
-  String get hintMoveBack => 'Move back';
+  String get hintMoveBack => 'Uzaklaştırın';
 
   @override
-  String get hintHoldStill => 'Hold still';
+  String get hintHoldStill => 'Sabit tutun';
 
   @override
-  String get hintAdjustAngle => 'Adjust angle or lighting';
+  String get hintAdjustAngle => 'Açıyı veya ışığı değiştirin';
 
   @override
   String errorMultiFrameNeedsLive(int total) {
-    return 'This file spans $total frames — use Live Scan';
+    return 'Bu dosya $total kareden oluşuyor — Canlı Tarama\'yı kullanın';
   }
 
   @override
-  String get captureSaved => 'Frame captured to app documents';
+  String get captureSaved => 'Kare uygulama belgelerine kaydedildi';
 
   @override
-  String get captureFailed => 'Capture failed';
+  String get captureFailed => 'Kare kaydedilemedi';
 
   @override
   String get errorPassphraseRequired => 'Bu dosya şifreli: parola gerekli';
 
   @override
   String errorDecoderFailed(String detail) {
-    return 'Decoder failed: $detail';
+    return 'Çözücü hatası: $detail';
   }
 
   @override
-  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
+  String get errorNoBarcodeFound => 'Fotoğrafta CimBar barkodu bulunamadı';
 
   @override
   String get shareReadFailed =>
