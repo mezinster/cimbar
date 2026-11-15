@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Skaner CimBar używa aparatu do skanowania kodów kreskowych CimBar.";
+"NSPhotoLibraryUsageDescription" = "Skaner CimBar otwiera wybrane przez Ciebie zdjęcia, aby zdekodować znajdujący się na nich kod kreskowy.";
+"NSMicrophoneUsageDescription" = "Skaner CimBar nigdy nie nagrywa dźwięku i nigdy nie prosi o dostęp do mikrofonu.";

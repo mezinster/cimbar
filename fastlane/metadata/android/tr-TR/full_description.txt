@@ -19,7 +19,7 @@ CimBar Tarayıcı, dosyaları ve metinleri CimBar barkodu olarak — her karesi 
 • Kodlama sırasında sıkıştırılan dosyaların otomatik olarak açılması
 • İsteğe bağlı AES-256-GCM şifreleme, otomatik algılanır; canlı tarama şifreli çıkarsa parolayı hemen orada girin — yeniden tarama gerekmez
 • Çözümlenen dosyalar: başka bir uygulamada açın, İndirilenler'e veya herhangi bir klasöre kaydedin ya da paylaşın
-• 5 dil: İngilizce, Rusça, Ukraynaca, Türkçe, Gürcüce
+• 7 dil: İngilizce, Rusça, Ukraynaca, Türkçe, Gürcüce, Lehçe, Belarusça
 
 <b>Gizlilik</b>
 

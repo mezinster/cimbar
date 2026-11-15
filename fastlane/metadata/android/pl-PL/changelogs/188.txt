@@ -1,0 +1,3 @@
+• Udostępnij zdjęcie kodu CimBar z galerii prosto do aplikacji — otworzy się w dekoderze zdjęć
+• Udostępnione GIF-y otwierają się w Imporcie z każdej galerii, także z tych, które udostępniają GIF-y jako zwykłe obrazy
+• Plik udostępniony w trakcie dekodowania nie zastępuje już dekodowanego pliku

@@ -56,7 +56,7 @@ A GIF carries its N source frames plus about 25% extra *repair* frames, and **Pr
 3. If the barcode is encrypted, an unlock screen asks for the passphrase *after* all frames are in — a wrong passphrase doesn't mean scanning again. Encryption is auto-detected from the recovered payload's `CB 42` magic bytes, and decompression is read from the frame header.
 4. A received file is shown with its name and size: **Save to device**, plus **Open** (for types the browser renders safely — PDF, images, plain text, audio/video) and **Share** where the browser can share files. A received text message is shown as text, with **Copy** and **Save as .txt**.
 
-The web app's interface is available in English, Russian, Ukrainian, Turkish and Georgian (the same five languages as the mobile app); pick one with the language button in the hub's top bar — the choice is remembered in the browser, and the browser language is used by default.
+The web app's interface is available in English, Russian, Ukrainian, Turkish, Georgian, Polish and Belarusian (the same seven languages as the mobile app); pick one with the language button in the hub's top bar — the choice is remembered in the browser, and the browser language is used by default.
 
 ## Deploying the web app
 
@@ -121,7 +121,7 @@ F-Droid builds each release from the committed source at its `vX.Y.Z` tag and le
 
 1. Bump the version in `app/pubspec.yaml` — name **and** `+versionCode` (the code always goes up by one) — and in `web-app/index.html` (`data-version` and the visible `vX.Y.Z`).
 2. Move the CHANGELOG's `[Unreleased]` entries under `## [X.Y.Z] — <date>`.
-3. Write the changelogs in `fastlane/metadata/android/<locale>/changelogs/` for all five locales (≤ 500 characters each). They are named by the version code of each **published APK**, not the pubspec's `+N`: F-Droid builds one APK per ABI with code `10 × N + 1/2/3`, so release `+190` needs `1901.txt`, `1902.txt` and `1903.txt`.
+3. Write the changelogs in `fastlane/metadata/android/<locale>/changelogs/` for all seven locales (≤ 500 characters each). They are named by the version code of each **published APK**, not the pubspec's `+N`: F-Droid builds one APK per ABI with code `10 × N + 1/2/3`, so release `+190` needs `1901.txt`, `1902.txt` and `1903.txt`.
 4. `python3 tools/validate_store_metadata.py` and both test suites pass; merge via PR.
 5. Run the **Release** workflow on `master` with the same version; it refuses to run if the committed pubspec disagrees. It tags `vX.Y.Z`, builds the APK/AAB with Flutter from `FLUTTER_VERSION` in `release.yml` (the F-Droid recipe reads the same line), and publishes the GitHub release.
 
@@ -184,7 +184,7 @@ node tests/test_compress.js         # zlib compression/decompression
 node tests/test_goldens.js          # golden GIFs vs. ground-truth sidecars
 node tests/test_text_message.js     # Text mode container and UTF-8 detection
 node tests/test_pipeline_node.js    # full GIF pipeline with length prefix
-node tests/test_i18n.js             # UI strings in five languages
+node tests/test_i18n.js             # UI strings in seven languages
 node tests/test_browser_load.js     # page scripts in one shared global scope
 node tests/test_page_logic.js       # page script: photo session and decode completion
 node tests/test_markup.js           # static guards over index.html markup

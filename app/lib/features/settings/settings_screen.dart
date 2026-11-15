@@ -201,7 +201,7 @@ class _LinkTile extends StatelessWidget {
 /// under its code; a language the docs site doesn't have gets English.
 String privacyPolicyUrl(String languageCode) {
   const base = 'https://nfcarchiver.com/cimbar/docs/';
-  const translated = {'ru', 'uk', 'tr', 'ka'};
+  const translated = {'ru', 'uk', 'tr', 'ka', 'pl', 'be'};
   return translated.contains(languageCode)
       ? '$base$languageCode/privacy/'
       : '${base}privacy/';

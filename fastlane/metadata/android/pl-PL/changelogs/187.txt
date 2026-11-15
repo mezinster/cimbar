@@ -1,0 +1,5 @@
+• Pierwsze wydanie w F-Droid
+• Nowy identyfikator aplikacji com.nfcarchiver.cimbar: instaluje się jako osobna aplikacja obok starszych wersji Skanera CimBar. Zapisz pliki, których jeszcze potrzebujesz, ze starej aplikacji, a następnie ją odinstaluj
+• Nowa ikona aplikacji
+• Aplikacja nie deklaruje już uprawnienia do pamięci — tylko aparat
+• Poprawka bezpieczeństwa: inna aplikacja mogła nadpisać pliki CimBar, udostępniając jej plik o spreparowanej nazwie

@@ -23,7 +23,7 @@ require 'xcodeproj'
 IOS = File.expand_path('..', __dir__)
 APP_ID = 'com.nfcarchiver.cimbar'
 EXT = 'ShareExtension'
-LANGS = %w[en ru uk tr ka].freeze
+LANGS = %w[en ru uk tr ka pl be].freeze
 
 project = Xcodeproj::Project.open(File.join(IOS, 'Runner.xcodeproj'))
 runner = project.targets.find { |t| t.name == 'Runner' } or abort('no Runner target')
@@ -35,13 +35,17 @@ DEPLOYMENT = '15.0'
 
 # --- 1. localized InfoPlist.strings -------------------------------------------
 project.root_object.known_regions = (project.root_object.known_regions + LANGS).uniq
-unless runner_group.children.any? { |c| c.isa == 'PBXVariantGroup' && c.name == 'InfoPlist.strings' }
+variant = runner_group.children.find { |c| c.isa == 'PBXVariantGroup' && c.name == 'InfoPlist.strings' }
+unless variant
   variant = runner_group.new_variant_group('InfoPlist.strings')
-  LANGS.each do |lang|
-    ref = variant.new_reference("#{lang}.lproj/InfoPlist.strings")
-    ref.name = lang
-  end
   runner.resources_build_phase.add_file_reference(variant, true)
+end
+# Add each language that is missing, so a new app language only needs its
+# lproj file and an entry in LANGS.
+LANGS.each do |lang|
+  next if variant.children.any? { |c| c.name == lang }
+  ref = variant.new_reference("#{lang}.lproj/InfoPlist.strings")
+  ref.name = lang
 end
 
 # --- 2. Runner entitlements -----------------------------------------------------

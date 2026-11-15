@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "CimBar Сканер выкарыстоўвае камеру для сканавання штрых-кодаў CimBar.";
+"NSPhotoLibraryUsageDescription" = "CimBar Сканер адкрывае выбраныя вамі фота, каб дэкадаваць штрых-код на іх.";
+"NSMicrophoneUsageDescription" = "CimBar Сканер ніколі не запісвае гук і не запытвае доступ да мікрафона.";

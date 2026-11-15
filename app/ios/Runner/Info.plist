@@ -23,6 +23,8 @@
 		<string>uk</string>
 		<string>tr</string>
 		<string>ka</string>
+		<string>pl</string>
+		<string>be</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>CimBar Scanner</string>
