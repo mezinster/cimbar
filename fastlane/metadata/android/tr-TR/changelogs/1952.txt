@@ -1,0 +1,4 @@
+• Yeni diller: Lehçe ve Belarusça
+• Canlı tarama ipuçları ve hata mesajları tüm dillere çevrildi
+• Dosya boyutları dilinizin sayı biçimiyle gösteriliyor
+• Hakkında → Gizlilik Politikası, yayımlanan politikayı sizin dilinizde açıyor

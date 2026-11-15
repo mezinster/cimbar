@@ -1,0 +1,4 @@
+• New languages: Polish and Belarusian
+• Live-scan hints and error messages are translated in every language
+• Frame counts use the right plural forms, and file sizes use your language's number format
+• About → Privacy Policy opens the published policy in your language
