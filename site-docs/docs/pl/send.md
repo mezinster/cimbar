@@ -23,7 +23,7 @@ Podczas pokazu aplikacja utrzymuje włączony ekran i zwiększa jasność. Oba u
 2. Wybierz **Plik** (wskaż lub upuść plik) albo **Tekst** (wpisz wiadomość).
 3. Opcjonalnie: **Dodaj hasło**.
 4. Opcjonalnie: w sekcji **Zaawansowane** wybierz **Szybkość klatek**.
-5. Dotknij **Utwórz kod**. Na ekranie **Gotowe do wysłania** wybierz **Pokaż na pełnym ekranie**, **Udostępnij GIF** (na telefonach obsługujących udostępnianie) lub **Pobierz**.
+5. Dotknij **Utwórz kod**. Na ekranie **Gotowe do wysłania** wybierz **Pokaż na pełnym ekranie**, **Udostępnij** (na telefonach obsługujących udostępnianie) lub **Pobierz**.
 
 ![Ekran Wyślij w aplikacji internetowej](../assets/screenshots/web-send.png){ width="280" }
 ![Ekran Gotowe do wysłania](../assets/screenshots/web-ready.png){ width="280" }
