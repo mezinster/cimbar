@@ -16,7 +16,7 @@ Repo: https://github.com/mezinster/cimbar.git
 Builds:
   - versionName: 0.14.0
     versionCode: 1951
-    commit: v0.14.0
+    commit: d4e2b1de0402c6ba0b40ed64ea5e3f684cc995ac
     subdir: app
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     srclibs:
@@ -40,7 +40,7 @@ Builds:
 
   - versionName: 0.14.0
     versionCode: 1952
-    commit: v0.14.0
+    commit: d4e2b1de0402c6ba0b40ed64ea5e3f684cc995ac
     subdir: app
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     srclibs:
@@ -64,7 +64,7 @@ Builds:
 
   - versionName: 0.14.0
     versionCode: 1953
-    commit: v0.14.0
+    commit: d4e2b1de0402c6ba0b40ed64ea5e3f684cc995ac
     subdir: app
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     srclibs:
