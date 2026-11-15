@@ -14,6 +14,9 @@ Birinin ekranda gösterdiği bir kodu almanın yolu budur.
 
 Kareler herhangi bir sırayla gelebilir ve kaçırdığınız kareler önemli değildir: yeterince olduğu sürece dosyanın herhangi kareleri iş görür.
 
+![Kamera sekmesi](../assets/screenshots/app-camera.png){ width="280" }
+![Web uygulamasında canlı tarama: barkod bulundu](../assets/screenshots/web-scan.png){ width="280" }
+
 ## GIF içe aktarma
 
 Biri sizinle bir CimBar GIF'i paylaştığında:
@@ -28,6 +31,8 @@ Biri sizinle bir CimBar GIF'i paylaştığında:
 
 Bir fotoğraf topladığınız dosyadan farklı bir dosyaya aitse, web uygulaması baştan başlamadan önce size sorar.
 
+![Web uygulamasının Al ekranı](../assets/screenshots/web-receive.png){ width="280" }
+
 ## Şifreli dosyalar
 
 Dosya şifrelenmişse, tüm kareler geldiğinde parola sorulur. Yeniden taramaya gerek yoktur: parolayı yanlış girerseniz yeniden girmeniz yeterli. Bkz. [Şifreleme](encryption.md).
@@ -37,3 +42,7 @@ Dosya şifrelenmişse, tüm kareler geldiğinde parola sorulur. Yeniden taramaya
 **Uygulama:** alınan dosya uygulamada saklanır ve **Dosyalar** sekmesinde listelenir. Oradan dosyayı **Aç** ile başka bir uygulamada açabilir, **Cihaza kaydet** ile kaydedebilir, paylaşabilir veya **Sil** ile silebilirsiniz. Bir metin mesajı **Kopyala** ve **Metni paylaş** ile gösterilir. Uygulamayı kaldırmak sakladığı dosyaları siler; ihtiyacınız olanları kaydedin.
 
 **Web uygulaması:** hiçbir şey otomatik olarak indirilmez. **Cihaza kaydet**, **Aç** (gösterilmesi güvenli dosya türleri için) veya **Paylaş**'ı seçin. Bir metin mesajı **Kopyala** ve **.txt olarak kaydet** ile gösterilir.
+
+![Uygulamada alınan bir metin mesajı](../assets/screenshots/app-received.png){ width="220" }
+![Dosyalar sekmesi](../assets/screenshots/app-files.png){ width="220" }
+![Web uygulamasında alınan bir metin mesajı](../assets/screenshots/web-received-text.png){ width="220" }

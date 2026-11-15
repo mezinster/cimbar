@@ -14,6 +14,9 @@ The line under the input shows the size and at most how many frames the code wil
 
 While presenting, the app keeps the screen on and turns the brightness up. Both go back to normal when you leave.
 
+![The Send tab with a message typed](../assets/screenshots/app-send.png){ width="280" }
+![Presenting a code full screen](../assets/screenshots/app-present.png){ width="280" }
+
 ## In the web app
 
 1. Open **Send**.
@@ -21,6 +24,9 @@ While presenting, the app keeps the screen on and turns the brightness up. Both 
 3. Optional: **Add a passphrase**.
 4. Optional: under **Advanced**, choose the **Frame speed**.
 5. Tap **Create code**. On the **Ready to send** screen, choose **Present full screen**, **Share GIF** (on phones that support sharing) or **Download**.
+
+![The web app's Send screen](../assets/screenshots/web-send.png){ width="280" }
+![The Ready to send screen](../assets/screenshots/web-ready.png){ width="280" }
 
 ## Keep it playing
 
