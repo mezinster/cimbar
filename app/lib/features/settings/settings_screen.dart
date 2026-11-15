@@ -126,7 +126,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.privacy_tip_outlined,
             label: l10n.privacyPolicy,
             onTap: () => _openUrl(
-              'https://github.com/mezinster/cimbar/blob/master/PRIVACY_POLICY.md',
+              privacyPolicyUrl(Localizations.localeOf(context).languageCode),
             ),
           ),
           _LinkTile(
@@ -194,4 +194,15 @@ class _LinkTile extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
+
+/// The published privacy policy (site-docs/, deployed to nfcarchiver.com) in
+/// the app's language. English lives at the root and every other language
+/// under its code; a language the docs site doesn't have gets English.
+String privacyPolicyUrl(String languageCode) {
+  const base = 'https://nfcarchiver.com/cimbar/docs/';
+  const translated = {'ru', 'uk', 'tr', 'ka'};
+  return translated.contains(languageCode)
+      ? '$base$languageCode/privacy/'
+      : '${base}privacy/';
 }

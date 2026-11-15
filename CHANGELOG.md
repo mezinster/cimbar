@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Documentation site** at https://nfcarchiver.com/cimbar/docs/ (mirrored at https://mezinster.github.io/cimbar/), in all five app languages: getting the app, sending, receiving, encryption, how it works, troubleshooting, support, and one privacy policy covering the web app, Android and iPhone.
 
+### Changed
+- **About → Privacy Policy opens the published policy** at https://nfcarchiver.com/cimbar/docs/privacy/, in the app's language (Russian, Ukrainian, Turkish and Georgian have their own page). `PRIVACY_POLICY.md` and the READMEs point there too; the old GitHub file did not cover iOS.
+
 ### Fixed
 - Ten app messages were still English in Russian, Ukrainian, Turkish and Georgian: the live-scan hints (Move closer / Move back / Hold still / Adjust angle or lighting), the aiming instruction, the "use Live Scan" error for multi-frame photos, the no-barcode and decoder errors, and the debug capture messages. A test now fails on any message left untranslated.
 

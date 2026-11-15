@@ -228,7 +228,7 @@ The suite (452 tests) covers GF(256) arithmetic, Reed-Solomon encode/decode, the
 
 ## Privacy
 
-Neither app collects anything: no analytics, no trackers, no ads, and the files you encode or decode never leave your device. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+Neither app collects anything: no analytics, no trackers, no ads, and the files you encode or decode never leave your device. See the [privacy policy](https://nfcarchiver.com/cimbar/docs/privacy/).
 
 ## Issues
 
