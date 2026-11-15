@@ -15,8 +15,8 @@ const LANGS = I.LANGUAGES.map((l) => l.code);
 const en = I.STRINGS.en;
 const placeholders = (s) => [...new Set(s.match(/\{[a-z]+\}/g) || [])].sort().join(',');
 
-test('five languages, English first, each with a native name', () => {
-  assertEq(LANGS.join(','), 'en,ru,uk,tr,ka', 'language codes');
+test('seven languages, English first, each with a native name', () => {
+  assertEq(LANGS.join(','), 'en,ru,uk,tr,ka,pl,be', 'language codes');
   for (const l of I.LANGUAGES) assert(l.name && l.name.length > 2, `name for ${l.code}`);
 });
 
@@ -49,7 +49,7 @@ test('t() interpolates {params}, falls back to English, returns the key when unk
 });
 
 test('plural forms: [[param|…]] has one form per category of its language and names a real placeholder', () => {
-  const ORDER = { en: 2, ru: 3, uk: 3 };
+  const ORDER = { en: 2, ru: 3, uk: 3, pl: 3, be: 3 };
   for (const code of LANGS) {
     for (const [k, v] of Object.entries(I.STRINGS[code])) {
       for (const m of v.matchAll(/\[\[([^|\]]*)\|([^\]]*)\]\]/g)) {

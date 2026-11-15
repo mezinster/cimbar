@@ -16,6 +16,8 @@ class LanguageSwitcherButton extends ConsumerWidget {
     'tr': '\u{1F1F9}\u{1F1F7}',
     'uk': '\u{1F1FA}\u{1F1E6}',
     'ka': '\u{1F1EC}\u{1F1EA}',
+    'pl': '\u{1F1F5}\u{1F1F1}',
+    'be': '\u{1F1E7}\u{1F1FE}',
   };
 
   static const _localeNames = {
@@ -24,6 +26,8 @@ class LanguageSwitcherButton extends ConsumerWidget {
     'tr': 'Türkçe',
     'uk': 'Українська',
     'ka': 'ქართული',
+    'pl': 'Polski',
+    'be': 'Беларуская',
   };
 
   @override

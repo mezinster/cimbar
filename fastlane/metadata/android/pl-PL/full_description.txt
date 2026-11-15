@@ -1,0 +1,32 @@
+Skaner CimBar wysyła i odbiera pliki oraz tekst jako kody kreskowe CimBar — animowane obrazy, w których każda klatka to siatka kolorowych kształtów. Skieruj aparat jednego telefonu na ekran drugiego albo na komputer z otwartą aplikacją internetową, a plik dotrze bez żadnej sieci. Kodowanie i dekodowanie odbywa się w całości na Twoim urządzeniu: bez konta, bez serwera, bez połączenia z internetem.
+
+<b>Jak to działa</b>
+
+1. Zakoduj plik lub wiadomość tekstową w kod CimBar: na karcie Wyślij w aplikacji albo w darmowej aplikacji internetowej na https://nfcarchiver.com/cimbar/, która działa w całości w przeglądarce.
+2. Pokaż kod na pełnym ekranie albo wyślij go jako animowany GIF.
+3. Odbierz go Skanerem CimBar: zeskanuj animowany kod aparatem na żywo, zrób zdjęcie kodu jednoklatkowego albo zaimportuj GIF.
+4. Otwórz, zapisz lub udostępnij odzyskany plik albo skopiuj odebrany tekst.
+
+<b>Funkcje</b>
+
+• Karta Wyślij: wpisz wiadomość lub wybierz plik, dodaj opcjonalne hasło, a następnie pokaż kod na pełnym ekranie — ekran pozostaje włączony i jasny, a klatki naprawcze pojawiają się tak długo, jak kod jest wyświetlany — albo udostępnij go jako animowany GIF
+• Odebrane wiadomości tekstowe pojawiają się od razu w aplikacji, gotowe do skopiowania, udostępnienia lub zapisania jako .txt
+• Skanowanie na żywo z blokadą ostrości i ekspozycji, ramką celowania i wskazówkami, takimi jak „podejdź bliżej” czy „nie ruszaj telefonem”
+• Klatki można łapać w dowolnej kolejności: dodatkowe klatki naprawcze sprawiają, że dowolne N klatek kodu z N klatek uzupełnia plik, więc nie trzeba czekać na tę jedną, którą przegapiono
+• Zdjęcie w aplikacji lub obraz z galerii dla kodów jednoklatkowych
+• Import GIF-ów CimBar z plików lub udostępnienie ich do aplikacji z dowolnej innej aplikacji, np. galerii; udostępnione zdjęcie kodu jednoklatkowego trafia prosto do dekodera zdjęć
+• Korekcja błędów Reeda-Solomona w każdej klatce
+• Automatyczna dekompresja plików, które zostały skompresowane przy kodowaniu
+• Opcjonalne szyfrowanie AES-256-GCM, wykrywane automatycznie; jeśli skanowany na żywo plik okaże się zaszyfrowany, wpisz hasło od razu — bez ponownego skanowania
+• Zdekodowane pliki: otwórz je w innej aplikacji, zapisz w Pobranych lub dowolnym folderze albo udostępnij
+• 7 języków: angielski, rosyjski, ukraiński, turecki, gruziński, polski, białoruski
+
+<b>Prywatność</b>
+
+Bez zbierania danych, bez analityki, bez trackerów, bez reklam. Jedyne uprawnienie, o które prosi aplikacja, to aparat, używany do skanowania; brak dostępu do internetu.
+
+<b>Otwarte źródło</b>
+
+Skaner CimBar jest inspirowany projektami libcimbar i CFC autorstwa sz3 (https://github.com/sz3/libcimbar), oryginalnymi projektami Color Icon Matrix Barcode, ale jest osobnym projektem, a nie oficjalną aplikacją cimbar. Używa własnego formatu, CimBar-XL, dlatego nie odczytuje kodów utworzonych przez libcimbar ani CFC.
+
+Licencja MIT. Kod źródłowy, specyfikacja formatu i koder internetowy: https://github.com/mezinster/cimbar

@@ -1,0 +1,3 @@
+• Nowa karta Wyślij: wpisz wiadomość lub wybierz plik, a następnie pokaż go na pełnym ekranie do zeskanowania drugim telefonem albo udostępnij jako animowany GIF
+• Odebrane wiadomości tekstowe otwierają się w aplikacji, gotowe do skopiowania, udostępnienia lub zapisania jako .txt
+• Krótsze etykiety kart, więc pasek pięciu kart już się nie zawija

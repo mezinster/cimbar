@@ -32,7 +32,7 @@ node tests/test_text_message.js
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
-echo ""; echo "--- UI strings (five languages) ---"
+echo ""; echo "--- UI strings (seven languages) ---"
 node tests/test_i18n.js
 
 echo ""; echo "--- Browser script load (shared global scope) ---"

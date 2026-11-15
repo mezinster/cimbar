@@ -1,6 +1,6 @@
 # CimBar documentation site
 
-The user guide, privacy policy and support page, in the app's five languages,
+The user guide, privacy policy and support page, in the app's seven languages,
 built with MkDocs + Material (modelled on NFC Archiver's `site-docs/`). One
 source tree is built twice:
 

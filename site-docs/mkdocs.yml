@@ -51,7 +51,7 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 plugins:
-  # lunr ships stemmers for en, ru and tr only; uk and ka fall back to the
+  # lunr ships stemmers for en, ru and tr only; uk, ka, pl and be fall back to the
   # default tokenizer.
   - search:
       lang:
@@ -119,6 +119,32 @@ plugins:
             Troubleshooting: პრობლემების მოგვარება
             Privacy policy: კონფიდენციალურობის პოლიტიკა
             Support: მხარდაჭერა
+        - locale: pl
+          name: Polski
+          build: true
+          nav_translations:
+            Home: Strona główna
+            Get the app: Pobierz aplikację
+            Send: Wysyłanie
+            Receive: Odbieranie
+            Encryption: Szyfrowanie
+            How it works: Jak to działa
+            Troubleshooting: Rozwiązywanie problemów
+            Privacy policy: Polityka prywatności
+            Support: Wsparcie
+        - locale: be
+          name: Беларуская
+          build: true
+          nav_translations:
+            Home: Галоўная
+            Get the app: Усталяванне
+            Send: Адпраўка
+            Receive: Атрыманне
+            Encryption: Шыфраванне
+            How it works: Як гэта працуе
+            Troubleshooting: Вырашэнне праблем
+            Privacy policy: Палітыка прыватнасці
+            Support: Падтрымка
 
 nav:
   - Home: index.md

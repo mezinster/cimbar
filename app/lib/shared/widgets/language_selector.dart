@@ -13,6 +13,8 @@ class LanguageSelector extends ConsumerWidget {
     'tr': 'Türkçe',
     'uk': 'Українська',
     'ka': 'ქართული',
+    'pl': 'Polski',
+    'be': 'Беларуская',
   };
 
   @override

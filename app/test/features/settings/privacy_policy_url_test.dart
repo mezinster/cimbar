@@ -36,7 +36,7 @@ void main() {
         .map((f) => RegExp(r'app_(\w+)\.arb$').firstMatch(f.path)?.group(1))
         .whereType<String>()
         .toList();
-    expect(langs, hasLength(greaterThanOrEqualTo(5)));
+    expect(langs, hasLength(greaterThanOrEqualTo(7)));
     for (final lang in langs) {
       expect(
         File('../site-docs/docs/$lang/privacy.md').existsSync(),

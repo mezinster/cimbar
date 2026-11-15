@@ -1,0 +1,2 @@
+• Mniejszy plik do pobrania w F-Droid: osobny APK dla każdej architektury procesora, około 18 MB zamiast 59 MB
+• Bez zmian w samej aplikacji

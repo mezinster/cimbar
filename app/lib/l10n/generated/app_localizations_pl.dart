@@ -1,0 +1,407 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Polish (`pl`).
+class AppLocalizationsPl extends AppLocalizations {
+  AppLocalizationsPl([String locale = 'pl']) : super(locale);
+
+  @override
+  String get appTitle => 'Skaner CimBar';
+
+  @override
+  String get tabImport => 'Otwórz GIF';
+
+  @override
+  String get tabCamera => 'Aparat';
+
+  @override
+  String get tabSettings => 'Informacje';
+
+  @override
+  String get importTitle => 'Importuj GIF CimBar';
+
+  @override
+  String get cameraTitle => 'Skanowanie aparatem';
+
+  @override
+  String get settingsTitle => 'O aplikacji';
+
+  @override
+  String get selectFile => 'Wybierz plik';
+
+  @override
+  String get dropFileHere => 'Dotknij, aby wybrać, lub upuść plik tutaj';
+
+  @override
+  String get selectGifFile => 'Wybierz plik GIF CimBar do zdekodowania';
+
+  @override
+  String get passphrase => 'Hasło';
+
+  @override
+  String get passphraseHint => 'Wpisz hasło do odszyfrowania';
+
+  @override
+  String get passphraseRequired => 'Hasło jest wymagane';
+
+  @override
+  String get decode => 'Dekoduj';
+
+  @override
+  String get decoding => 'Dekodowanie...';
+
+  @override
+  String get cancel => 'Anuluj';
+
+  @override
+  String get progressParsingGif => 'Analizowanie GIF-a...';
+
+  @override
+  String get progressDecodingFrames => 'Dekodowanie klatek...';
+
+  @override
+  String progressDecodingFrame(int current, int total) {
+    return 'Dekodowanie klatki $current/$total';
+  }
+
+  @override
+  String get progressReedSolomon => 'Dekodowanie Reeda-Solomona...';
+
+  @override
+  String get progressDecrypting => 'Odszyfrowywanie...';
+
+  @override
+  String get decodeSuccess => 'Zdekodowano pomyślnie!';
+
+  @override
+  String decodedFile(String filename) {
+    return 'Plik: $filename';
+  }
+
+  @override
+  String decodedSize(String size) {
+    return 'Rozmiar: $size';
+  }
+
+  @override
+  String get saveFile => 'Zapisz plik';
+
+  @override
+  String get shareFile => 'Udostępnij plik';
+
+  @override
+  String get fileSaved => 'Plik został zapisany';
+
+  @override
+  String get openFile => 'Otwórz';
+
+  @override
+  String get saveToDevice => 'Zapisz na urządzeniu';
+
+  @override
+  String get savedToDevice => 'Zapisano plik';
+
+  @override
+  String get noAppToOpen =>
+      'Na tym telefonie nie ma aplikacji, która może otworzyć ten plik';
+
+  @override
+  String get openFailed => 'Nie udało się otworzyć pliku';
+
+  @override
+  String get passphrasePrompt =>
+      'Ten plik jest zaszyfrowany. Wpisz hasło, aby go odszyfrować.';
+
+  @override
+  String get errorWrongPassphrase => 'Nieprawidłowe hasło. Spróbuj ponownie.';
+
+  @override
+  String get decrypt => 'Odszyfruj';
+
+  @override
+  String get errorGeneric => 'Wystąpił błąd';
+
+  @override
+  String get errorDecryption =>
+      'Odszyfrowanie nie powiodło się — nieprawidłowe hasło lub uszkodzone dane';
+
+  @override
+  String get errorInvalidGif => 'Nieprawidłowy lub nieobsługiwany plik GIF';
+
+  @override
+  String get errorNoFrames => 'GIF nie zawiera żadnych klatek';
+
+  @override
+  String get errorFileTooLarge => 'Plik jest za duży, aby go przetworzyć';
+
+  @override
+  String get cameraScanInstruction =>
+      'Zrób zdjęcie kodu kreskowego CimBar, aby go zdekodować';
+
+  @override
+  String get cameraTakePhoto => 'Zrób zdjęcie';
+
+  @override
+  String get cameraFromGallery => 'Galeria';
+
+  @override
+  String get cameraRetake => 'Powtórz zdjęcie';
+
+  @override
+  String get progressLocatingBarcode => 'Wyszukiwanie kodu kreskowego...';
+
+  @override
+  String get progressDetectingFrameSize => 'Wykrywanie rozmiaru klatki...';
+
+  @override
+  String get errorBarcodeNotFound =>
+      'Na zdjęciu nie znaleziono kodu kreskowego';
+
+  @override
+  String get errorNoFrameSizeMatch =>
+      'Nie udało się zdekodować kodu kreskowego przy żadnym obsługiwanym rozmiarze klatki';
+
+  @override
+  String get language => 'Język';
+
+  @override
+  String get systemDefault => 'Domyślny systemowy';
+
+  @override
+  String get about => 'O aplikacji';
+
+  @override
+  String get aboutDescription =>
+      'Skaner CimBar dekoduje kolorowe kody matrycowe z ikon (Color Icon Matrix Barcode). Jest zgodny z koderem internetowym CimBar na nfcarchiver.com/cimbar.';
+
+  @override
+  String get aboutSuccessor =>
+      'Skaner CimBar jest inspirowany projektami libcimbar i CFC autorstwa sz3 — oryginalnymi projektami Color Icon Matrix Barcode — ale jest osobnym projektem, a nie oficjalną aplikacją cimbar. Używa własnego formatu kodu, CimBar-XL, dlatego nie odczytuje kodów utworzonych przez libcimbar ani CFC, a one nie odczytują jego kodów.';
+
+  @override
+  String get webAppLabel => 'Aplikacja internetowa';
+
+  @override
+  String get webAppUrl => 'https://nfcarchiver.com/cimbar/';
+
+  @override
+  String version(String version) {
+    return 'Wersja $version';
+  }
+
+  @override
+  String get liveScanButton => 'Skanowanie na żywo';
+
+  @override
+  String liveScanProgress(int captured, int total) {
+    return 'Skanowanie... klatki: $captured/$total';
+  }
+
+  @override
+  String get liveScanSearching => 'Szukanie kodu kreskowego CimBar...';
+
+  @override
+  String get liveScanComplete => 'Przechwycono wszystkie klatki!';
+
+  @override
+  String get liveScanError => 'Skanowanie nie powiodło się';
+
+  @override
+  String get cameraPermissionDenied =>
+      'Skanowanie na żywo wymaga dostępu do aparatu';
+
+  @override
+  String get noCameraAvailable => 'To urządzenie nie ma dostępnego aparatu';
+
+  @override
+  String liveScanFramesAnalyzed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Przeanalizowano $count klatki',
+      many: 'Przeanalizowano $count klatek',
+      few: 'Przeanalizowano $count klatki',
+      one: 'Przeanalizowano $count klatkę',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get liveScanAim => 'Umieść kod kreskowy w kwadracie';
+
+  @override
+  String get hintMoveCloser => 'Podejdź bliżej';
+
+  @override
+  String get hintMoveBack => 'Odsuń się';
+
+  @override
+  String get hintHoldStill => 'Nie ruszaj telefonem';
+
+  @override
+  String get hintAdjustAngle => 'Zmień kąt lub oświetlenie';
+
+  @override
+  String errorMultiFrameNeedsLive(int total) {
+    return 'Ten plik składa się z wielu klatek ($total) — użyj funkcji „Skanowanie na żywo”';
+  }
+
+  @override
+  String get captureSaved => 'Klatka zapisana w dokumentach aplikacji';
+
+  @override
+  String get captureFailed => 'Nie udało się przechwycić klatki';
+
+  @override
+  String get errorPassphraseRequired =>
+      'Ten plik jest zaszyfrowany: wymagane jest hasło';
+
+  @override
+  String errorDecoderFailed(String detail) {
+    return 'Błąd dekodera: $detail';
+  }
+
+  @override
+  String get errorNoBarcodeFound =>
+      'Na zdjęciu nie znaleziono kodu kreskowego CimBar';
+
+  @override
+  String get shareReadFailed =>
+      'Nie udało się odczytać udostępnionego pliku. Otwórz go na karcie „Otwórz GIF”.';
+
+  @override
+  String get shareWhileDecoding =>
+      'Najpierw zakończ bieżące dekodowanie, a potem udostępnij plik ponownie.';
+
+  @override
+  String get tabFiles => 'Pliki';
+
+  @override
+  String get filesTitle => 'Zdekodowane pliki';
+
+  @override
+  String get noFilesYet => 'Brak zdekodowanych plików';
+
+  @override
+  String get delete => 'Usuń';
+
+  @override
+  String get deleteFileTitle => 'Usuń plik';
+
+  @override
+  String deleteFileConfirm(String filename) {
+    return 'Usunąć $filename?';
+  }
+
+  @override
+  String get fileDeleted => 'Plik usunięty';
+
+  @override
+  String get developerSection => 'Dla programistów';
+
+  @override
+  String get debugModeLabel => 'Tryb debugowania';
+
+  @override
+  String get debugModeDescription =>
+      'Włącz logi debugowania i przechwytywanie klatek';
+
+  @override
+  String get privacyPolicy => 'Polityka prywatności';
+
+  @override
+  String get licenseInfo => 'Licencja MIT';
+
+  @override
+  String get sourceCode => 'Kod źródłowy';
+
+  @override
+  String get receivedText => 'Odebrany tekst';
+
+  @override
+  String get copyText => 'Kopiuj';
+
+  @override
+  String get textCopied => 'Skopiowano do schowka';
+
+  @override
+  String get shareText => 'Udostępnij tekst';
+
+  @override
+  String textTruncated(int count) {
+    return 'Pokazano początek tekstu (znaki: $count) — „Kopiuj”, „Udostępnij” i „Zapisz” używają całego tekstu.';
+  }
+
+  @override
+  String get tabSend => 'Wyślij';
+
+  @override
+  String get sendModeText => 'Tekst';
+
+  @override
+  String get sendModeFile => 'Plik';
+
+  @override
+  String get sendTextHint => 'Wpisz lub wklej tekst…';
+
+  @override
+  String sendEstimate(String size, int frames) {
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames klatki',
+      many: '$frames klatek',
+      few: '$frames klatki',
+      one: '$frames klatka',
+    );
+    return '$size · maks. $_temp0';
+  }
+
+  @override
+  String get sendFrameDelay => 'Opóźnienie klatki';
+
+  @override
+  String get sendPresent => 'Pokaż na ekranie';
+
+  @override
+  String get sendShareGif => 'Udostępnij GIF';
+
+  @override
+  String get sendEmpty => 'Najpierw wpisz tekst lub wybierz plik.';
+
+  @override
+  String sendTooLarge(int frames, int max) {
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames klatki',
+      many: '$frames klatek',
+      few: '$frames klatki',
+      one: '$frames klatka',
+    );
+    return 'Za duży: $_temp0 (limit $max).';
+  }
+
+  @override
+  String sendFailed(String error) {
+    return 'Kodowanie nie powiodło się: $error';
+  }
+
+  @override
+  String presentSource(int i, int n) {
+    return 'Klatka $i z $n';
+  }
+
+  @override
+  String presentRepair(int r) {
+    return 'Klatka naprawcza $r';
+  }
+
+  @override
+  String sendFileTooBig(String size, String max) {
+    return 'Plik jest za duży: $size (limit $max).';
+  }
+}

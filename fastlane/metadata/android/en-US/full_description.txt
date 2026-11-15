@@ -19,7 +19,7 @@ CimBar Scanner sends and receives files and text as CimBar barcodes — animated
 • Automatic decompression of files that were compressed on encoding
 • Optional AES-256-GCM encryption, detected automatically; if a live scan turns out to be encrypted, enter the passphrase right there — no rescan
 • Decoded files: open them in another app, save them to Downloads or any folder, or share them
-• 5 languages: English, Russian, Ukrainian, Turkish, Georgian
+• 7 languages: English, Russian, Ukrainian, Turkish, Georgian, Polish, Belarusian
 
 <b>Privacy</b>
 
