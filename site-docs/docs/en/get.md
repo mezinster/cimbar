@@ -1,6 +1,6 @@
 # Get the app
 
-## Web app
+## Web app { #web-app }
 
 Open **[nfcarchiver.com/cimbar](https://nfcarchiver.com/cimbar/)** in a browser. It works on phones and computers, and needs no installation or account.
 

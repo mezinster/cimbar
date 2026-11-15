@@ -67,7 +67,58 @@ plugins:
           default: true
           name: English
           build: true
-        # LANGUAGES-BELOW (Task 3 adds ru, uk, tr, ka here)
+        - locale: ru
+          name: Русский
+          build: true
+          nav_translations:
+            Home: Главная
+            Get the app: Установка
+            Send: Отправка
+            Receive: Приём
+            Encryption: Шифрование
+            How it works: Как это работает
+            Troubleshooting: Решение проблем
+            Privacy policy: Политика конфиденциальности
+            Support: Поддержка
+        - locale: uk
+          name: Українська
+          build: true
+          nav_translations:
+            Home: Головна
+            Get the app: Встановлення
+            Send: Надсилання
+            Receive: Отримання
+            Encryption: Шифрування
+            How it works: Як це працює
+            Troubleshooting: Вирішення проблем
+            Privacy policy: Політика конфіденційності
+            Support: Підтримка
+        - locale: tr
+          name: Türkçe
+          build: true
+          nav_translations:
+            Home: Ana sayfa
+            Get the app: Uygulamayı edinin
+            Send: Gönderme
+            Receive: Alma
+            Encryption: Şifreleme
+            How it works: Nasıl çalışır
+            Troubleshooting: Sorun giderme
+            Privacy policy: Gizlilik politikası
+            Support: Destek
+        - locale: ka
+          name: ქართული
+          build: true
+          nav_translations:
+            Home: მთავარი
+            Get the app: აპის მიღება
+            Send: გაგზავნა
+            Receive: მიღება
+            Encryption: დაშიფვრა
+            How it works: როგორ მუშაობს
+            Troubleshooting: პრობლემების მოგვარება
+            Privacy policy: კონფიდენციალურობის პოლიტიკა
+            Support: მხარდაჭერა
 
 nav:
   - Home: index.md
