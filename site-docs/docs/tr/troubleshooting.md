@@ -5,7 +5,7 @@
 - Kodun tamamını, çevresinde biraz boşluk kalacak şekilde karenin içine sığdırın. Dört köşe karesinin hepsi görünmelidir.
 - Gönderen ekranın parlaklığını artırın ve üzerinde lamba ya da pencere yansımalarından kaçının.
 - Telefonu sabit ve ekrana aşağı yukarı paralel tutun.
-- Ekrandaki ipucunu izleyin: **Yaklaştırın**, **Uzaklaştırın**, **Sabit tutun**, **Kamerayı ekrana düz tutun** (uygulamada şimdilik İngilizce: **Move closer**, **Move back**, **Hold still**, **Adjust angle or lighting**).
+- Ekrandaki ipucunu izleyin: **Yaklaştırın**, **Uzaklaştırın**, **Sabit tutun**, **Açıyı veya ışığı değiştirin** (web uygulamasında: **Kamerayı ekrana düz tutun**).
 - **Web uygulaması:** kamerayla tarama, sayfanın `https://` üzerinden açılmasını gerektirir. Tarayıcı kamera erişimi istediğinde reddettiyseniz, tarayıcının site ayarlarından izin verin.
 - **Uygulama:** kamera erişimini reddettiyseniz, sistem ayarlarından CimBar'a izin verin.
 
@@ -15,7 +15,7 @@
 - Uzun kodlar için gönderen tarafta daha yavaş bir kare hızı seçin (400 ms); telefonlar çok hızlı değişen kareleri kaçırabilir.
 - Ekrandaki dalgalı çizgiler (hare), kamera ile ekranın piksel ızgarasından kaynaklanır: biraz geri çekilin veya açıyı hafifçe değiştirin.
 
-## "This file spans N frames — use Live Scan"
+## "Bu dosya N kareden oluşuyor — Canlı Tarama'yı kullanın"
 
 Bir fotoğraf yalnızca tek bir kare taşır. Uygulamada fotoğraf yalnızca tek karelik kodlarda çalışır; daha uzun kodlar için **Canlı Tarama**'yı kullanın.
 

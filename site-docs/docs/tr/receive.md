@@ -9,7 +9,7 @@ Birinin ekranda gösterdiği bir kodu almanın yolu budur.
 **Uygulamada:** **Kamera** sekmesini açın ve **Canlı Tarama**'ya dokunun. **Web uygulamasında:** **Al**'ı açın. Kamera hemen açılır.
 
 1. Barkodu karenin içine sığdırın.
-2. İpuçlarını izleyin: **Yaklaştırın**, **Uzaklaştırın**, **Sabit tutun**, **Kamerayı ekrana düz tutun**. Uygulama bu ipuçlarını şimdilik İngilizce gösterir: **Move closer**, **Move back**, **Hold still**, **Adjust angle or lighting**.
+2. İpuçlarını izleyin: **Yaklaştırın**, **Uzaklaştırın**, **Sabit tutun**, **Açıyı veya ışığı değiştirin** (web uygulamasında: **Kamerayı ekrana düz tutun**).
 3. Sayaç kaç karenin geldiğini gösterir. Toplama ulaştığında dosya açılır.
 
 Kareler herhangi bir sırayla gelebilir ve kaçırdığınız kareler önemli değildir: yeterince olduğu sürece dosyanın herhangi kareleri iş görür.
