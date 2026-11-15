@@ -217,7 +217,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String liveScanFramesAnalyzed(int count) {
-    return '$count кадров проанализировано';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count кадра проанализировано',
+      many: '$count кадров проанализировано',
+      few: '$count кадра проанализировано',
+      one: '$count кадр проанализирован',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -337,7 +345,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String sendEstimate(String size, int frames) {
-    return '$size · не более $frames кадров';
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames кадров',
+      many: '$frames кадров',
+      few: '$frames кадров',
+      one: '$frames кадра',
+    );
+    return '$size · не более $_temp0';
   }
 
   @override
@@ -354,7 +370,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String sendTooLarge(int frames, int max) {
-    return 'Слишком много: $frames кадров (лимит $max).';
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames кадра',
+      many: '$frames кадров',
+      few: '$frames кадра',
+      one: '$frames кадр',
+    );
+    return 'Слишком много: $_temp0 (лимит $max).';
   }
 
   @override

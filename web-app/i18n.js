@@ -61,7 +61,7 @@ const STRINGS = {
     encModeText: 'Text',
     textToEncode: 'Text to send',
     textEncPlaceholder: 'Type or paste text…',
-    textEncInfo: '{bytes} · at most {frames} frame(s)',
+    textEncInfo: '{bytes} · at most {frames} [[frames|frame|frames]]',
     selectGifFirst: 'Choose a GIF or take a photo of a barcode first.',
     saveToDevice: 'Save to device',
     confirmKeep: 'Keep',
@@ -73,7 +73,7 @@ const STRINGS = {
     encrypted: 'Encrypted: {size}',
     encoding: 'Encoding',
     payloadNoEnc: 'Payload: {size} (no encryption)',
-    framesInfo: '{n} frame(s), {per} file bytes per frame, file id {id}',
+    framesInfo: '{n} [[n|frame|frames]], {per} file bytes per frame, file id {id}',
     encodingFrame: 'Encoding frame {i} / {n}',
     compiling: 'Compiling GIF',
     done: 'Done',
@@ -83,10 +83,10 @@ const STRINGS = {
     parsingFrames: 'Parsing frames…',
     parsingFramesShort: 'Parsing frames',
     noFrames: 'No frames found in GIF',
-    foundFrames: 'Found {n} frame(s), size {w}×{h}',
+    foundFrames: 'Found {n} [[n|frame|frames]], size {w}×{h}',
     frameRejected: 'Frame {i}: rejected ({reason}, RS failed blocks {failed})',
     incomplete: 'Incomplete: {filled} of {total} frames decoded ({rejected} rejected)',
-    assembled: 'Assembled {n} frame(s)',
+    assembled: 'Assembled {n} [[n|frame|frames]]',
     passRequired: 'Passphrase required for encrypted GIF',
     decrypting: 'Decrypting…',
     decryptingShort: 'Decrypting',
@@ -130,16 +130,16 @@ const STRINGS = {
     camBusy: 'The camera is in use by another app',
     camFailed: 'Couldn’t start the camera — use “Photograph frames” instead',
     scanDecoderFailed: 'The decoder stopped working — try scanning again',
-    scanSummary: 'Scanned {frames} frames, {accepted} accepted',
+    scanSummary: 'Scanned {frames} [[frames|frame|frames]], {accepted} accepted',
     photoAccepted: 'Frame {seq} accepted — {rank} of {total}',
     photoDuplicate: 'You already have this frame',
     photoDependent: 'No new information in this photo',
     photoKeepGoing: '{rank} of {total} frames — photograph the next one',
-    photoWrongFile: 'This photo is from a different file. Discard {n} frames of progress and start over?',
+    photoWrongFile: 'This photo is from a different file. Discard {n} [[n|frame|frames]] of progress and start over?',
     photoWrongFileKept: 'Kept your progress — this photo was ignored',
     photoAlreadyDone: 'This file is already decoded — press Start over to read another',
     photoProgressKept: 'Kept your progress — the GIF was ignored',
-    gifDiscardsSession: 'Decoding this GIF will discard {n} frames of photo progress. Continue?',
+    gifDiscardsSession: 'Decoding this GIF will discard {n} [[n|frame|frames]] of photo progress. Continue?',
     photoStartOver: 'Start over',
     errNotLocated: 'No barcode found in this photo',
     errTooSmall: 'Barcode too small in frame — move closer',
@@ -180,10 +180,10 @@ const STRINGS = {
     chooseFile: 'Choose a file', chooseFileHint: 'Any type · up to ~80 KB is quickest', dropHere: 'or drop it here',
     addPassphrase: 'Add a passphrase', optional: '(optional)', passEncHintShort: 'Receiver needs it to open the file',
     advanced: 'Advanced', frameSpeed: 'Frame speed', createCode: 'Create code', details: 'Details',
-    readyTitle: 'Ready to send', readyChip: 'READY', readyFrames: '{n} frames',
+    readyTitle: 'Ready to send', readyChip: 'READY', readyFrames: '{n} [[n|frame|frames]]',
     metaCompressed: 'compressed', metaEncrypted: 'encrypted',
     shareGif: 'Share GIF', download: 'Download',
-    readyHelp: 'Present on this screen and scan it with the other phone — any {n} frames rebuild the file, in any order.',
+    readyHelp: 'Present on this screen and scan it with the other phone — any {n} [[n|frame rebuilds|frames rebuild]] the file, in any order.',
     sendAnother: 'Send something else',
     chooseGif: 'Choose a GIF', chooseGifHint: 'A CimBar GIF, or a photo of one frame',
     photographFrames: 'Photograph frames', photoFramesHint: 'One photo per frame — keep going until every frame is in.',
@@ -223,7 +223,7 @@ const STRINGS = {
     encModeText: 'Текст',
     textToEncode: 'Текст для отправки',
     textEncPlaceholder: 'Введите или вставьте текст…',
-    textEncInfo: '{bytes} · не более {frames} кадр(ов)',
+    textEncInfo: '{bytes} · не более {frames} [[frames|кадра|кадров|кадров]]',
     selectGifFirst: 'Сначала выберите GIF или сфотографируйте штрихкод.',
     saveToDevice: 'Сохранить файл',
     confirmKeep: 'Оставить',
@@ -297,11 +297,11 @@ const STRINGS = {
     photoDuplicate: 'Этот кадр уже есть',
     photoDependent: 'В этом фото нет новой информации',
     photoKeepGoing: '{rank} из {total} кадров — сфотографируйте следующий',
-    photoWrongFile: 'Это фото от другого файла. Отменить прогресс ({n} кадров) и начать заново?',
+    photoWrongFile: 'Это фото от другого файла. Отменить прогресс ({n} [[n|кадр|кадра|кадров]]) и начать заново?',
     photoWrongFileKept: 'Прогресс сохранён — это фото проигнорировано',
     photoAlreadyDone: 'Этот файл уже декодирован — нажмите «Начать заново», чтобы прочитать другой',
     photoProgressKept: 'Прогресс сохранён — GIF проигнорирован',
-    gifDiscardsSession: 'Декодирование этого GIF отменит прогресс фотосъёмки ({n} кадров). Продолжить?',
+    gifDiscardsSession: 'Декодирование этого GIF отменит прогресс фотосъёмки ({n} [[n|кадр|кадра|кадров]]). Продолжить?',
     photoStartOver: 'Начать заново',
     errNotLocated: 'На этом фото не найден штрихкод',
     errTooSmall: 'Штрихкод слишком мал на фото — подойдите ближе',
@@ -345,7 +345,7 @@ const STRINGS = {
     readyTitle: 'Готово к отправке', readyChip: 'ГОТОВО', readyFrames: 'кадров: {n}',
     metaCompressed: 'сжато', metaEncrypted: 'зашифровано',
     shareGif: 'Поделиться', download: 'Скачать',
-    readyHelp: 'Покажите этот экран и отсканируйте его другим телефоном — любые {n} кадров восстановят файл, в любом порядке.',
+    readyHelp: 'Покажите этот экран и отсканируйте его другим телефоном — [[n|любой {n} кадр восстановит|любые {n} кадра восстановят|любые {n} кадров восстановят]] файл, в любом порядке.',
     sendAnother: 'Отправить другое',
     chooseGif: 'Выберите GIF', chooseGifHint: 'GIF с кодом CimBar или фото одного кадра',
     photographFrames: 'Снять кадры', photoFramesHint: 'Одно фото на кадр — снимайте, пока не соберутся все кадры.',
@@ -385,7 +385,7 @@ const STRINGS = {
     encModeText: 'Текст',
     textToEncode: 'Текст для надсилання',
     textEncPlaceholder: 'Введіть або вставте текст…',
-    textEncInfo: '{bytes} · не більше {frames} кадр(ів)',
+    textEncInfo: '{bytes} · не більше {frames} [[frames|кадру|кадрів|кадрів]]',
     selectGifFirst: 'Спочатку виберіть GIF або сфотографуйте штрихкод.',
     saveToDevice: 'Зберегти файл',
     confirmKeep: 'Залишити',
@@ -459,11 +459,11 @@ const STRINGS = {
     photoDuplicate: 'Цей кадр уже є',
     photoDependent: 'У цьому фото немає нової інформації',
     photoKeepGoing: '{rank} із {total} кадрів — сфотографуйте наступний',
-    photoWrongFile: 'Це фото іншого файлу. Скасувати прогрес ({n} кадрів) і почати заново?',
+    photoWrongFile: 'Це фото іншого файлу. Скасувати прогрес ({n} [[n|кадр|кадри|кадрів]]) і почати заново?',
     photoWrongFileKept: 'Прогрес збережено — це фото проігноровано',
     photoAlreadyDone: 'Цей файл уже декодовано — натисніть «Почати заново», щоб прочитати інший',
     photoProgressKept: 'Прогрес збережено — GIF проігноровано',
-    gifDiscardsSession: 'Декодування цього GIF скасує прогрес фотозйомки ({n} кадрів). Продовжити?',
+    gifDiscardsSession: 'Декодування цього GIF скасує прогрес фотозйомки ({n} [[n|кадр|кадри|кадрів]]). Продовжити?',
     photoStartOver: 'Почати заново',
     errNotLocated: 'На цьому фото не знайдено штрихкод',
     errTooSmall: 'Штрихкод занадто малий на кадрі — підійдіть ближче',
@@ -507,7 +507,7 @@ const STRINGS = {
     readyTitle: 'Готово до надсилання', readyChip: 'ГОТОВО', readyFrames: 'кадрів: {n}',
     metaCompressed: 'стиснуто', metaEncrypted: 'зашифровано',
     shareGif: 'Поділитися', download: 'Завантажити',
-    readyHelp: 'Покажіть цей екран і відскануйте його іншим телефоном — будь-які {n} кадрів відновлять файл, у будь-якому порядку.',
+    readyHelp: 'Покажіть цей екран і відскануйте його іншим телефоном — [[n|будь-який {n} кадр відновить|будь-які {n} кадри відновлять|будь-які {n} кадрів відновлять]] файл, у будь-якому порядку.',
     sendAnother: 'Надіслати інше',
     chooseGif: 'Виберіть GIF', chooseGifHint: 'GIF з кодом CimBar або фото одного кадру',
     photographFrames: 'Зняти кадри', photoFramesHint: 'Одне фото на кадр — знімайте, доки не зберуться всі кадри.',
@@ -862,11 +862,32 @@ function detect(storage, navLanguages) {
   return 'en';
 }
 
+// Plural forms: a message may contain [[param|form1|form2|…]], one form per
+// category in PLURAL_ORDER for its language (English: one|other; Russian and
+// Ukrainian: one|few|many). Turkish and Georgian don't inflect a noun after a
+// numeral, so their messages need none. A value that isn't a number (or a
+// category not listed) takes the last form.
+const PLURAL_ORDER = { en: ['one', 'other'], ru: ['one', 'few', 'many'], uk: ['one', 'few', 'many'] };
+
+function pluralForm(lang, value, forms) {
+  const n = Number(value);
+  let category = 'other';
+  if (Number.isFinite(n)) {
+    if (typeof Intl !== 'undefined' && Intl.PluralRules) category = new Intl.PluralRules(lang).select(n);
+    else category = n === 1 ? 'one' : 'other';
+  }
+  const i = (PLURAL_ORDER[lang] || ['other']).indexOf(category);
+  return forms[i >= 0 && i < forms.length ? i : forms.length - 1];
+}
+
 function t(key, params) {
   const table = STRINGS[current] || STRINGS.en;
   let s = table[key];
-  if (s === undefined) s = STRINGS.en[key];
+  let lang = STRINGS[current] ? current : 'en';
+  if (s === undefined) { s = STRINGS.en[key]; lang = 'en'; }
   if (s === undefined) return key;
+  s = s.replace(/\[\[([a-zA-Z]+)\|([^\]]*)\]\]/g,
+    (_, name, forms) => pluralForm(lang, params ? params[name] : undefined, forms.split('|')));
   if (params) {
     for (const k of Object.keys(params)) s = s.split('{' + k + '}').join(String(params[k]));
   }
