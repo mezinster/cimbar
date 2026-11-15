@@ -13,7 +13,7 @@ function test(name, fn) { tests.push({ name, fn }); }
 
 const LANGS = I.LANGUAGES.map((l) => l.code);
 const en = I.STRINGS.en;
-const placeholders = (s) => (s.match(/\{[a-z]+\}/g) || []).sort().join(',');
+const placeholders = (s) => [...new Set(s.match(/\{[a-z]+\}/g) || [])].sort().join(',');
 
 test('five languages, English first, each with a native name', () => {
   assertEq(LANGS.join(','), 'en,ru,uk,tr,ka', 'language codes');
@@ -46,6 +46,44 @@ test('t() interpolates {params}, falls back to English, returns the key when unk
   try { assertEq(I.t('done'), 'Done'); } finally { I.STRINGS.ru.done = saved; }
   assertEq(I.t('noSuchKey'), 'noSuchKey');
   I.setLang('en');
+});
+
+test('plural forms: [[param|…]] has one form per category of its language and names a real placeholder', () => {
+  const ORDER = { en: 2, ru: 3, uk: 3 };
+  for (const code of LANGS) {
+    for (const [k, v] of Object.entries(I.STRINGS[code])) {
+      for (const m of v.matchAll(/\[\[([^|\]]*)\|([^\]]*)\]\]/g)) {
+        assert(code in ORDER, `${code}.${k}: ${code} has no plural categories, write the message without [[…]]`);
+        assertEq(m[2].split('|').length, ORDER[code], `${code}.${k} number of plural forms`);
+        assert(placeholders(en[k]).split(',').includes('{' + m[1] + '}'), `${code}.${k}: [[${m[1]}|…]] is not a placeholder of the message`);
+      }
+      assert(!/\[\[|\]\]/.test(v.replace(/\[\[[a-zA-Z]+\|[^\]]*\]\]/g, '')), `${code}.${k}: malformed [[…]]`);
+      assert(!/\((s|ов|ів)\)/.test(v), `${code}.${k}: use a plural form instead of "(s)"`);
+    }
+  }
+});
+
+test('t() picks the plural form for the count', () => {
+  try {
+    I.setLang('en');
+    assertEq(I.t('assembled', { n: 1 }), 'Assembled 1 frame');
+    assertEq(I.t('assembled', { n: 5 }), 'Assembled 5 frames');
+    assertEq(I.t('readyFrames', { n: '4 + 1' }), '4 + 1 frames', 'non-numeric count takes the last form');
+    assertEq(I.t('textEncInfo', { bytes: '62 B', frames: 1 }), '62 B · at most 1 frame');
+    I.setLang('ru');
+    assertEq(I.t('textEncInfo', { bytes: '1 KB', frames: 1 }), '1 KB · не более 1 кадра');
+    assertEq(I.t('textEncInfo', { bytes: '1 KB', frames: 3 }), '1 KB · не более 3 кадров');
+    assertEq(I.t('photoWrongFile', { n: 22 }).includes('(22 кадра)'), true, 'ru few');
+    assertEq(I.t('photoWrongFile', { n: 11 }).includes('(11 кадров)'), true, 'ru many');
+    assertEq(I.t('photoWrongFile', { n: 21 }).includes('(21 кадр)'), true, 'ru one');
+    I.setLang('uk');
+    assertEq(I.t('gifDiscardsSession', { n: 3 }).includes('(3 кадри)'), true, 'uk few');
+    assertEq(I.t('readyHelp', { n: 1 }).includes('будь-який 1 кадр відновить'), true, 'uk one');
+    // A key missing in Russian falls back to English with English plural rules.
+    const saved = I.STRINGS.ru.assembled; delete I.STRINGS.ru.assembled;
+    I.setLang('ru');
+    try { assertEq(I.t('assembled', { n: 3 }), 'Assembled 3 frames'); } finally { I.STRINGS.ru.assembled = saved; }
+  } finally { I.setLang('en'); }
 });
 
 test('detect(): stored choice, then browser languages, then English; bad values ignored', () => {

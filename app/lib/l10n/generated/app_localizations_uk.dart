@@ -217,7 +217,15 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String liveScanFramesAnalyzed(int count) {
-    return '$count кадрів проаналізовано';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count кадру проаналізовано',
+      many: '$count кадрів проаналізовано',
+      few: '$count кадри проаналізовано',
+      one: '$count кадр проаналізовано',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -338,7 +346,15 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String sendEstimate(String size, int frames) {
-    return '$size · не більше $frames кадрів';
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames кадрів',
+      many: '$frames кадрів',
+      few: '$frames кадрів',
+      one: '$frames кадру',
+    );
+    return '$size · не більше $_temp0';
   }
 
   @override
@@ -355,7 +371,15 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String sendTooLarge(int frames, int max) {
-    return 'Забагато: $frames кадрів (ліміт $max).';
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames кадру',
+      many: '$frames кадрів',
+      few: '$frames кадри',
+      one: '$frames кадр',
+    );
+    return 'Забагато: $_temp0 (ліміт $max).';
   }
 
   @override

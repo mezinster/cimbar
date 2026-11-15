@@ -165,7 +165,7 @@
   "noCameraAvailable": "No camera available on this device",
   "@noCameraAvailable": { "description": "Error when no camera is found" },
 
-  "liveScanFramesAnalyzed": "{count} frames analyzed",
+  "liveScanFramesAnalyzed": "{count, plural, =1{1 frame analyzed} other{{count} frames analyzed}}",
   "@liveScanFramesAnalyzed": {
     "description": "Counter of camera frames processed during live scanning",
     "placeholders": {
@@ -260,7 +260,7 @@
   "@sendModeFile": {"description": "Send mode: file"},
   "sendTextHint": "Type or paste text…",
   "@sendTextHint": {"description": "Hint in the message box"},
-  "sendEstimate": "{size} · at most {frames} frames",
+  "sendEstimate": "{size} · at most {frames, plural, =1{1 frame} other{{frames} frames}}",
   "@sendEstimate": {"description": "Size and frame-count estimate of the input", "placeholders": {"size": {"type": "String"}, "frames": {"type": "int"}}},
   "sendFrameDelay": "Frame delay",
   "@sendFrameDelay": {"description": "Label of the frame delay picker"},

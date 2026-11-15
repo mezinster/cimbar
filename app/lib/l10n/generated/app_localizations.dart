@@ -485,7 +485,7 @@ abstract class AppLocalizations {
   /// Counter of camera frames processed during live scanning
   ///
   /// In en, this message translates to:
-  /// **'{count} frames analyzed'**
+  /// **'{count, plural, =1{1 frame analyzed} other{{count} frames analyzed}}'**
   String liveScanFramesAnalyzed(int count);
 
   /// Instruction shown before a barcode has been located in the frame
@@ -701,7 +701,7 @@ abstract class AppLocalizations {
   /// Size and frame-count estimate of the input
   ///
   /// In en, this message translates to:
-  /// **'{size} · at most {frames} frames'**
+  /// **'{size} · at most {frames, plural, =1{1 frame} other{{frames} frames}}'**
   String sendEstimate(String size, int frames);
 
   /// Label of the frame delay picker

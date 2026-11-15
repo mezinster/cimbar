@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Ten app messages were still English in Russian, Ukrainian, Turkish and Georgian: the live-scan hints (Move closer / Move back / Hold still / Adjust angle or lighting), the aiming instruction, the "use Live Scan" error for multi-frame photos, the no-barcode and decoder errors, and the debug capture messages. A test now fails on any message left untranslated.
+- **Frame counts read correctly for one frame.** The app's Send estimate said "at most 1 frames" and the web app said "1 frame(s)"; both now say "1 frame". Russian and Ukrainian agree with the number (1 кадр, 3 кадра, 5 кадров) in those messages and in the live-scan frame counter. The web app's `t()` gained plural forms (`[[count|one|…]]`), and the app's ARB messages use ICU plurals.
 
 ### Changed
 - **About → Privacy Policy opens the published policy** at https://nfcarchiver.com/cimbar/docs/privacy/, in the app's language (Russian, Ukrainian, Turkish and Georgian have their own page). `PRIVACY_POLICY.md` and the READMEs point there too; the old GitHub file did not cover iOS.

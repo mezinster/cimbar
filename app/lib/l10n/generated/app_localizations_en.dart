@@ -216,7 +216,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String liveScanFramesAnalyzed(int count) {
-    return '$count frames analyzed';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count frames analyzed',
+      one: '1 frame analyzed',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -337,7 +343,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sendEstimate(String size, int frames) {
-    return '$size · at most $frames frames';
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames frames',
+      one: '1 frame',
+    );
+    return '$size · at most $_temp0';
   }
 
   @override
