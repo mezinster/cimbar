@@ -221,41 +221,41 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get liveScanAim => 'Fit the barcode inside the square';
+  String get liveScanAim => 'Поместите штрих-код в квадрат';
 
   @override
-  String get hintMoveCloser => 'Move closer';
+  String get hintMoveCloser => 'Поднесите ближе';
 
   @override
-  String get hintMoveBack => 'Move back';
+  String get hintMoveBack => 'Отодвиньте дальше';
 
   @override
-  String get hintHoldStill => 'Hold still';
+  String get hintHoldStill => 'Держите неподвижно';
 
   @override
-  String get hintAdjustAngle => 'Adjust angle or lighting';
+  String get hintAdjustAngle => 'Измените угол или освещение';
 
   @override
   String errorMultiFrameNeedsLive(int total) {
-    return 'This file spans $total frames — use Live Scan';
+    return 'Кадров в файле: $total — используйте «Живое сканирование»';
   }
 
   @override
-  String get captureSaved => 'Frame captured to app documents';
+  String get captureSaved => 'Кадр сохранён в документы приложения';
 
   @override
-  String get captureFailed => 'Capture failed';
+  String get captureFailed => 'Не удалось сохранить кадр';
 
   @override
   String get errorPassphraseRequired => 'Файл зашифрован: нужен пароль';
 
   @override
   String errorDecoderFailed(String detail) {
-    return 'Decoder failed: $detail';
+    return 'Ошибка декодера: $detail';
   }
 
   @override
-  String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
+  String get errorNoBarcodeFound => 'На фото не найден штрих-код CimBar';
 
   @override
   String get shareReadFailed =>
