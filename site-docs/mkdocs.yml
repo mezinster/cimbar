@@ -1,0 +1,81 @@
+site_name: CimBar
+site_url: !ENV [DOCS_SITE_URL, "https://nfcarchiver.com/cimbar/docs/"]
+site_description: Send files and text as animated colour barcodes — web, Android and iPhone, entirely offline.
+repo_url: https://github.com/mezinster/cimbar
+repo_name: mezinster/cimbar
+edit_uri: ""
+use_directory_urls: true
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/images/icon.svg
+  favicon: assets/images/icon.svg
+  # No Google Fonts: the site must not load anything third-party.
+  font: false
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - search.highlight
+    - navigation.footer
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  build_sha: !ENV [DOCS_BUILD_SHA, "dev"]
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - toc:
+      permalink: true
+  # Material's icons are bundled SVG, inlined at build time: nothing is
+  # fetched from a third party.
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  # lunr ships stemmers for en, ru and tr only; uk and ka fall back to the
+  # default tokenizer.
+  - search:
+      lang:
+        - en
+        - ru
+        - tr
+  - i18n:
+      docs_structure: folder
+      reconfigure_material: true
+      reconfigure_search: false
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        # LANGUAGES-BELOW (Task 3 adds ru, uk, tr, ka here)
+
+nav:
+  - Home: index.md
+  - Get the app: get.md
+  - Send: send.md
+  - Receive: receive.md
+  - Encryption: encryption.md
+  - How it works: how-it-works.md
+  - Troubleshooting: troubleshooting.md
+  - Privacy policy: privacy.md
+  - Support: support.md
