@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/encode/send_jobs.dart';
 import '../../core/format/cimbar_spec.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../shared/format_size.dart';
 import '../../shared/widgets/file_picker_zone.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
@@ -40,11 +41,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
   void _onPassChanged() => setState(() {});
 
-  String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
+  String _formatSize(int bytes) => formatSize(AppLocalizations.of(context)!, bytes);
 
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles();

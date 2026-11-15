@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation site** at https://nfcarchiver.com/cimbar/docs/ (mirrored at https://mezinster.github.io/cimbar/), in all five app languages: getting the app, sending, receiving, encryption, how it works, troubleshooting, support, and one privacy policy covering the web app, Android and iPhone. The Send and Receive pages show screenshots of the app and the web app.
 
 ### Fixed
+- **Wording audit across all seven languages.**
+  - A one-frame code's Ready to send screen said "any 1 frame rebuilds the file, in any order"; it now says the whole file fits in one frame.
+  - Counts now agree with the noun in Russian, Ukrainian, Polish and Belarusian in the remaining messages: present mode's repair-frame line, the live-scan counter (web and app), the photo progress and the incomplete-decode message.
+  - "LIVE DEMO" on the web hub is translated in Russian, Ukrainian, Turkish and Georgian; a test now fails on any untranslated web string.
+  - Sizes use the language's decimal separator and units ("14,8 КБ") in the web app and the app; the app's three copies of the size formatter are now one, and the long-text note groups digits ("100,000").
+  - The docs screenshots show the corrected wording.
 - **Web app headings in Russian, Ukrainian, Belarusian and Georgian** use a matching serif. The heading font (DM Serif Display) has no Cyrillic or Georgian letters, so they fell back to the system's Georgia or a generic serif; PT Serif Bold (Google Fonts, loaded only for Cyrillic text) now fills in, and Noto Serif Georgian Bold does the same for Georgian.
 - Ten app messages were still English in Russian, Ukrainian, Turkish and Georgian: the live-scan hints (Move closer / Move back / Hold still / Adjust angle or lighting), the aiming instruction, the "use Live Scan" error for multi-frame photos, the no-barcode and decoder errors, and the debug capture messages. A test now fails on any message left untranslated.
 - **Frame counts read correctly for one frame.** The app's Send estimate said "at most 1 frames" and the web app said "1 frame(s)"; both now say "1 frame". Russian and Ukrainian agree with the number (1 кадр, 3 кадра, 5 кадров) in those messages and in the live-scan frame counter. The web app's `t()` gained plural forms (`[[count|one|…]]`), and the app's ARB messages use ICU plurals.

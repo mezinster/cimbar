@@ -332,7 +332,11 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String textTruncated(int count) {
-    return 'Pokazano początek tekstu (znaki: $count) — „Kopiuj”, „Udostępnij” i „Zapisz” używają całego tekstu.';
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Pokazano początek tekstu (znaki: $countString) — „Kopiuj”, „Udostępnij” i „Zapisz” używają całego tekstu.';
   }
 
   @override
@@ -403,5 +407,20 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String sendFileTooBig(String size, String max) {
     return 'Plik jest za duży: $size (limit $max).';
+  }
+
+  @override
+  String sizeBytes(String value) {
+    return '$value B';
+  }
+
+  @override
+  String sizeKilobytes(String value) {
+    return '$value KB';
+  }
+
+  @override
+  String sizeMegabytes(String value) {
+    return '$value MB';
   }
 }

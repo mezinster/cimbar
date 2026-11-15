@@ -453,7 +453,7 @@ abstract class AppLocalizations {
   /// Progress during live scanning
   ///
   /// In en, this message translates to:
-  /// **'Scanning... {captured}/{total} frames'**
+  /// **'Scanning... {captured}/{total} {total, plural, =1{frame} other{frames}}'**
   String liveScanProgress(int captured, int total);
 
   /// Status while searching for barcode in camera feed
@@ -761,6 +761,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File too large: {size} (limit {max}).'**
   String sendFileTooBig(String size, String max);
+
+  /// A size under 1 KB; value is the byte count
+  ///
+  /// In en, this message translates to:
+  /// **'{value} B'**
+  String sizeBytes(String value);
+
+  /// A size in kilobytes; value is already formatted with one decimal in the locale
+  ///
+  /// In en, this message translates to:
+  /// **'{value} KB'**
+  String sizeKilobytes(String value);
+
+  /// A size in megabytes; value is already formatted with one decimal in the locale
+  ///
+  /// In en, this message translates to:
+  /// **'{value} MB'**
+  String sizeMegabytes(String value);
 }
 
 class _AppLocalizationsDelegate

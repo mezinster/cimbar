@@ -8,7 +8,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// placeholder ships as English in that language: the live-scan hints
 /// ("Move closer", "Hold still", ...) did, in all four languages, until 0.13.
 /// Keys whose value is legitimately the same in every language go here.
-const _sameInEveryLanguage = {'webAppUrl'};
+const _sameInEveryLanguage = {
+  'webAppUrl',
+  // Unit-only strings: Latin-script languages keep B / KB / MB.
+  'sizeBytes',
+  'sizeKilobytes',
+  'sizeMegabytes',
+};
 
 Map<String, dynamic> _read(File f) =>
     jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;

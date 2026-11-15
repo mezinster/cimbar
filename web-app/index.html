@@ -979,10 +979,17 @@ function showPill(pillId, textId, name, size) {
   el.classList.add('show');
 }
 
+// Sizes in the page's language: its decimal separator ("14,8" in most
+// European languages) and unit names ("КБ" in Russian).
 function fmtBytes(b) {
-  if (b < 1024) return `${b} B`;
-  if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
-  return `${(b/1048576).toFixed(2)} MB`;
+  const lang = CimbarI18n.getLang();
+  const num = (v, d) => {
+    try { return v.toLocaleString(lang, { minimumFractionDigits: d, maximumFractionDigits: d }); }
+    catch (_) { return v.toFixed(d); }
+  };
+  if (b < 1024) return t('sizeB', { value: b });
+  if (b < 1048576) return t('sizeKB', { value: num(b / 1024, 1) });
+  return t('sizeMB', { value: num(b / 1048576, 2) });
 }
 
 // Drag-and-drop
@@ -1147,7 +1154,9 @@ function showReady(stats) {
   if (stats.compressedPct !== null) parts.push(t('metaCompressed'));
   if (stats.encrypted) parts.push(t('metaEncrypted'));
   document.getElementById('readyMeta').textContent = parts.join(' · ');
-  document.getElementById('readyHelp').textContent = t('readyHelp', { n: stats.frames });
+  // A one-frame code has nothing to rebuild from "any N frames".
+  if (stats.frames === 1) document.getElementById('readyHelp').textContent = t('readyHelpSingle');
+  else document.getElementById('readyHelp').textContent = t('readyHelp', { n: stats.frames });
   document.getElementById('shareGifBtn').hidden = !canShareFiles('image/gif');
   document.getElementById('delayHint').style.display = stats.frames > 100 ? 'block' : 'none';
 }

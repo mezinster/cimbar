@@ -57,7 +57,7 @@
   "webAppUrl": "https://nfcarchiver.com/cimbar/",
   "version": "Версія {version}",
   "liveScanButton": "Живе сканування",
-  "liveScanProgress": "Сканування... {captured}/{total} кадрів",
+  "liveScanProgress": "Сканування... {captured}/{total} {total, plural, one{кадру} few{кадрів} many{кадрів} other{кадрів}}",
   "liveScanSearching": "Пошук штрих-коду CimBar...",
   "liveScanComplete": "Усі кадри захоплено!",
   "liveScanError": "Сканування не вдалося",
@@ -111,5 +111,8 @@
   "sendFailed": "Помилка кодування: {error}",
   "presentSource": "Кадр {i} з {n}",
   "presentRepair": "Кадр відновлення {r}",
-  "sendFileTooBig": "Файл завеликий: {size} (ліміт {max})."
+  "sendFileTooBig": "Файл завеликий: {size} (ліміт {max}).",
+  "sizeBytes": "{value} Б",
+  "sizeKilobytes": "{value} КБ",
+  "sizeMegabytes": "{value} МБ"
 }

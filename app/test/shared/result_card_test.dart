@@ -85,7 +85,7 @@ void main() {
     expect(tester.takeException(), isNull);
     final box = tester.getSize(find.byKey(const Key('textResultBody')));
     expect(box.height, lessThanOrEqualTo(320));
-    expect(find.textContaining('Showing the first 100000 characters'), findsOneWidget);
+    expect(find.textContaining('Showing the first 100,000 characters'), findsOneWidget);
     await tester.tap(find.text('Copy'));
     await tester.pump();
     expect(copied.single.length, TextMessage.maxBytes);

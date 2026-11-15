@@ -111,5 +111,8 @@
   "sendFailed": "კოდირება ვერ მოხერხდა: {error}",
   "presentSource": "კადრი {i} / {n}",
   "presentRepair": "აღდგენის კადრი {r}",
-  "sendFileTooBig": "ფაილი ზედმეტად დიდია: {size} (ლიმიტი {max})."
+  "sendFileTooBig": "ფაილი ზედმეტად დიდია: {size} (ლიმიტი {max}).",
+  "sizeBytes": "{value} B",
+  "sizeKilobytes": "{value} KB",
+  "sizeMegabytes": "{value} MB"
 }

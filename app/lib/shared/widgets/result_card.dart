@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/format/text_message.dart';
 import '../../core/models/decode_result.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../format_size.dart';
 
 class ResultCard extends StatelessWidget {
   final DecodeResult result;
@@ -42,12 +43,6 @@ class ResultCard extends StatelessWidget {
     this.onShareText,
   });
 
-  String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -81,7 +76,7 @@ class ResultCard extends StatelessWidget {
               ),
             ),
             Text(
-              l10n.decodedSize(_formatSize(result.data.length)),
+              l10n.decodedSize(formatSize(l10n, result.data.length)),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onPrimaryContainer,
               ),
