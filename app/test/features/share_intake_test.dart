@@ -626,7 +626,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byType(PresentScreen), findsOneWidget);
-      expect(container.read(presentActiveProvider), isTrue);
+      expect(container.read(presentCountProvider), 1);
       return controls;
     }
 
@@ -665,7 +665,7 @@ void main() {
       expect(find.byType(PresentScreen), findsNothing);
       expect(find.text('Replace the text you typed?'), findsNothing, reason: 'one question is enough');
       expect(controls.log, containsAll(['awake:false', 'restore']));
-      expect(container.read(presentActiveProvider), isFalse);
+      expect(container.read(presentCountProvider), 0);
       final send = container.read(sendControllerProvider);
       expect(send.mode, SendMode.file);
       expect(send.fileName, 'report.pdf');

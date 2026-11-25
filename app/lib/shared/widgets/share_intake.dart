@@ -164,7 +164,7 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
 
   void _snack(String text) => appMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(text)));
 
-  bool get _presenting => ref.read(presentActiveProvider);
+  bool get _presenting => ref.read(presentCountProvider) > 0;
 
   /// The busy guards (design spec, "Busy guards"), checked after routing and
   /// before [route] is acted on: false drops the share. A decode or encode

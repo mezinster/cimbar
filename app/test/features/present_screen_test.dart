@@ -90,14 +90,34 @@ void main() {
     expect(c.log.sublist(c.log.length - 2), containsAll(['awake:false', 'restore']));
   });
 
-  testWidgets('presentActiveProvider is true while shown and cleared when popped programmatically', (tester) async {
+  testWidgets('presentCountProvider is 1 while shown and cleared when popped programmatically', (tester) async {
     final c = await open(tester);
-    expect(container.read(presentActiveProvider), isTrue);
+    expect(container.read(presentCountProvider), 1);
     tester.state<NavigatorState>(find.byType(Navigator)).popUntil((r) => r.isFirst);
     await pumpTransition(tester);
     expect(find.byType(PresentScreen), findsNothing);
-    expect(container.read(presentActiveProvider), isFalse);
+    expect(container.read(presentCountProvider), 0);
     expect(c.log, containsAll(['awake:false', 'restore']));
+  });
+
+  testWidgets('presentCountProvider stays 1 when Present is re-opened while the old one closes', (tester) async {
+    final c = await open(tester);
+    final nav = tester.state<NavigatorState>(find.byType(Navigator));
+    // Close and re-present at once: the old screen is disposed only after its
+    // exit transition, well after the new one's initState.
+    nav.pop();
+    unawaited(nav.push(MaterialPageRoute<void>(
+        builder: (_) => PresentScreen(payload: p, delayMs: 100, controls: c, toImage: (_) async => img.clone()))));
+    await pumpTransition(tester);
+    await tester.pump();
+    expect(find.byType(PresentScreen), findsOneWidget);
+    expect(container.read(presentCountProvider), 1, reason: 'the new Present is showing');
+
+    nav.pop();
+    await pumpTransition(tester);
+    await tester.pump();
+    expect(find.byType(PresentScreen), findsNothing);
+    expect(container.read(presentCountProvider), 0);
   });
 
   testWidgets('backgrounding pauses and restores; resuming re-applies', (tester) async {
