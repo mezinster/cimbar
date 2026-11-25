@@ -30,6 +30,24 @@ This is the "Dirty Stream" class of path traversal.
 The commit before the patch commit is the pristine upstream copy, so
 `git log -p -- app/third_party/share_handler_android` shows exactly what changed.
 
+## Second fix: size cap
+
+The launcher accepts `*/*` shares and `handleIntent` copied every `content://` stream
+into `cacheDir` synchronously on the main thread, so a multi-GB share froze the app and
+filled the disk. Both copy sites (`FileDirectory.getDataColumn` and
+`ShareHandlerPlugin.attachmentForUri` -> `copyFile`) now:
+
+- ask the provider for `OpenableColumns.SIZE` first (`reportedSize`) and skip the copy
+  above `SHARE_SIZE_CAP` (134217728 bytes, equal to `CimbarSpec.maxInflatedBytes`);
+- otherwise copy through `copyCapped`, which stops once more than the cap was seen
+  (providers can lie or omit the size) and the partial file is deleted.
+
+Either way the attachment's `path` becomes `cimbar-too-large:<size or -1>` (type
+unchanged); the Dart side reads that marker. `FileDirectory.getAbsolutePath` returns the
+marker as its path string and `attachmentForUri` short-circuits on the prefix before
+touching `File(path)`. Helpers live in `SafeCacheFile.kt`; tests in `CappedCopyTest.kt`
+and `test/share_handler_patch_test.dart`.
+
 ## Tests
 
 - Kotlin, from `app/`: `flutter build apk --config-only && cd android && ./gradlew :share_handler_android:testDebugUnitTest`

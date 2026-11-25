@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 
 /// share_handler_android 0.0.11 wrote shared streams to
 /// `File(cacheDir, <display name chosen by the sending app>)` — a path
@@ -30,5 +31,21 @@ void main() {
       expect(raw, isEmpty, reason: '$name writes into cacheDir with an unsanitized name');
     }
     expect(File('$plugin/SafeCacheFile.kt').existsSync(), isTrue);
+  });
+
+  test('both copy sites check the reported size and copy through copyCapped', () {
+    for (final name in ['FileDirectory.kt', 'ShareHandlerPlugin.kt']) {
+      final src = File('$plugin/$name').readAsStringSync();
+      expect(src, contains('copyCapped('), reason: '$name must cap its copy');
+      expect(src, contains('reportedSize('), reason: '$name must check the size first');
+    }
+  });
+
+  test('the Kotlin share cap equals CimbarSpec.maxInflatedBytes', () {
+    final src = File('$plugin/SafeCacheFile.kt').readAsStringSync();
+    final m = RegExp(r'const val SHARE_SIZE_CAP: Long = (\d+)L').firstMatch(src);
+    expect(m, isNotNull);
+    expect(int.parse(m!.group(1)!), CimbarSpec.maxInflatedBytes);
+    expect(src, contains('const val TOO_LARGE_PREFIX = "cimbar-too-large:"'));
   });
 }

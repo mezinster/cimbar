@@ -120,10 +120,20 @@ object FileDirectory {
                 targetFile = File(context.cacheDir, "${prefix}_${Date().time}.$type")
             }
             val uri = selectionArgs?.let { args -> uri.buildUpon().appendPath(args.first()).build() } ?: uri
+            // CimBar patch: refuse shares above the cap instead of copying them on the
+            // main thread. The marker string travels back through the path result and
+            // ShareHandlerPlugin.attachmentForUri turns it into the attachment's path.
+            val size = reportedSize(context.contentResolver, uri)
+            if (size != null && size > SHARE_SIZE_CAP) return "$TOO_LARGE_PREFIX$size"
+            var tooLarge = false
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(targetFile).use { fileOut ->
-                    input.copyTo(fileOut)
+                    tooLarge = !copyCapped(input, fileOut, SHARE_SIZE_CAP)
                 }
+            }
+            if (tooLarge) {
+                targetFile.delete()
+                return "$TOO_LARGE_PREFIX${size ?: -1}"
             }
             return targetFile.path
         }

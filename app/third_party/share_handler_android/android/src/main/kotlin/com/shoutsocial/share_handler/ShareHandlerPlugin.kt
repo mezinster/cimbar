@@ -231,6 +231,14 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
     // Get the absolute path from the URI
     val path = FileDirectory.getAbsolutePath(applicationContext, uri) ?: return null
 
+    // CimBar patch: FileDirectory refused an oversized share (see SafeCacheFile.kt).
+    if (path.startsWith(TOO_LARGE_PREFIX)) {
+      return Messages.SharedAttachment.Builder()
+        .setPath(path)
+        .setType(getAttachmentType(mimeType))
+        .build()
+    }
+
     val file = File(path)
 
     // Check if the file name has an extension
@@ -251,10 +259,17 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
       // CimBar patch: never trust the sender's display name as a path.
       val newFile = safeCacheFile(applicationContext.cacheDir, fileName) ?: return null
 
+      // CimBar patch: refuse shares above the cap instead of copying them on the main thread.
+      val size = reportedSize(contentResolver, uri)
+      if (size != null && size > SHARE_SIZE_CAP) {
+        return tooLargeAttachment(size, mimeType)
+      }
+
       // Copy the contents from the URI to the new file
-      val success = copyFile(contentResolver, uri, newFile)
-      if (!success) {
-        return null
+      when (copyFile(contentResolver, uri, newFile)) {
+        CopyResult.FAILED -> return null
+        CopyResult.TOO_LARGE -> return tooLargeAttachment(size ?: -1, mimeType)
+        CopyResult.OK -> Unit
       }
 
       // Determine the attachment type using the MIME type
@@ -296,22 +311,31 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
     return fileName
   }
 
-  // Function to copy the file content from the URI to the destination file
-  private fun copyFile(contentResolver: ContentResolver, uri: Uri, destinationFile: File): Boolean {
+  private enum class CopyResult { OK, TOO_LARGE, FAILED }
+
+  private fun tooLargeAttachment(size: Long, mimeType: String?): Messages.SharedAttachment =
+    Messages.SharedAttachment.Builder()
+      .setPath("$TOO_LARGE_PREFIX$size")
+      .setType(getAttachmentType(mimeType))
+      .build()
+
+  // Function to copy the file content from the URI to the destination file.
+  // CimBar patch: capped at SHARE_SIZE_CAP; a partial file is deleted.
+  private fun copyFile(contentResolver: ContentResolver, uri: Uri, destinationFile: File): CopyResult {
     return try {
+      var ok = true
       contentResolver.openInputStream(uri)?.use { inputStream ->
         FileOutputStream(destinationFile).use { outputStream ->
-          val buffer = ByteArray(8 * 1024) // 8KB buffer
-          var bytesRead: Int
-          while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-            outputStream.write(buffer, 0, bytesRead)
-          }
+          ok = copyCapped(inputStream, outputStream, SHARE_SIZE_CAP)
         }
       }
-      true
+      if (ok) CopyResult.OK else {
+        destinationFile.delete()
+        CopyResult.TOO_LARGE
+      }
     } catch (e: Exception) {
       e.printStackTrace()
-      false
+      CopyResult.FAILED
     }
   }
 
