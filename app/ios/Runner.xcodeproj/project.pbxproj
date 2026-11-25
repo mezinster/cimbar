@@ -19,6 +19,7 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		CF325CAAAA0460B952F9004B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8EAA10726E75B2C9D3F5A63B /* InfoPlist.strings */; };
+		EE83827139787CC9667AED2F /* PhotoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DB02173DFFFF19868450966 /* PhotoEncoder.swift */; };
 		F25F540C4E2B7EC0BE11769B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DFEF81C355D9E90A386605D5 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -75,6 +76,7 @@
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		4DB02173DFFFF19868450966 /* PhotoEncoder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoEncoder.swift; sourceTree = "<group>"; };
 		5E8BBDDAB27A190E6A6FCB14 /* ru */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 				8EAA10726E75B2C9D3F5A63B /* InfoPlist.strings */,
 				D4EE47DEAE793EF94F90B3C2 /* Runner.entitlements */,
 				DFEF81C355D9E90A386605D5 /* PrivacyInfo.xcprivacy */,
+				4DB02173DFFFF19868450966 /* PhotoEncoder.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -391,6 +394,7 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				EE83827139787CC9667AED2F /* PhotoEncoder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

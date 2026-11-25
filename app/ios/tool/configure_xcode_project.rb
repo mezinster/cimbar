@@ -18,6 +18,7 @@
 # 4. The deployment target, on the project and on every target that pins one.
 # 5. Runner/PrivacyInfo.xcprivacy in Runner's resources (App Store Connect
 #    requires an app-level privacy manifest).
+# 6. Runner/PhotoEncoder.swift (the native photo channel) in Runner's sources.
 require 'xcodeproj'
 
 IOS = File.expand_path('..', __dir__)
@@ -118,6 +119,11 @@ privacy = runner_group.files.find { |f| f.path == 'PrivacyInfo.xcprivacy' } ||
           runner_group.new_reference('PrivacyInfo.xcprivacy')
 unless runner.resources_build_phase.files_references.include?(privacy)
   runner.resources_build_phase.add_file_reference(privacy, true)
+end
+
+# --- 6. PhotoEncoder.swift ------------------------------------------------------
+unless runner_group.files.any? { |f| f.path == 'PhotoEncoder.swift' }
+  runner.add_file_references([runner_group.new_reference('PhotoEncoder.swift')])
 end
 
 project.save
