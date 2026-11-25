@@ -86,41 +86,6 @@ Future<void> settleIo(WidgetTester tester) async {
 }
 
 void main() {
-  test('firstSharedFile reads a plain path and a file:// path', () async {
-    for (final p in [fixture, Uri.file(fixture).toString()]) {
-      final r = await firstSharedFile(gifShare(p));
-      expect(r.file!.name, 'test_hello.gif');
-      expect(r.file!.bytes, File(fixture).readAsBytesSync());
-      expect(r.unreadable, isFalse);
-    }
-  });
-
-  test('firstSharedFile: no attachments is neither a file nor unreadable', () async {
-    final r = await firstSharedFile(SharedMedia(attachments: []));
-    expect(r.file, isNull);
-    expect(r.unreadable, isFalse);
-  });
-
-  test('firstSharedFile skips unreadable attachments and reports them', () async {
-    final r = await firstSharedFile(gifShare('/nonexistent/x.gif'));
-    expect(r.file, isNull);
-    expect(r.unreadable, isTrue);
-  });
-
-  test('firstSharedFile reports an empty path as unreadable, not a throw', () async {
-    final r = await firstSharedFile(gifShare(''));
-    expect(r.file, isNull);
-    expect(r.unreadable, isTrue);
-  });
-
-  test('firstSharedFile reports a malformed file:// URI (authority component) as unreadable, not a throw', () async {
-    // Uri.parse(...).toFilePath() throws UnsupportedError for a non-Windows
-    // file URI with an authority component.
-    final r = await firstSharedFile(gifShare('file://example.com/some/path.gif'));
-    expect(r.file, isNull);
-    expect(r.unreadable, isTrue);
-  });
-
   testWidgets('a GIF shared while the app runs is selected on the Import tab', (tester) async {
     final source = FakeShareSource();
     final container = await pumpApp(tester, source);

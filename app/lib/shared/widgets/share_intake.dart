@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,10 +50,12 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
     // malformed attachment or a mid-teardown provider read must not crash
     // the app; it's simply reported as unreadable / dropped.
     try {
-      final result = await firstSharedFile(media);
+      final result = await readShare(media);
       if (!mounted) return;
-      final file = result.file;
-      if (file != null) {
+      final item = result.item;
+      if (item is SharedFileItem) {
+        final file = (name: item.name, bytes: await File(item.path).readAsBytes());
+        if (!mounted) return;
         final gif = isGif(file.bytes);
         final route = gif ? '/import' : '/camera';
         // Checked after the (async) read, against the tab that would take
@@ -75,7 +78,7 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
           ref.read(cameraControllerProvider.notifier).setPhoto(file.bytes);
         }
         _goTo(route);
-      } else if (result.unreadable) {
+      } else if (item is ShareUnreadable || item is ShareTooLarge) {
         appMessengerKey.currentState?.showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context)!.shareReadFailed)),
         );

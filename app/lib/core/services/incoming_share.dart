@@ -1,15 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_handler/share_handler.dart';
 
-/// A file another app shared to CimBar ("Share → CimBar Scanner").
-class SharedFile {
-  final String name;
-  final Uint8List bytes;
-  const SharedFile(this.name, this.bytes);
-}
+import '../format/cimbar_spec.dart';
+import 'file_service.dart';
 
 /// Where shared media comes from: the share_handler plugin in the app (the
 /// Android SEND intent, the iOS Share Extension), a fake in tests.
@@ -32,31 +26,89 @@ class PluginShareSource implements ShareSource {
 
 final shareSourceProvider = Provider<ShareSource>((ref) => PluginShareSource());
 
-/// A filename from a filesystem path that can't throw — no `Uri`/`File`
-/// round trip, which can raise on a path `Uri.parse`/`toFilePath` or
-/// `File.uri.pathSegments` doesn't expect (empty path, an authority
-/// component, ...).
+/// Prefix the patched share_handler_android puts in an attachment's `path`
+/// for an item above its size budget (`cimbar-too-large:<size or -1>`).
+const _tooLargePrefix = 'cimbar-too-large:';
+
+/// One thing another app shared to CimBar.
+sealed class ShareItem {
+  const ShareItem();
+}
+
+class SharedText extends ShareItem {
+  final String text;
+  const SharedText(this.text);
+}
+
+class SharedFileItem extends ShareItem {
+  final String name;
+  final String path;
+  final int length;
+  const SharedFileItem({required this.name, required this.path, required this.length});
+}
+
+class ShareTooLarge extends ShareItem {
+  final int? length;
+  const ShareTooLarge({this.length});
+}
+
+class ShareUnreadable extends ShareItem {
+  const ShareUnreadable();
+}
+
+int? _parseSize(String s) {
+  final n = int.tryParse(s);
+  return (n == null || n < 0) ? null : n;
+}
+
+/// A filename from a filesystem path that can't throw.
 String _basename(String path) {
   final i = path.lastIndexOf(RegExp(r'[\\/]'));
   return i == -1 ? path : path.substring(i + 1);
 }
 
-/// The first readable attachment of [media]. [unreadable] is true when it had
-/// attachments but none could be read — on Android a document-provider URI can
-/// resolve to a shared-storage path the app holds no permission for; a
-/// malformed `file://` URI (an authority component `toFilePath()` rejects) or
-/// an empty path are also treated as unreadable rather than thrown.
-Future<({SharedFile? file, bool unreadable})> firstSharedFile(SharedMedia media) async {
+/// The first usable item of [media] and how many attachments it carried.
+/// Returns paths, never file bytes. An oversized attachment (the plugin's
+/// marker, or a file above [cap]) is [ShareTooLarge]; attachments that all
+/// fail (a path the app holds no permission for, a malformed `file://` URI,
+/// an empty path) are [ShareUnreadable]. With no attachments, non-empty
+/// `content` (text, or a URL-only share) is [SharedText]; otherwise `item` is null.
+Future<({ShareItem? item, int count})> readShare(SharedMedia media, {int cap = CimbarSpec.maxInflatedBytes}) async {
   final attachments = (media.attachments ?? const <SharedAttachment?>[]).whereType<SharedAttachment>().toList();
   for (final a in attachments) {
     try {
+      if (a.path.startsWith(_tooLargePrefix)) {
+        return (
+          item: ShareTooLarge(length: _parseSize(a.path.substring(_tooLargePrefix.length))),
+          count: attachments.length,
+        );
+      }
       final path = a.path.startsWith('file://') ? Uri.parse(a.path).toFilePath() : a.path;
-      final file = File(path);
-      final bytes = await file.readAsBytes();
-      return (file: SharedFile(_basename(path), bytes), unreadable: false);
+      final length = await File(path).length();
+      if (length > cap) return (item: ShareTooLarge(length: length), count: attachments.length);
+      return (item: SharedFileItem(name: _basename(path), path: path, length: length), count: attachments.length);
     } catch (_) {
       continue;
     }
   }
-  return (file: null, unreadable: attachments.isNotEmpty);
+  if (attachments.isNotEmpty) return (item: const ShareUnreadable(), count: attachments.length);
+  final content = media.content;
+  if (content != null && content.isNotEmpty) return (item: SharedText(content), count: 0);
+  return (item: null, count: 0);
+}
+
+/// Copies [f] into `<tempBase>/share_in/<timestamp>/<safe name>` and returns the
+/// new path, then deletes the original if it was only the plugin's cache copy
+/// (under [cacheDir]) or an iOS App Group copy.
+Future<String> stageSharedFile(SharedFileItem f, {required Directory tempBase, required String cacheDir}) async {
+  final dir = Directory('${tempBase.path}/share_in/${DateTime.now().microsecondsSinceEpoch}');
+  await dir.create(recursive: true);
+  final dest = '${dir.path}/${FileService.safeBasename(f.name)}';
+  await File(f.path).copy(dest);
+  if (f.path.startsWith(cacheDir) || f.path.contains('/Shared/AppGroup/')) {
+    try {
+      await File(f.path).delete();
+    } catch (_) {}
+  }
+  return dest;
 }
