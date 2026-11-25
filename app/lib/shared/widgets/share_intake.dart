@@ -165,14 +165,10 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
       rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
       return true;
     }
+    // Only a text share replaces typed text: a file or photo switches Send to
+    // File mode and leaves the text in place.
     final send = ref.read(sendControllerProvider);
-    final replacesText = switch (route) {
-      ToSendText() || ToSendFile() => true,
-      // An optimiser already open only swaps its photo; the text stays.
-      ToOptimiser() => !ref.read(photoOptimiserOpenProvider),
-      _ => false,
-    };
-    if (replacesText && send.mode == SendMode.text && send.text.isNotEmpty) {
+    if (route is ToSendText && send.mode == SendMode.text && send.text.isNotEmpty) {
       return _confirm(l10n.shareReplaceTextConfirm);
     }
     return true;

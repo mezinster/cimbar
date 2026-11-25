@@ -577,7 +577,7 @@ void main() {
       expect(find.byType(SendScreen), findsOneWidget);
     });
 
-    testWidgets('a PDF shared while typed text is in Text mode asks first', (tester) async {
+    testWidgets('a PDF shared over typed text switches to File mode without asking and keeps the text', (tester) async {
       final source = FakeShareSource();
       final container = await pumpApp(tester, source);
       container.read(sendControllerProvider.notifier).setText('my typed text');
@@ -585,12 +585,11 @@ void main() {
       source.controller.add(pdfShare('report.pdf'));
       await settleIo(tester);
 
-      expect(find.text('Replace the text you typed?'), findsOneWidget);
-      await tester.tap(find.text('No'));
-      await settleIo(tester);
+      expect(find.byType(AlertDialog), findsNothing);
       final send = container.read(sendControllerProvider);
-      expect(send.mode, SendMode.text);
-      expect(send.fileName, isNull);
+      expect(send.mode, SendMode.file);
+      expect(send.fileName, 'report.pdf');
+      expect(send.text, 'my typed text', reason: 'File mode leaves the typed text in place');
     });
 
     testWidgets('a staged file is replaced by a shared PDF without asking', (tester) async {
