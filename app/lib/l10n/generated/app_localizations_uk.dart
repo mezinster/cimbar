@@ -377,4 +377,127 @@ class AppLocalizationsUk extends AppLocalizations {
   String sendFileTooBig(String size, String max) {
     return 'Файл завеликий: $size (ліміт $max).';
   }
+
+  @override
+  String get sendChoosePhoto => 'Вибрати фото';
+
+  @override
+  String get photoOptimiseTitle => 'Оптимізація фото';
+
+  @override
+  String get photoFramesToSend => 'Кадрів для надсилання';
+
+  @override
+  String photoTransferTime(int frames, double seconds, int delay) {
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames кадру',
+      many: '$frames кадрів',
+      few: '$frames кадри',
+      one: '$frames кадр',
+    );
+    return '$_temp0 · ≈ $secondsString с при $delay мс';
+  }
+
+  @override
+  String photoGifCapNote(int max) {
+    return '«Поділитися GIF» вміщує до $max кадрів; більше — лише «Показати на екрані»';
+  }
+
+  @override
+  String get photoManual => 'Вручну';
+
+  @override
+  String get photoBackToAuto => 'Повернути авто';
+
+  @override
+  String photoQuality(int quality) {
+    return 'Якість $quality';
+  }
+
+  @override
+  String get photoSide => 'Довга сторона';
+
+  @override
+  String get photoOriginal => 'Оригінал';
+
+  @override
+  String get photoSkip => 'Пропустити (залишити оригінал)';
+
+  @override
+  String get photoContinue => 'Продовжити';
+
+  @override
+  String photoContinueWith(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Продовжити з $count кадру',
+      many: 'Продовжити з $count кадрами',
+      few: 'Продовжити з $count кадрами',
+      one: 'Продовжити з $count кадром',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String photoContinueAsIs(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Продовжити з цим зображенням ($count кадру)',
+      many: 'Продовжити з цим зображенням ($count кадрів)',
+      few: 'Продовжити з цим зображенням ($count кадри)',
+      one: 'Продовжити з цим зображенням ($count кадр)',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String photoDoesNotFit(int frames, int needed) {
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: 'Не вміщується у $frames кадру',
+      many: 'Не вміщується у $frames кадрів',
+      few: 'Не вміщується у $frames кадри',
+      one: 'Не вміщується у $frames кадр',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      needed,
+      locale: localeName,
+      other: 'потрібно щонайменше $needed кадру',
+      many: 'потрібно щонайменше $needed кадрів',
+      few: 'потрібно щонайменше $needed кадри',
+      one: 'потрібен щонайменше $needed кадр',
+    );
+    return '$_temp0 — $_temp1';
+  }
+
+  @override
+  String get photoDecodeError =>
+      'Не вдається прочитати це фото. Натисніть «Пропустити», щоб надіслати вихідний файл.';
+
+  @override
+  String get photoMemoryError =>
+      'На цьому пристрої недостатньо пам\'яті, щоб оптимізувати це фото.';
+
+  @override
+  String photoResultLabel(int width, int height, int quality, int kb) {
+    return '$width×$height · q$quality · $kb КБ';
+  }
+
+  @override
+  String get photoFewerFrames => 'Менше кадрів';
+
+  @override
+  String get photoMoreFrames => 'Більше кадрів';
+
+  @override
+  String get photoEditFrameCount => 'Двічі торкніться, щоб ввести число';
 }

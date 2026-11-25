@@ -376,4 +376,87 @@ class AppLocalizationsTr extends AppLocalizations {
   String sendFileTooBig(String size, String max) {
     return 'Dosya çok büyük: $size (sınır $max).';
   }
+
+  @override
+  String get sendChoosePhoto => 'Fotoğraf seç';
+
+  @override
+  String get photoOptimiseTitle => 'Fotoğrafı optimize et';
+
+  @override
+  String get photoFramesToSend => 'Gönderilecek kare';
+
+  @override
+  String photoTransferTime(int frames, double seconds, int delay) {
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    return '$frames kare · $delay ms ile ≈ $secondsString sn';
+  }
+
+  @override
+  String photoGifCapNote(int max) {
+    return '\"GIF paylaş\" en fazla $max kare alır; fazlası yalnızca \"Ekranda göster\" ile';
+  }
+
+  @override
+  String get photoManual => 'Elle';
+
+  @override
+  String get photoBackToAuto => 'Otomatiğe dön';
+
+  @override
+  String photoQuality(int quality) {
+    return 'Kalite $quality';
+  }
+
+  @override
+  String get photoSide => 'Uzun kenar';
+
+  @override
+  String get photoOriginal => 'Orijinal';
+
+  @override
+  String get photoSkip => 'Atla (orijinali koru)';
+
+  @override
+  String get photoContinue => 'Devam';
+
+  @override
+  String photoContinueWith(int count) {
+    return '$count kare ile devam et';
+  }
+
+  @override
+  String photoContinueAsIs(int count) {
+    return 'Bu görüntüyle devam et ($count kare)';
+  }
+
+  @override
+  String photoDoesNotFit(int frames, int needed) {
+    return '$frames kareye sığmıyor — en az $needed kare gerekiyor';
+  }
+
+  @override
+  String get photoDecodeError =>
+      'Bu fotoğraf okunamıyor. Orijinal dosyayı göndermek için Atla\'ya dokunun.';
+
+  @override
+  String get photoMemoryError =>
+      'Bu cihazda bu fotoğrafı optimize etmek için yeterli bellek yok.';
+
+  @override
+  String photoResultLabel(int width, int height, int quality, int kb) {
+    return '$width×$height · q$quality · $kb KB';
+  }
+
+  @override
+  String get photoFewerFrames => 'Daha az kare';
+
+  @override
+  String get photoMoreFrames => 'Daha fazla kare';
+
+  @override
+  String get photoEditFrameCount => 'Sayıyı yazmak için iki kez dokunun';
 }

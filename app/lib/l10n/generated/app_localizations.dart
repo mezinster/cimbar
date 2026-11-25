@@ -757,6 +757,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File too large: {size} (limit {max}).'**
   String sendFileTooBig(String size, String max);
+
+  /// Send tab, File mode: pick a photo from the gallery and shrink it to fit a frame count
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photo'**
+  String get sendChoosePhoto;
+
+  /// Title of the photo optimiser screen
+  ///
+  /// In en, this message translates to:
+  /// **'Optimise photo'**
+  String get photoOptimiseTitle;
+
+  /// Optimiser: label of the frame-count stepper (also the title of the dialog that types it)
+  ///
+  /// In en, this message translates to:
+  /// **'Frames to send'**
+  String get photoFramesToSend;
+
+  /// Optimiser: chosen frame count and how long one pass takes at the Send tab's frame delay
+  ///
+  /// In en, this message translates to:
+  /// **'{frames, plural, =1{1 frame} other{{frames} frames}} · ≈ {seconds} s at {delay} ms'**
+  String photoTransferTime(int frames, double seconds, int delay);
+
+  /// Optimiser: shown when the chosen count is above what Share GIF allows, so only Present on screen can send it
+  ///
+  /// In en, this message translates to:
+  /// **'Share GIF holds up to {max} frames; Present only'**
+  String photoGifCapNote(int max);
+
+  /// Optimiser: heading of the manual size/quality controls
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get photoManual;
+
+  /// Optimiser: leave manual mode and fit automatically again
+  ///
+  /// In en, this message translates to:
+  /// **'Back to auto'**
+  String get photoBackToAuto;
+
+  /// Optimiser: JPEG quality slider label
+  ///
+  /// In en, this message translates to:
+  /// **'Quality {quality}'**
+  String photoQuality(int quality);
+
+  /// Optimiser: label of the longest-side presets (pixels)
+  ///
+  /// In en, this message translates to:
+  /// **'Longest side'**
+  String get photoSide;
+
+  /// Optimiser: preset chip keeping the photo's own size
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get photoOriginal;
+
+  /// Optimiser: send the untouched original file instead
+  ///
+  /// In en, this message translates to:
+  /// **'Skip (keep original)'**
+  String get photoSkip;
+
+  /// Optimiser: send the optimised photo
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get photoContinue;
+
+  /// Optimiser: shown when the photo does not fit; raises the count to the smallest that fits, re-fits and continues
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Continue with 1 frame} other{Continue with {count} frames}}'**
+  String photoContinueWith(int count);
+
+  /// Optimiser: shown when the photo does not fit; sends the image shown, which needs this many frames
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Continue with this image (1 frame)} other{Continue with this image ({count} frames)}}'**
+  String photoContinueAsIs(int count);
+
+  /// Optimiser: the photo does not fit the chosen frame count
+  ///
+  /// In en, this message translates to:
+  /// **'{frames, plural, =1{Doesn\'t fit in 1 frame} other{Doesn\'t fit in {frames} frames}} — {needed, plural, =1{needs at least 1 frame} other{needs at least {needed} frames}}'**
+  String photoDoesNotFit(int frames, int needed);
+
+  /// Optimiser: the photo could not be decoded
+  ///
+  /// In en, this message translates to:
+  /// **'This photo can\'t be read. Tap Skip to send the original file.'**
+  String get photoDecodeError;
+
+  /// Optimiser: decoding the photo ran out of memory
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough memory on this device to optimise this photo.'**
+  String get photoMemoryError;
+
+  /// Optimiser: caption under the preview: pixel size, JPEG quality, file size
+  ///
+  /// In en, this message translates to:
+  /// **'{width}×{height} · q{quality} · {kb} KB'**
+  String photoResultLabel(int width, int height, int quality, int kb);
+
+  /// Optimiser: screen-reader label of the button that lowers the frame count
+  ///
+  /// In en, this message translates to:
+  /// **'Fewer frames'**
+  String get photoFewerFrames;
+
+  /// Optimiser: screen-reader label of the button that raises the frame count
+  ///
+  /// In en, this message translates to:
+  /// **'More frames'**
+  String get photoMoreFrames;
+
+  /// Optimiser: screen-reader hint on the frame count, which opens a dialog to type it
+  ///
+  /// In en, this message translates to:
+  /// **'Double-tap to type the number'**
+  String get photoEditFrameCount;
 }
 
 class _AppLocalizationsDelegate
