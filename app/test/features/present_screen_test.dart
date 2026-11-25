@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cimbar_scanner/core/encode/payload_encoder.dart';
 import 'package:cimbar_scanner/features/send/present_screen.dart';
@@ -53,6 +54,7 @@ void main() {
   final p = PayloadEncoder.encode(name: 'n.txt', bytes: Uint8List(5000), allowCompression: false);
 
   late ui.Image img;
+  late ProviderContainer container;
 
   Future<T> open<T extends FakeControls>(WidgetTester tester,
       {T? controls, Future<ui.Image> Function(Uint8List)? toImage}) async {
@@ -60,14 +62,19 @@ void main() {
     // Real decodeImageFromPixels never completes inside the fake-async test
     // zone; make one tiny image outside it and hand out clones.
     img = (await tester.runAsync(() => createTestImage(width: 1, height: 1)))!;
-    await tester.pumpWidget(MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Builder(builder: (ctx) => TextButton(
-        onPressed: () => Navigator.of(ctx).push(MaterialPageRoute(
-            builder: (_) => PresentScreen(payload: p, delayMs: 100, controls: c,
-                toImage: toImage ?? (_) async => img.clone()))),
-        child: const Text('go'))),
+    container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(builder: (ctx) => TextButton(
+          onPressed: () => Navigator.of(ctx).push(MaterialPageRoute(
+              builder: (_) => PresentScreen(payload: p, delayMs: 100, controls: c,
+                  toImage: toImage ?? (_) async => img.clone()))),
+          child: const Text('go'))),
+      ),
     ));
     await tester.tap(find.text('go'));
     await pumpTransition(tester, const Duration(milliseconds: 50));
@@ -81,6 +88,16 @@ void main() {
     await tester.pageBack();
     await pumpTransition(tester);
     expect(c.log.sublist(c.log.length - 2), containsAll(['awake:false', 'restore']));
+  });
+
+  testWidgets('presentActiveProvider is true while shown and cleared when popped programmatically', (tester) async {
+    final c = await open(tester);
+    expect(container.read(presentActiveProvider), isTrue);
+    tester.state<NavigatorState>(find.byType(Navigator)).popUntil((r) => r.isFirst);
+    await pumpTransition(tester);
+    expect(find.byType(PresentScreen), findsNothing);
+    expect(container.read(presentActiveProvider), isFalse);
+    expect(c.log, containsAll(['awake:false', 'restore']));
   });
 
   testWidgets('backgrounding pauses and restores; resuming re-applies', (tester) async {

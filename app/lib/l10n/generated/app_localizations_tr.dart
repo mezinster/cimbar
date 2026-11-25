@@ -490,4 +490,24 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Sayıyı yazmak için iki kez dokunun';
+
+  @override
+  String get shareWhileEncoding =>
+      'Önce mevcut barkodun oluşturulmasının bitmesini bekleyin, ardından yeniden paylaşın.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Gösterim durdurulup paylaşılan öğe yüklensin mi?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Yazdığınız metin değiştirilsin mi?';
+
+  @override
+  String get shareSendInstead => 'Bunun yerine bu fotoğrafı gönder';
+
+  @override
+  String get commonYes => 'Evet';
+
+  @override
+  String get commonNo => 'Hayır';
 }

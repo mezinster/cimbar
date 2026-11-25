@@ -138,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} KB",
   "photoFewerFrames": "Mniej klatek",
   "photoMoreFrames": "Więcej klatek",
-  "photoEditFrameCount": "Dotknij dwukrotnie, aby wpisać liczbę"
+  "photoEditFrameCount": "Dotknij dwukrotnie, aby wpisać liczbę",
+  "shareWhileEncoding": "Najpierw zaczekaj, aż bieżący kod kreskowy zostanie utworzony, a potem udostępnij ponownie.",
+  "sharePresentConfirm": "Zakończyć wyświetlanie i wczytać udostępniony element?",
+  "shareReplaceTextConfirm": "Zastąpić wpisany tekst?",
+  "shareSendInstead": "Wyślij zamiast tego to zdjęcie",
+  "commonYes": "Tak",
+  "commonNo": "Nie"
 }

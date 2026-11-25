@@ -570,4 +570,24 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Дважды коснитесь, чтобы ввести число';
+
+  @override
+  String get shareWhileEncoding =>
+      'Сначала дождитесь окончания создания текущего штрих-кода, затем поделитесь снова.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Остановить показ и загрузить полученный элемент?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Заменить введённый текст?';
+
+  @override
+  String get shareSendInstead => 'Отправить это фото';
+
+  @override
+  String get commonYes => 'Да';
+
+  @override
+  String get commonNo => 'Нет';
 }

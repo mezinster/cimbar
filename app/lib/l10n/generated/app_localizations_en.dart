@@ -544,4 +544,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Double-tap to type the number';
+
+  @override
+  String get shareWhileEncoding =>
+      'Finish creating the current barcode first, then share again.';
+
+  @override
+  String get sharePresentConfirm => 'Stop presenting and load the shared item?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Replace the text you typed?';
+
+  @override
+  String get shareSendInstead => 'Send this photo instead';
+
+  @override
+  String get commonYes => 'Yes';
+
+  @override
+  String get commonNo => 'No';
 }

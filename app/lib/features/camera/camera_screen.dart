@@ -12,6 +12,8 @@ import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import '../../shared/widgets/progress_card.dart';
 import '../../shared/widgets/result_card.dart';
+import '../photo/presentation/photo_optimiser_provider.dart';
+import '../photo/presentation/photo_optimiser_screen.dart';
 import 'camera_controller.dart';
 import 'live_scan_screen.dart';
 import 'photo_capture_screen.dart';
@@ -65,6 +67,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final state = ref.watch(cameraControllerProvider);
     final controller = ref.read(cameraControllerProvider.notifier);
     final theme = Theme.of(context);
+    // A shared photo that didn't decode may be an ordinary photo detection
+    // mistook for a barcode: offer to send it instead.
+    final sharedPhotoFailed = state.fromShare &&
+        !state.isDecoding &&
+        state.result == null &&
+        state.capturedPhotoPath != null &&
+        (state.errorCode != null || state.progress?.state == DecodeState.error);
 
     return Scaffold(
       appBar: AppBar(
@@ -159,6 +168,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           const SizedBox(height: 16),
 
           if (state.progress != null) ProgressCard(progress: _localized(l10n, state)),
+
+          if (sharedPhotoFailed) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('sendPhotoInstead'),
+              onPressed: () => openPhotoOptimiser(
+                  context, ref, PendingPhoto(path: state.capturedPhotoPath!, name: null)),
+              icon: const Icon(Icons.send),
+              label: Text(l10n.shareSendInstead),
+            ),
+          ],
 
           if (state.result != null) ...[
             const SizedBox(height: 16),

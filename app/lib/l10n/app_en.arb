@@ -333,5 +333,17 @@
   "photoMoreFrames": "More frames",
   "@photoMoreFrames": {"description": "Optimiser: screen-reader label of the button that raises the frame count"},
   "photoEditFrameCount": "Double-tap to type the number",
-  "@photoEditFrameCount": {"description": "Optimiser: screen-reader hint on the frame count, which opens a dialog to type it"}
+  "@photoEditFrameCount": {"description": "Optimiser: screen-reader hint on the frame count, which opens a dialog to type it"},
+  "shareWhileEncoding": "Finish creating the current barcode first, then share again.",
+  "@shareWhileEncoding": {"description": "SnackBar when something is shared to CimBar while the Send tab is still encoding or building a GIF; the share is dropped"},
+  "sharePresentConfirm": "Stop presenting and load the shared item?",
+  "@sharePresentConfirm": {"description": "Dialog when something is shared to CimBar while the Present screen is showing; Yes stops presenting and loads the shared item"},
+  "shareReplaceTextConfirm": "Replace the text you typed?",
+  "@shareReplaceTextConfirm": {"description": "Dialog when something shared to CimBar would replace text the user typed on the Send tab"},
+  "shareSendInstead": "Send this photo instead",
+  "@shareSendInstead": {"description": "Camera tab button under a shared photo that failed to decode; opens the photo optimiser to send the photo instead"},
+  "commonYes": "Yes",
+  "@commonYes": {"description": "Generic Yes button in a confirmation dialog"},
+  "commonNo": "No",
+  "@commonNo": {"description": "Generic No button in a confirmation dialog"}
 }

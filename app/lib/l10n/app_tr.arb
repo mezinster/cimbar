@@ -138,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} KB",
   "photoFewerFrames": "Daha az kare",
   "photoMoreFrames": "Daha fazla kare",
-  "photoEditFrameCount": "Sayıyı yazmak için iki kez dokunun"
+  "photoEditFrameCount": "Sayıyı yazmak için iki kez dokunun",
+  "shareWhileEncoding": "Önce mevcut barkodun oluşturulmasının bitmesini bekleyin, ardından yeniden paylaşın.",
+  "sharePresentConfirm": "Gösterim durdurulup paylaşılan öğe yüklensin mi?",
+  "shareReplaceTextConfirm": "Yazdığınız metin değiştirilsin mi?",
+  "shareSendInstead": "Bunun yerine bu fotoğrafı gönder",
+  "commonYes": "Evet",
+  "commonNo": "Hayır"
 }

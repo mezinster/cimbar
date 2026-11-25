@@ -12,6 +12,7 @@ import '../../features/camera/camera_controller.dart';
 import '../../features/import/import_controller.dart';
 import '../../features/photo/data/photo_temp.dart';
 import '../../features/photo/presentation/photo_optimiser_screen.dart';
+import '../../features/send/present_screen.dart';
 import '../../features/send/send_controller.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../format_size.dart';
@@ -20,6 +21,25 @@ import 'share_routing.dart';
 /// The app-wide ScaffoldMessenger, so the share intake (which sits above any
 /// Scaffold) can show a SnackBar.
 final GlobalKey<ScaffoldMessengerState> appMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
+/// Asks [message] with Yes/No before a share replaces something; true only
+/// for Yes (dismissing the dialog is No). [context] is the root navigator's.
+Future<bool> confirmShareReplace(BuildContext context, String message) async {
+  final yes = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final l10n = AppLocalizations.of(ctx)!;
+      return AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.commonNo)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.commonYes)),
+        ],
+      );
+    },
+  );
+  return yes ?? false;
+}
 
 /// Receives what other apps share to CimBar — on a cold start (initialMedia)
 /// and while running (mediaStream). The first usable item goes where
@@ -68,8 +88,8 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
       );
       _hideChecking();
       if (!mounted) return;
-      final loaded = _act(route);
-      if (loaded && share.count > 1) _snack(AppLocalizations.of(context)!.shareOnlyFirst(share.count));
+      final loaded = await _act(route);
+      if (loaded && mounted && share.count > 1) _snack(AppLocalizations.of(context)!.shareOnlyFirst(share.count));
     } catch (_) {
       // Unreadable/unexpected share payload — nothing to show, nothing to
       // crash.
@@ -116,8 +136,60 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
 
   void _snack(String text) => appMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(text)));
 
-  /// Carries out [route]; true when the shared item was loaded somewhere.
-  bool _act(ShareRoute route) {
+  bool get _presenting => ref.read(presentActiveProvider);
+
+  /// The busy guards (design spec, "Busy guards"), checked after routing and
+  /// before [route] is acted on: false drops the share. A decode or encode
+  /// in progress refuses it; Present on screen, or typed text the share
+  /// would replace, asks first. A staged file is replaced silently (it can
+  /// be picked again), and so is the optimiser's photo.
+  Future<bool> _clearToLoad(ShareRoute route) async {
+    final l10n = AppLocalizations.of(context)!;
+    switch (route) {
+      case ToImport():
+        if (_busyDecoding('/import', ref.read(importControllerProvider).isDecoding)) return false;
+      case ToCamera():
+        if (_busyDecoding('/camera', ref.read(cameraControllerProvider).isDecoding)) return false;
+      case ToSendText() || ToSendFile() || ToOptimiser():
+        if (ref.read(sendControllerProvider).busy) {
+          _refuse('/send', l10n.shareWhileEncoding);
+          return false;
+        }
+      case ShowTooLarge() || ShowUnreadable():
+        return true;
+    }
+    if (_presenting) {
+      if (!await _confirm(l10n.sharePresentConfirm)) return false;
+      // Close Present (its dispose restores the screen) before loading; that
+      // answer covers any typed text too.
+      rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+      return true;
+    }
+    final send = ref.read(sendControllerProvider);
+    final replacesText = switch (route) {
+      ToSendText() || ToSendFile() => true,
+      // An optimiser already open only swaps its photo; the text stays.
+      ToOptimiser() => !ref.read(photoOptimiserOpenProvider),
+      _ => false,
+    };
+    if (replacesText && send.mode == SendMode.text && send.text.isNotEmpty) {
+      return _confirm(l10n.shareReplaceTextConfirm);
+    }
+    return true;
+  }
+
+  Future<bool> _confirm(String message) async {
+    final navContext = rootNavigatorKey.currentContext;
+    if (navContext == null) return false;
+    final yes = await confirmShareReplace(navContext, message);
+    return yes && mounted;
+  }
+
+  /// Carries out [route] once the busy guards let it; true when the shared
+  /// item was loaded somewhere.
+  Future<bool> _act(ShareRoute route) async {
+    if (!await _clearToLoad(route)) return false;
+    if (!mounted) return false;
     final l10n = AppLocalizations.of(context)!;
     switch (route) {
       case ToSendText(:final text):
@@ -127,11 +199,9 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
         ref.read(sendControllerProvider.notifier).loadShared(SendMode.file, name: name, bytes: bytes);
         _goTo('/send');
       case ToImport(:final name, :final bytes):
-        if (_busyDecoding('/import', ref.read(importControllerProvider).isDecoding)) return false;
         ref.read(importControllerProvider.notifier).loadSharedFile(name, bytes);
         _goTo('/import');
       case ToCamera(:final bytes, :final path, :final result):
-        if (_busyDecoding('/camera', ref.read(cameraControllerProvider).isDecoding)) return false;
         // Not awaited: the state is set at once; only the auto-save follows.
         unawaited(ref.read(cameraControllerProvider.notifier).adoptDetected(bytes, path, result));
         _goTo('/camera');
@@ -140,14 +210,15 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
         // opens above the Send tab, where its Continue/Skip land.
         if (!ref.read(photoOptimiserOpenProvider)) _goTo('/send');
         final navContext = rootNavigatorKey.currentContext;
-        if (navContext == null) return false;
+        if (navContext == null || !navContext.mounted) return false;
         unawaited(openPhotoOptimiser(navContext, ref, photo));
       case ShowTooLarge(:final length):
         const max = CimbarSpec.maxInflatedBytes;
-        _goTo('/send');
-        _snack(length == null
-            ? l10n.shareTooLarge(formatSize(l10n, max))
-            : l10n.sendFileTooBig(formatSize(l10n, length), formatSize(l10n, max)));
+        _refuse(
+            '/send',
+            length == null
+                ? l10n.shareTooLarge(formatSize(l10n, max))
+                : l10n.sendFileTooBig(formatSize(l10n, length), formatSize(l10n, max)));
         return false;
       case ShowUnreadable():
         _snack(l10n.shareReadFailed);
@@ -161,9 +232,15 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
   /// selected: when [busy], show the running decode at [location] instead.
   bool _busyDecoding(String location, bool busy) {
     if (!busy) return false;
-    _goTo(location);
-    _snack(AppLocalizations.of(context)!.shareWhileDecoding);
+    _refuse(location, AppLocalizations.of(context)!.shareWhileDecoding);
     return true;
+  }
+
+  /// Drops the share with [message], showing [location] — unless Present is
+  /// on screen: a share that isn't loaded never stops a presentation.
+  void _refuse(String location, String message) {
+    if (!_presenting) _goTo(location);
+    _snack(message);
   }
 
   /// Switches to the tab at [location], first popping the root navigator back to

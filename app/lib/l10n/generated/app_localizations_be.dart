@@ -573,4 +573,24 @@ class AppLocalizationsBe extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Двойчы націсніце, каб увесці лік';
+
+  @override
+  String get shareWhileEncoding =>
+      'Спачатку дачакайцеся заканчэння стварэння бягучага штрых-кода, потым падзяліцеся зноў.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Спыніць паказ і загрузіць атрыманы элемент?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Замяніць уведзены тэкст?';
+
+  @override
+  String get shareSendInstead => 'Адправіць гэта фота';
+
+  @override
+  String get commonYes => 'Так';
+
+  @override
+  String get commonNo => 'Не';
 }

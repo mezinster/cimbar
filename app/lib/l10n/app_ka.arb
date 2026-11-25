@@ -138,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} KB",
   "photoFewerFrames": "ნაკლები კადრი",
   "photoMoreFrames": "მეტი კადრი",
-  "photoEditFrameCount": "ორჯერ შეეხეთ რიცხვის შესაყვანად"
+  "photoEditFrameCount": "ორჯერ შეეხეთ რიცხვის შესაყვანად",
+  "shareWhileEncoding": "ჯერ დაელოდეთ მიმდინარე შტრიხკოდის შექმნის დასრულებას, შემდეგ ხელახლა გააზიარეთ.",
+  "sharePresentConfirm": "შეწყდეს ჩვენება და ჩაიტვირთოს გაზიარებული ელემენტი?",
+  "shareReplaceTextConfirm": "ჩანაცვლდეს თქვენ მიერ აკრეფილი ტექსტი?",
+  "shareSendInstead": "ამის ნაცვლად ამ ფოტოს გაგზავნა",
+  "commonYes": "დიახ",
+  "commonNo": "არა"
 }

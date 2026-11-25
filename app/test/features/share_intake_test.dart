@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,9 @@ import 'package:cimbar_scanner/features/photo/data/photo_temp.dart';
 import 'package:cimbar_scanner/features/photo/data/platform_jpeg_session.dart';
 import 'package:cimbar_scanner/features/photo/presentation/photo_optimiser_provider.dart';
 import 'package:cimbar_scanner/features/photo/presentation/photo_optimiser_screen.dart';
+import 'package:cimbar_scanner/core/encode/payload_encoder.dart';
+import 'package:cimbar_scanner/features/send/present_screen.dart';
+import 'package:cimbar_scanner/features/send/screen_controls.dart';
 import 'package:cimbar_scanner/features/send/send_controller.dart';
 import 'package:cimbar_scanner/features/send/send_screen.dart';
 import 'package:flutter/services.dart';
@@ -92,6 +96,31 @@ class _DecodingCameraController extends CameraController {
     // A real image (the Camera tab renders it), distinct from the shared photoFixture.
     state = CameraState(capturedPhotoBytes: File('test/fixtures/crop_frame_2.png').readAsBytesSync(), isDecoding: true);
   }
+}
+
+/// A [SendController] that starts mid-encode with a staged file.
+class _BusySendController extends SendController {
+  _BusySendController() {
+    state = SendState(mode: SendMode.file, fileName: 'old.bin', fileBytes: Uint8List.fromList([1, 2, 3]), busy: true);
+  }
+}
+
+class _FakeScreenControls implements ScreenControls {
+  final log = <String>[];
+  @override
+  Future<void> keepAwake(bool on) async => log.add('awake:$on');
+  @override
+  Future<void> maxBrightness() async => log.add('max');
+  @override
+  Future<void> restoreBrightness() async => log.add('restore');
+}
+
+/// Writes a small PDF into a fresh temp directory and returns its share.
+SharedMedia pdfShare(String name) {
+  final temp = Directory.systemTemp.createTempSync('share_pdf');
+  addTearDown(() => temp.deleteSync(recursive: true));
+  final pdf = File('${temp.path}/$name')..writeAsBytesSync('%PDF-1.4\n'.codeUnits);
+  return SharedMedia(attachments: [SharedAttachment(path: pdf.path, type: SharedAttachmentType.file)]);
 }
 
 Future<ProviderContainer> pumpApp(
@@ -407,5 +436,190 @@ void main() {
 
     expect(find.text('Finish the current decode first, then share the file again.'), findsOneWidget);
     expect(container.read(cameraControllerProvider).capturedPhotoBytes, File('test/fixtures/crop_frame_2.png').readAsBytesSync());
+  });
+
+  group('busy guards', () {
+    const encodingMsg = 'Finish creating the current barcode first, then share again.';
+
+    testWidgets('a PDF shared while Send is encoding shows a message and keeps the file', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source,
+          extraOverrides: [sendControllerProvider.overrideWith((ref) => _BusySendController())]);
+
+      source.controller.add(pdfShare('report.pdf'));
+      await settleIo(tester);
+
+      expect(find.text(encodingMsg), findsOneWidget);
+      expect(find.byType(SendScreen), findsOneWidget);
+      final send = container.read(sendControllerProvider);
+      expect(send.fileName, 'old.bin');
+      expect(send.fileBytes, [1, 2, 3]);
+    });
+
+    testWidgets('a photo shared while Send is encoding does not open the optimiser', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source,
+          extraOverrides: [sendControllerProvider.overrideWith((ref) => _BusySendController())]);
+
+      source.controller.add(photoShare(photoFixture));
+      await settleUntil(tester, () => find.text(encodingMsg).evaluate().isNotEmpty);
+
+      expect(find.text(encodingMsg), findsOneWidget);
+      expect(container.read(photoOptimiserOpenProvider), isFalse);
+      expect(find.byType(PhotoOptimiserScreen), findsNothing);
+    });
+
+    /// Opens Send with [text] typed and Present on top of it.
+    Future<_FakeScreenControls> present(WidgetTester tester, ProviderContainer container) async {
+      container.read(sendControllerProvider.notifier).setText('old text');
+      await tester.tap(find.byIcon(Icons.send_outlined));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final controls = _FakeScreenControls();
+      final payload = PayloadEncoder.encode(name: 'n.txt', bytes: Uint8List(10), allowCompression: false);
+      // toImage never completes, so no frame timer runs; the screen just stays up.
+      unawaited(rootNavigatorKey.currentState!.push(MaterialPageRoute<void>(
+          builder: (_) => PresentScreen(payload: payload, delayMs: 100, controls: controls,
+              toImage: (_) => Completer<ui.Image>().future))));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(PresentScreen), findsOneWidget);
+      expect(container.read(presentActiveProvider), isTrue);
+      return controls;
+    }
+
+    testWidgets('a share while Presenting asks first; No keeps Present and the old input', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      await present(tester, container);
+
+      source.controller.add(pdfShare('report.pdf'));
+      await settleIo(tester);
+
+      expect(find.text('Stop presenting and load the shared item?'), findsOneWidget);
+      await tester.tap(find.text('No'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(PresentScreen), findsOneWidget);
+      final send = container.read(sendControllerProvider);
+      expect(send.mode, SendMode.text);
+      expect(send.text, 'old text');
+      expect(send.fileName, isNull);
+    });
+
+    testWidgets('a share while Presenting: Yes closes Present, restores the screen and loads the share', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      final controls = await present(tester, container);
+
+      source.controller.add(pdfShare('report.pdf'));
+      await settleIo(tester);
+      await tester.tap(find.text('Yes'));
+      await settleIo(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(PresentScreen), findsNothing);
+      expect(find.text('Replace the text you typed?'), findsNothing, reason: 'one question is enough');
+      expect(controls.log, containsAll(['awake:false', 'restore']));
+      expect(container.read(presentActiveProvider), isFalse);
+      final send = container.read(sendControllerProvider);
+      expect(send.mode, SendMode.file);
+      expect(send.fileName, 'report.pdf');
+      expect(find.byType(SendScreen), findsOneWidget);
+    });
+
+    testWidgets('a refused share while Presenting leaves Present showing', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      final controls = await present(tester, container);
+
+      source.controller.add(SharedMedia(attachments: [
+        SharedAttachment(path: 'cimbar-too-large:1000000000', type: SharedAttachmentType.video),
+      ]));
+      await settleIo(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(AlertDialog), findsNothing, reason: 'nothing would be loaded, so nothing to ask');
+      expect(find.byType(PresentScreen), findsOneWidget);
+      expect(controls.log, isNot(contains('awake:false')));
+      expect(find.text('File too large: 953.7 MB (limit 128.0 MB).'), findsOneWidget);
+    });
+
+    testWidgets('shared text over typed text asks first; No keeps the typed text', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier).setText('my typed text');
+
+      source.controller.add(SharedMedia(content: 'shared text'));
+      await settleIo(tester);
+
+      expect(find.text('Replace the text you typed?'), findsOneWidget);
+      await tester.tap(find.text('No'));
+      await settleIo(tester);
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(sendControllerProvider).text, 'my typed text');
+    });
+
+    testWidgets('shared text over typed text: Yes replaces it', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier).setText('my typed text');
+
+      source.controller.add(SharedMedia(content: 'shared text'));
+      await settleIo(tester);
+      await tester.tap(find.text('Yes'));
+      await settleIo(tester);
+
+      expect(container.read(sendControllerProvider).text, 'shared text');
+      expect(find.byType(SendScreen), findsOneWidget);
+    });
+
+    testWidgets('a PDF shared while typed text is in Text mode asks first', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier).setText('my typed text');
+
+      source.controller.add(pdfShare('report.pdf'));
+      await settleIo(tester);
+
+      expect(find.text('Replace the text you typed?'), findsOneWidget);
+      await tester.tap(find.text('No'));
+      await settleIo(tester);
+      final send = container.read(sendControllerProvider);
+      expect(send.mode, SendMode.text);
+      expect(send.fileName, isNull);
+    });
+
+    testWidgets('a staged file is replaced by a shared PDF without asking', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier)
+        ..setMode(SendMode.file)
+        ..setFile('old.bin', Uint8List.fromList([1, 2, 3]));
+
+      source.controller.add(pdfShare('report.pdf'));
+      await settleIo(tester);
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(sendControllerProvider).fileName, 'report.pdf');
+    });
+
+    testWidgets('a photo shared while the optimiser is open replaces its photo without asking', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      source.controller.add(photoShare(photoFixture));
+      await settleUntil(tester, () => container.read(photoOptimiserOpenProvider));
+      expect(container.read(pendingPhotoProvider)!.name, 'crop_frame_1.png');
+
+      source.controller.add(photoShare(File('test/fixtures/crop_frame_2.png').absolute.path));
+      await settleUntil(tester, () => container.read(pendingPhotoProvider)!.name == 'crop_frame_2.png');
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(pendingPhotoProvider)!.name, 'crop_frame_2.png');
+      expect(find.byType(PhotoOptimiserScreen), findsOneWidget);
+    });
   });
 }

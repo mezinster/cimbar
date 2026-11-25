@@ -138,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} КБ",
   "photoFewerFrames": "Менше кадрів",
   "photoMoreFrames": "Більше кадрів",
-  "photoEditFrameCount": "Двічі торкніться, щоб ввести число"
+  "photoEditFrameCount": "Двічі торкніться, щоб ввести число",
+  "shareWhileEncoding": "Спершу дочекайтеся завершення створення поточного штрих-коду, потім поділіться знову.",
+  "sharePresentConfirm": "Зупинити показ і завантажити отриманий елемент?",
+  "shareReplaceTextConfirm": "Замінити введений текст?",
+  "shareSendInstead": "Надіслати це фото",
+  "commonYes": "Так",
+  "commonNo": "Ні"
 }

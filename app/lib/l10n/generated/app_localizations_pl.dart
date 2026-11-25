@@ -567,4 +567,24 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Dotknij dwukrotnie, aby wpisać liczbę';
+
+  @override
+  String get shareWhileEncoding =>
+      'Najpierw zaczekaj, aż bieżący kod kreskowy zostanie utworzony, a potem udostępnij ponownie.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Zakończyć wyświetlanie i wczytać udostępniony element?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Zastąpić wpisany tekst?';
+
+  @override
+  String get shareSendInstead => 'Wyślij zamiast tego to zdjęcie';
+
+  @override
+  String get commonYes => 'Tak';
+
+  @override
+  String get commonNo => 'Nie';
 }

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/encode/cell_grid.dart';
 import '../../core/encode/frame_raster.dart';
@@ -17,6 +18,11 @@ Future<ui.Image> _rgbaToImage(Uint8List rgba) {
   ui.decodeImageFromPixels(rgba, CimbarSpec.framePx, CimbarSpec.framePx, ui.PixelFormat.rgba8888, c.complete);
   return c.future;
 }
+
+/// True while a [PresentScreen] is on screen, so a share arriving meanwhile
+/// asks before stopping it. Set and cleared by the screen itself (in
+/// initState/dispose), however it is closed.
+final presentActiveProvider = StateProvider<bool>((_) => false);
 
 class PresentScreen extends StatefulWidget {
   final EncodedPayload payload;
@@ -48,11 +54,28 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
   /// chain, and every exit ends with the screen restored.
   int _run = 0;
 
+  late final ProviderContainer _container;
+
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    // Riverpod refuses provider writes from widget life-cycle methods, so
+    // both writes run just after the current frame's build.
+    Future.microtask(() {
+      if (mounted) _setActive(true);
+    });
     WidgetsBinding.instance.addObserver(this);
     _start();
+  }
+
+  void _setActive(bool active) {
+    try {
+      _container.read(presentActiveProvider.notifier).state = active;
+    } on StateError {
+      // The container went away with the app (a ProviderScope disposed
+      // together with this screen): nothing is left to tell.
+    }
   }
 
   /// Screen settings are best-effort: a plugin that throws (synchronously or
@@ -133,6 +156,7 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
       _run++;
     }
     _image?.dispose();
+    Future.microtask(() => _setActive(false));
     super.dispose();
   }
 

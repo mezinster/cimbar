@@ -491,4 +491,25 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'ორჯერ შეეხეთ რიცხვის შესაყვანად';
+
+  @override
+  String get shareWhileEncoding =>
+      'ჯერ დაელოდეთ მიმდინარე შტრიხკოდის შექმნის დასრულებას, შემდეგ ხელახლა გააზიარეთ.';
+
+  @override
+  String get sharePresentConfirm =>
+      'შეწყდეს ჩვენება და ჩაიტვირთოს გაზიარებული ელემენტი?';
+
+  @override
+  String get shareReplaceTextConfirm =>
+      'ჩანაცვლდეს თქვენ მიერ აკრეფილი ტექსტი?';
+
+  @override
+  String get shareSendInstead => 'ამის ნაცვლად ამ ფოტოს გაგზავნა';
+
+  @override
+  String get commonYes => 'დიახ';
+
+  @override
+  String get commonNo => 'არა';
 }

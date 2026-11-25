@@ -138,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} КБ",
   "photoFewerFrames": "Менш кадраў",
   "photoMoreFrames": "Больш кадраў",
-  "photoEditFrameCount": "Двойчы націсніце, каб увесці лік"
+  "photoEditFrameCount": "Двойчы націсніце, каб увесці лік",
+  "shareWhileEncoding": "Спачатку дачакайцеся заканчэння стварэння бягучага штрых-кода, потым падзяліцеся зноў.",
+  "sharePresentConfirm": "Спыніць паказ і загрузіць атрыманы элемент?",
+  "shareReplaceTextConfirm": "Замяніць уведзены тэкст?",
+  "shareSendInstead": "Адправіць гэта фота",
+  "commonYes": "Так",
+  "commonNo": "Не"
 }

@@ -923,6 +923,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Double-tap to type the number'**
   String get photoEditFrameCount;
+
+  /// SnackBar when something is shared to CimBar while the Send tab is still encoding or building a GIF; the share is dropped
+  ///
+  /// In en, this message translates to:
+  /// **'Finish creating the current barcode first, then share again.'**
+  String get shareWhileEncoding;
+
+  /// Dialog when something is shared to CimBar while the Present screen is showing; Yes stops presenting and loads the shared item
+  ///
+  /// In en, this message translates to:
+  /// **'Stop presenting and load the shared item?'**
+  String get sharePresentConfirm;
+
+  /// Dialog when something shared to CimBar would replace text the user typed on the Send tab
+  ///
+  /// In en, this message translates to:
+  /// **'Replace the text you typed?'**
+  String get shareReplaceTextConfirm;
+
+  /// Camera tab button under a shared photo that failed to decode; opens the photo optimiser to send the photo instead
+  ///
+  /// In en, this message translates to:
+  /// **'Send this photo instead'**
+  String get shareSendInstead;
+
+  /// Generic Yes button in a confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get commonYes;
+
+  /// Generic No button in a confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get commonNo;
 }
 
 class _AppLocalizationsDelegate
