@@ -78,7 +78,7 @@ Unchanged from NFC Archiver: presets **320, 480, 640, 800, 1024, 1280, 1440, 160
 
 ### Which picks go to the optimiser
 
-- **Choose photo**: always.
+- **Choose photo**: always, except a GIF (see the next line), which is loaded as a plain file.
 - **Choose file** returning `jpg/jpeg/png/heic/heif/webp` (by extension): yes, Skip is one tap away. **GIF is excluded** (optimising flattens animation, and a GIF is what Send produces; it stays a file).
 - A shared photo that detection says is *not* a barcode: yes (see below).
 
