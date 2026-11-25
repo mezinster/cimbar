@@ -147,6 +147,22 @@ void main() {
       expect(container.read(pendingPhotoProvider)!.name, 'IMG_9.jpg');
     });
 
+    for (final name in ['saved.gif', 'SHARED.GIF']) {
+      testWidgets('Choose photo keeps $name as a plain file', (tester) async {
+        final picker = installFakeFilePicker();
+        final container = await pumpSend(tester);
+        picker.next = [picked(name, 5000)];
+        await tester.tap(find.byKey(const Key('sendChoosePhoto')));
+        await settle(tester);
+        expect(picker.types, [FileType.image]);
+        expect(find.byType(PhotoOptimiserScreen), findsNothing);
+        final send = container.read(sendControllerProvider);
+        expect(send.mode, SendMode.file);
+        expect(send.fileName, name);
+        expect(send.fileBytes!.length, 5000);
+      });
+    }
+
     testWidgets('Text mode has no Choose photo', (tester) async {
       await pumpSend(tester);
       await tester.tap(find.text('Text'));
