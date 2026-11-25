@@ -87,3 +87,16 @@ internal fun reportedSize(resolver: ContentResolver, uri: Uri): Long? {
         null
     }
 }
+
+/**
+ * True when a provider-reported [reported] size is above the [remaining] budget,
+ * so the share is refused without copying. An unreported size (null) is copied,
+ * and [copyCapped] stops it at the budget.
+ */
+internal fun shouldSkipCopy(reported: Long?, remaining: Long): Boolean =
+    reported != null && reported > remaining
+
+// CimBar patch, third fix (see CIMBAR_PATCH.md, "Third fix: copy every content URI").
+
+/** True for a `content://` URI's [scheme], the only kind FileDirectory copies. */
+internal fun isContentScheme(scheme: String?): Boolean = "content".equals(scheme, ignoreCase = true)

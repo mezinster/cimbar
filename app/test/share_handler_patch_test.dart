@@ -41,6 +41,21 @@ void main() {
     }
   });
 
+  test('every content:// URI is copied, never resolved to a path (third fix)', () {
+    final src = File('$plugin/FileDirectory.kt').readAsStringSync();
+    // Upstream's DocumentsContract heuristics returned paths CimBar can't read
+    // with CAMERA as its only permission: the `_data` column (a path under
+    // /storage/emulated/0) and getExternalFilesDir(null)/<relative path>.
+    expect(src, isNot(contains('"_data"')), reason: 'no _data column lookup');
+    expect(src, isNot(contains('getExternalFilesDir')), reason: 'no external-files path for a document');
+    expect(src, isNot(contains('DocumentsContract')), reason: 'documents take the same copy as any content URI');
+    expect(src, contains('isContentScheme('), reason: 'content URIs are recognised by isContentScheme');
+    for (final name in ['FileDirectory.kt', 'ShareHandlerPlugin.kt']) {
+      expect(File('$plugin/$name').readAsStringSync(), contains('shouldSkipCopy('),
+          reason: '$name must decide on the reported size through shouldSkipCopy');
+    }
+  });
+
   test('the Kotlin share cap equals CimbarSpec.maxInflatedBytes', () {
     final src = File('$plugin/SafeCacheFile.kt').readAsStringSync();
     final m = RegExp(r'const val SHARE_SIZE_CAP: Long = (\d+)L').firstMatch(src);

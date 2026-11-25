@@ -263,8 +263,8 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
 
       // CimBar patch: refuse shares above the cap instead of copying them on the main thread.
       val size = reportedSize(contentResolver, uri)
-      if (size != null && size > budget.remaining) {
-        return tooLargeAttachment(size, mimeType)
+      if (shouldSkipCopy(size, budget.remaining)) {
+        return tooLargeAttachment(size ?: -1, mimeType)
       }
 
       // Copy the contents from the URI to the new file
