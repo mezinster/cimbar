@@ -137,7 +137,10 @@ Future<String> stageSharedFile(
   final dir = Directory('${tempBase.path}/share_in/${DateTime.now().microsecondsSinceEpoch}');
   await dir.create(recursive: true);
   final dest = '${dir.path}/${FileService.safeBasename(f.name)}';
-  await File(f.path).copy(dest);
+  final copy = await File(f.path).copy(dest);
+  // iOS keeps the source's modified time on a copy; stamp it now so launch
+  // cleanup (clearPhotoTemp, files older than launch) never takes it for a leftover.
+  await copy.setLastModified(DateTime.now());
   await deletePluginCopy(f.path, cacheDir: cacheDir, ios: ios);
   return dest;
 }

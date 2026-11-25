@@ -33,12 +33,17 @@ Future<void> clearPhotoTemp({
   }
 }
 
+/// Deletes what in [dir] was last modified before [olderThan]. A folder
+/// modified since launch is skipped whole, contents included: a cold-start
+/// share being staged creates its folder before copying the file in, and that
+/// still-empty folder must not be swept away underneath it.
 Future<void> _clearStale(Directory dir, DateTime olderThan) async {
   await for (final entity in dir.list(followLinks: false)) {
+    if (!(await entity.stat()).modified.isBefore(olderThan)) continue;
     if (entity is Directory) {
       await _clearStale(entity, olderThan);
       if (await entity.list().isEmpty) await entity.delete();
-    } else if ((await entity.stat()).modified.isBefore(olderThan)) {
+    } else {
       await entity.delete();
     }
   }

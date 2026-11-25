@@ -110,6 +110,17 @@ void main() {
     expect(orig.existsSync(), isFalse);
   });
 
+  test("stageSharedFile stamps the staged copy with now, whatever the original's age", () async {
+    // iOS File.copy keeps the source's modified time; launch cleanup must
+    // never take a fresh staged copy for a leftover.
+    final base = Directory('${tmp.path}/base')..createSync();
+    final orig = make('old.heic', 3)..setLastModifiedSync(DateTime(2020));
+    final before = DateTime.now().subtract(const Duration(seconds: 1));
+    final staged = await stageSharedFile(SharedFileItem(name: 'old.heic', path: orig.path, length: 3),
+        tempBase: base, cacheDir: '${tmp.path}/cache');
+    expect(File(staged).lastModifiedSync().isBefore(before), isFalse);
+  });
+
   test('stageSharedFile keeps an original outside cacheDir and sanitises the name', () async {
     final cache = Directory('${tmp.path}/cache')..createSync();
     final base = Directory('${tmp.path}/base')..createSync();
