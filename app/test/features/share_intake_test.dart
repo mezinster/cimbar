@@ -99,11 +99,12 @@ Future<ProviderContainer> pumpApp(
   FakeShareSource source, {
   List<Override> extraOverrides = const [],
   PixelDecoder pixels = blankDecoder,
+  Directory? tempDir,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
-  final temp = Directory.systemTemp.createTempSync('share_intake');
-  addTearDown(() => temp.deleteSync(recursive: true));
+  final temp = tempDir ?? Directory.systemTemp.createTempSync('share_intake');
+  if (tempDir == null) addTearDown(() => temp.deleteSync(recursive: true));
   final container = ProviderContainer(overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
     shareSourceProvider.overrideWithValue(source),
@@ -335,6 +336,21 @@ void main() {
     expect(send.fileBytes, pdf.readAsBytesSync());
     expect(find.byType(SendScreen), findsOneWidget);
     expect(find.text('report.pdf'), findsOneWidget);
+  });
+
+  testWidgets("a shared file in the plugin's cache is loaded, then its copy deleted", (tester) async {
+    final source = FakeShareSource();
+    // The temp directory doubles as the plugin's cacheDir, as on Android.
+    final temp = Directory.systemTemp.createTempSync('share_cache');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final pdf = File('${temp.path}/report.pdf')..writeAsBytesSync('%PDF-1.4'.codeUnits);
+    final container = await pumpApp(tester, source, tempDir: temp);
+
+    source.controller.add(SharedMedia(attachments: [SharedAttachment(path: pdf.path, type: SharedAttachmentType.file)]));
+    await settleIo(tester);
+
+    expect(container.read(sendControllerProvider).fileBytes, '%PDF-1.4'.codeUnits);
+    expect(pdf.existsSync(), isFalse);
   });
 
   testWidgets('several shared items: the first is used and a SnackBar says so', (tester) async {

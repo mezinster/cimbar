@@ -34,8 +34,9 @@ typedef PixelDecoder = Future<DecodedPixels> Function(String path, {int maxPixel
 
 final pixelDecoderProvider = Provider<PixelDecoder>((_) => decodePixels);
 
-/// Tries to read a CimBar barcode out of the photo at [path].
-Future<PhotoDecodeResult> detectSharedPhoto(String path, PixelDecoder decode) async {
+/// Tries to read a CimBar barcode out of the photo at [path], decrypting with
+/// [passphrase] if it has one.
+Future<PhotoDecodeResult> detectSharedPhoto(String path, PixelDecoder decode, {String passphrase = ''}) async {
   final DecodedPixels px;
   try {
     px = await decode(path, maxPixels: 12000000);
@@ -44,7 +45,7 @@ Future<PhotoDecodeResult> detectSharedPhoto(String path, PixelDecoder decode) as
   } on PhotoMemoryException {
     return const PhotoDecodeResult(error: 'Not enough memory to decode image', errorCode: 'unreadable_image');
   }
-  return decodePhotoPixels(px, '');
+  return decodePhotoPixels(px, passphrase);
 }
 
 /// True when the decode found a CimBar barcode (even one we can't finish).

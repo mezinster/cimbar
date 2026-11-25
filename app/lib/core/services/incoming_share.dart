@@ -98,17 +98,43 @@ Future<({ShareItem? item, int count})> readShare(SharedMedia media, {int cap = C
 }
 
 /// Copies [f] into `<tempBase>/share_in/<timestamp>/<safe name>` and returns the
-/// new path, then deletes the original if it was only the plugin's cache copy
-/// (under [cacheDir]) or an iOS App Group copy.
+/// new path, then deletes the original if it was only the plugin's copy
+/// ([deletePluginCopy]).
 Future<String> stageSharedFile(SharedFileItem f, {required Directory tempBase, required String cacheDir}) async {
   final dir = Directory('${tempBase.path}/share_in/${DateTime.now().microsecondsSinceEpoch}');
   await dir.create(recursive: true);
   final dest = '${dir.path}/${FileService.safeBasename(f.name)}';
   await File(f.path).copy(dest);
-  if (f.path.startsWith(cacheDir) || f.path.contains('/Shared/AppGroup/')) {
-    try {
-      await File(f.path).delete();
-    } catch (_) {}
-  }
+  await deletePluginCopy(f.path, cacheDir: cacheDir);
   return dest;
+}
+
+/// [path] with `.`/`..` segments resolved and no trailing separator.
+String _normalise(String path) {
+  var p = Uri.file(path).normalizePath().toFilePath();
+  final sep = Platform.pathSeparator;
+  while (p.length > 1 && p.endsWith(sep)) {
+    p = p.substring(0, p.length - 1);
+  }
+  return p;
+}
+
+/// True when [path] is [dir] or inside it, after normalising both — so
+/// `<cache>_other/x` and `<cache>/../x` are not inside `<cache>`.
+bool isWithinDir(String path, String dir) {
+  final p = _normalise(path);
+  final d = _normalise(dir);
+  final sep = Platform.pathSeparator;
+  return p == d || p.startsWith(d.endsWith(sep) ? d : '$d$sep');
+}
+
+/// Deletes [path] if, and only if, it is the share plugin's own copy: inside
+/// [cacheDir] (Android) or an iOS App Group container. Anything else is a
+/// file the app doesn't own and is left alone. Never throws.
+Future<void> deletePluginCopy(String path, {required String cacheDir}) async {
+  try {
+    if (isWithinDir(path, cacheDir) || _normalise(path).contains('/Shared/AppGroup/')) {
+      await File(path).delete();
+    }
+  } catch (_) {}
 }

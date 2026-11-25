@@ -86,4 +86,48 @@ void main() {
     expect(staged, startsWith('${base.path}/share_in/'));
     expect(orig.existsSync(), isTrue);
   });
+
+  group('deletePluginCopy', () {
+    late Directory cache;
+    setUp(() => cache = Directory('${tmp.path}/cache')..createSync());
+
+    test('deletes a file inside cacheDir, with or without a trailing separator', () async {
+      final a = File('${cache.path}/a.pdf')..writeAsBytesSync([1]);
+      final b = File('${cache.path}/sub/b.pdf')..createSync(recursive: true);
+      await deletePluginCopy(a.path, cacheDir: cache.path);
+      await deletePluginCopy(b.path, cacheDir: '${cache.path}/');
+      expect(a.existsSync(), isFalse);
+      expect(b.existsSync(), isFalse);
+    });
+
+    test('keeps a file outside cacheDir, in a sibling with the same prefix, or reached by ..', () async {
+      final outside = make('outside.pdf', 1);
+      final sibling = File('${tmp.path}/cache_other/x.pdf')..createSync(recursive: true);
+      final dotdot = make('escaped.pdf', 1);
+      await deletePluginCopy(outside.path, cacheDir: cache.path);
+      await deletePluginCopy(sibling.path, cacheDir: cache.path);
+      await deletePluginCopy('${cache.path}/../escaped.pdf', cacheDir: cache.path);
+      expect(outside.existsSync(), isTrue);
+      expect(sibling.existsSync(), isTrue);
+      expect(dotdot.existsSync(), isTrue);
+    });
+
+    test('deletes an iOS App Group copy', () async {
+      final f = File('${tmp.path}/Shared/AppGroup/1234/x.gif')..createSync(recursive: true);
+      await deletePluginCopy(f.path, cacheDir: cache.path);
+      expect(f.existsSync(), isFalse);
+    });
+
+    test('a missing file is not an error', () async {
+      await deletePluginCopy('${cache.path}/gone', cacheDir: cache.path);
+    });
+  });
+
+  test('stageSharedFile keeps an original in a sibling of cacheDir with the same prefix', () async {
+    final cache = Directory('${tmp.path}/cache')..createSync();
+    final base = Directory('${tmp.path}/base')..createSync();
+    final orig = File('${tmp.path}/cache_other/p.png')..createSync(recursive: true);
+    await stageSharedFile(SharedFileItem(name: 'p.png', path: orig.path, length: 0), tempBase: base, cacheDir: cache.path);
+    expect(orig.existsSync(), isTrue);
+  });
 }

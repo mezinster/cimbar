@@ -63,6 +63,7 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
         item,
         decodePixels: ref.read(pixelDecoderProvider),
         stage: _stage,
+        release: _release,
         onDetecting: _showChecking,
       );
       _hideChecking();
@@ -82,6 +83,12 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
     final temp = await ref.read(photoTempDirProvider)();
     // On Android the plugin copies into cacheDir, which is the temp directory.
     return stageSharedFile(f, tempBase: temp, cacheDir: temp.path);
+  }
+
+  /// Deletes the plugin's copy of a GIF or other file once it is read.
+  Future<void> _release(SharedFileItem f) async {
+    final temp = await ref.read(photoTempDirProvider)();
+    await deletePluginCopy(f.path, cacheDir: temp.path);
   }
 
   bool _checking = false;

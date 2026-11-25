@@ -63,10 +63,13 @@ class ShowUnreadable extends ShareRoute {
 /// that result, anything else (including any detection failure) the
 /// optimiser; everything else is sent as a file. [onDetecting] fires just
 /// before a photo is staged and detected, so the caller can show progress.
+/// [release] is called with a GIF or other file once its bytes are in memory,
+/// to delete the share plugin's copy (a photo's copy goes in [stage]).
 Future<ShareRoute> routeShare(
   ShareItem item, {
   required PixelDecoder decodePixels,
   required Future<String> Function(SharedFileItem) stage,
+  Future<void> Function(SharedFileItem)? release,
   void Function()? onDetecting,
 }) async {
   switch (item) {
@@ -78,7 +81,7 @@ Future<ShareRoute> routeShare(
       return const ShowUnreadable();
     case SharedFileItem():
       try {
-        return await _routeFile(item, decodePixels, stage, onDetecting);
+        return await _routeFile(item, decodePixels, stage, release, onDetecting);
       } on FileSystemException {
         // Gone or unreadable between readShare and here.
         return const ShowUnreadable();
@@ -90,11 +93,20 @@ Future<ShareRoute> _routeFile(
   SharedFileItem item,
   PixelDecoder decodePixels,
   Future<String> Function(SharedFileItem) stage,
+  Future<void> Function(SharedFileItem)? release,
   void Function()? onDetecting,
 ) async {
+  // Read fully before releasing, so the copy can go even if a busy guard
+  // then drops the share.
+  Future<Uint8List> readAndRelease() async {
+    final bytes = await File(item.path).readAsBytes();
+    await release?.call(item);
+    return bytes;
+  }
+
   switch (sniffKind(await _readHead(item.path))) {
     case ShareKind.gif:
-      final bytes = await File(item.path).readAsBytes();
+      final bytes = await readAndRelease();
       return GifParser.isCimbarGif(bytes) ? ToImport(item.name, bytes) : ToSendFile(item.name, bytes);
     case ShareKind.image:
       onDetecting?.call();
@@ -112,7 +124,7 @@ Future<ShareRoute> _routeFile(
       if (!isBarcodeOutcome(r)) return toOptimiser;
       return ToCamera(await File(staged).readAsBytes(), staged, r);
     case ShareKind.other:
-      return ToSendFile(item.name, await File(item.path).readAsBytes());
+      return ToSendFile(item.name, await readAndRelease());
   }
 }
 

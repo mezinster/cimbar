@@ -10,10 +10,12 @@ import '../../core/models/decode_result.dart';
 import '../../core/services/decode_pipeline.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/photo_decoder.dart';
+import '../../core/services/share_detection.dart';
+import '../photo/data/platform_jpeg_session.dart' as platform;
 
 final cameraControllerProvider =
     StateNotifierProvider<CameraController, CameraState>((ref) {
-  return CameraController();
+  return CameraController(decodePixels: ref.read(pixelDecoderProvider));
 });
 
 /// [errorCode] is the stable tag [PhotoDecodeResult] produced ('multi_frame',
@@ -69,7 +71,13 @@ class CameraState {
 }
 
 class CameraController extends StateNotifier<CameraState> {
-  CameraController() : super(const CameraState());
+  /// [decodePixels] reads a shared photo natively (HEIC included) when it is
+  /// decoded again, e.g. with a passphrase.
+  CameraController({PixelDecoder? decodePixels})
+      : _decodePixels = decodePixels ?? platform.decodePixels,
+        super(const CameraState());
+
+  final PixelDecoder _decodePixels;
 
   final _gifPipeline = DecodePipeline();
   final _picker = ImagePicker();
@@ -128,7 +136,20 @@ class CameraController extends StateNotifier<CameraState> {
         }
       }
     } else {
-      await _applyPhotoResult(await decodePhotoBytes(bytes, passphrase));
+      final path = state.capturedPhotoPath;
+      // A shared photo may be HEIC, which the image package behind
+      // decodePhotoBytes can't read: decode it natively, like detection did.
+      await _applyPhotoResult(state.fromShare && path != null
+          ? await _decodeShared(path, passphrase)
+          : await decodePhotoBytes(bytes, passphrase));
+    }
+  }
+
+  Future<PhotoDecodeResult> _decodeShared(String path, String passphrase) async {
+    try {
+      return await detectSharedPhoto(path, _decodePixels, passphrase: passphrase);
+    } catch (_) {
+      return const PhotoDecodeResult(error: 'Cannot decode image', errorCode: 'unreadable_image');
     }
   }
 

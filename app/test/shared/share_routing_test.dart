@@ -159,4 +159,25 @@ void main() {
     await routeShare(file('IMG_4.png', png), decodePixels: blank, stage: stage, onDetecting: () => detecting++);
     expect(detecting, 1);
   });
+
+  test('a GIF or other file is released after it is read; a photo is not (staging handles it)', () async {
+    final released = <String>[];
+    Future<void> release(SharedFileItem f) async {
+      expect(File(f.path).existsSync(), isTrue, reason: 'released only after reading');
+      released.add(f.path);
+    }
+
+    final gif = file('hello.gif', File('../test-data/goldens/hello.gif').readAsBytesSync());
+    final r1 = await routeShare(gif, decodePixels: neverDecode, stage: stage, release: release);
+    expect(r1, isA<ToImport>());
+    final noise = file('cat.gif', noiseGif(608));
+    await routeShare(noise, decodePixels: neverDecode, stage: stage, release: release);
+    final pdf = file('a.pdf', '%PDF-1.4'.codeUnits);
+    final r3 = await routeShare(pdf, decodePixels: neverDecode, stage: stage, release: release);
+    expect((r3 as ToSendFile).bytes, '%PDF-1.4'.codeUnits);
+    expect(released, [gif.path, noise.path, pdf.path]);
+
+    await routeShare(file('IMG_5.png', png), decodePixels: blank, stage: stage, release: release);
+    expect(released, hasLength(3));
+  });
 }
