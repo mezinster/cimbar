@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/encode/frame_budget.dart';
 import '../../core/encode/payload_encoder.dart';
 import '../../core/encode/gif_writer.dart' show buildGif;
 import '../../core/encode/send_jobs.dart';
@@ -35,12 +36,12 @@ class SendState {
   bool get hasInput => mode == SendMode.text ? text.isNotEmpty : fileBytes != null;
 }
 
-/// Upper bound on source frames before compression (name of a text message is 27 bytes).
+/// Exact source-frame count of the uncompressed container (a compressible
+/// input may need fewer); the text-message name is 27 bytes.
 int estimateFrames(SendState s, {required bool encrypted}) {
-  final nameLen = s.mode == SendMode.text ? 27 : (s.fileName?.length ?? 0) * 4;
+  final name = s.mode == SendMode.text ? TextMessage.fileName(DateTime(2000)) : (s.fileName ?? '');
   final bytes = s.mode == SendMode.text ? utf8Length(s.text) : (s.fileBytes?.length ?? 0);
-  final framed = 4 + 4 + nameLen + bytes + (encrypted ? 48 : 0);
-  return (framed + CimbarSpec.fileBytesPerFrame - 1) ~/ CimbarSpec.fileBytesPerFrame;
+  return framesForFile(name, bytes, encrypted: encrypted);
 }
 
 int utf8Length(String s) => const Utf8Codec().encoder.convert(s).length;
