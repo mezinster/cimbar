@@ -48,6 +48,17 @@ internal const val SHARE_SIZE_CAP: Long = 134217728L
 internal const val TOO_LARGE_PREFIX = "cimbar-too-large:"
 
 /**
+ * The bytes one share intent may still copy into the cache: one
+ * [SHARE_SIZE_CAP] shared by all of its attachments, so an
+ * ACTION_SEND_MULTIPLE of many just-under-cap items can't add up to gigabytes.
+ */
+internal class CopyBudget(var remaining: Long = SHARE_SIZE_CAP) {
+    fun consume(bytes: Long) {
+        remaining = maxOf(0L, remaining - bytes)
+    }
+}
+
+/**
  * Copies [input] to [out] and returns true, or returns false (stopping early)
  * as soon as more than [cap] bytes have been seen. The caller deletes the
  * partial output.

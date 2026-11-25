@@ -42,6 +42,11 @@ filled the disk. Both copy sites (`FileDirectory.getDataColumn` and
 - otherwise copy through `copyCapped`, which stops once more than the cap was seen
   (providers can lie or omit the size) and the partial file is deleted.
 
+The cap is one budget per share intent (`CopyBudget`), not per item: every attachment of an
+`ACTION_SEND_MULTIPLE` draws from the same 128 MB, each copied item subtracts its size,
+and a cut-off exhausts it. Paths we did not copy (`_data` column, direct file paths) cost
+nothing.
+
 Either way the attachment's `path` becomes `cimbar-too-large:<size or -1>` (type
 unchanged); the Dart side reads that marker. `FileDirectory.getAbsolutePath` returns the
 marker as its path string and `attachmentForUri` short-circuits on the prefix before

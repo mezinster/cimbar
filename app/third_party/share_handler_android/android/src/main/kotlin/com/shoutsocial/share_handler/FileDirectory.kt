@@ -25,7 +25,7 @@ object FileDirectory {
      * @param uri The Uri to query.
      * @author paulburke
      */
-    fun getAbsolutePath(context: Context, uri: Uri): String? {
+    internal fun getAbsolutePath(context: Context, uri: Uri, budget: CopyBudget): String? {
 
         // DocumentProvider
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && DocumentsContract.isDocumentUri(context, uri)) {
@@ -38,7 +38,7 @@ object FileDirectory {
                 return if ("primary".equals(type, ignoreCase = true)) {
                     context.getExternalFilesDir(null).toString() + "/" + split[1]
                 } else {
-                    getDataColumn(context, uri, null, null)
+                    getDataColumn(context, uri, null, null, budget)
                 }
             } else if (isDownloadsDocument(uri)) {
                 return try {
@@ -46,9 +46,9 @@ object FileDirectory {
                     val contentUri = ContentUris.withAppendedId(
                         Uri.parse("content://downloads/public_downloads"), java.lang.Long.valueOf(id))
 
-                    getDataColumn(context, contentUri, null, null)
+                    getDataColumn(context, contentUri, null, null, budget)
                 } catch (exception: Exception) {
-                    getDataColumn(context, uri, null, null)
+                    getDataColumn(context, uri, null, null, budget)
                 }
             } else if (isMediaDocument(uri)) {
                 val docId = DocumentsContract.getDocumentId(uri)
@@ -66,11 +66,11 @@ object FileDirectory {
 
                 val selection = "_id=?"
                 val selectionArgs = arrayOf(split[1])
-                return getDataColumn(context, contentUri, selection, selectionArgs)
+                return getDataColumn(context, contentUri, selection, selectionArgs, budget)
             }// MediaProvider
             // DownloadsProvider
         } else if ("content".equals(uri.scheme, ignoreCase = true)) {
-            return getDataColumn(context, uri, null, null)
+            return getDataColumn(context, uri, null, null, budget)
         }
 
         return uri.path
@@ -87,7 +87,7 @@ object FileDirectory {
      * @return The value of the _data column, which is typically a file path.
      */
     private fun getDataColumn(context: Context, uri: Uri, selection: String?,
-                              selectionArgs: Array<String>?): String? {
+                              selectionArgs: Array<String>?, budget: CopyBudget): String? {
 
         if (uri.authority != null && selection==null) {
             var cursor: Cursor? = null
@@ -124,17 +124,19 @@ object FileDirectory {
             // main thread. The marker string travels back through the path result and
             // ShareHandlerPlugin.attachmentForUri turns it into the attachment's path.
             val size = reportedSize(context.contentResolver, uri)
-            if (size != null && size > SHARE_SIZE_CAP) return "$TOO_LARGE_PREFIX$size"
+            if (size != null && size > budget.remaining) return "$TOO_LARGE_PREFIX$size"
             var tooLarge = false
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(targetFile).use { fileOut ->
-                    tooLarge = !copyCapped(input, fileOut, SHARE_SIZE_CAP)
+                    tooLarge = !copyCapped(input, fileOut, budget.remaining)
                 }
             }
             if (tooLarge) {
                 targetFile.delete()
+                budget.consume(budget.remaining)
                 return "$TOO_LARGE_PREFIX${size ?: -1}"
             }
+            budget.consume(targetFile.length())
             return targetFile.path
         }
 

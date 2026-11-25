@@ -42,4 +42,15 @@ class CappedCopyTest {
     assertEquals("cimbar-too-large:", TOO_LARGE_PREFIX)
     assertEquals(134217728L, SHARE_SIZE_CAP)
   }
+
+  @Test
+  fun budgetIsOnePerIntentAndNeverNegative() {
+    val b = CopyBudget(100)
+    assertEquals(100L, b.remaining)
+    b.consume(60)
+    assertEquals(40L, b.remaining)
+    b.consume(1000)
+    assertEquals(0L, b.remaining)
+    assertEquals(SHARE_SIZE_CAP, CopyBudget().remaining)
+  }
 }
