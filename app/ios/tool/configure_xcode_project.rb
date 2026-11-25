@@ -13,6 +13,7 @@
 # 2. Runner's App Group entitlements (share_handler hands files over through
 #    group.com.nfcarchiver.cimbar).
 # 3. The ShareExtension target (share_handler), embedded in Runner.
+# 5. Runner/PhotoEncoder.swift (the native photo channel) in Runner's sources.
 require 'xcodeproj'
 
 IOS = File.expand_path('..', __dir__)
@@ -99,6 +100,11 @@ end
   next unless project.build_configurations.include?(config) || s.key?('IPHONEOS_DEPLOYMENT_TARGET')
 
   s['IPHONEOS_DEPLOYMENT_TARGET'] = DEPLOYMENT
+end
+
+# --- 5. PhotoEncoder.swift ------------------------------------------------------
+unless runner_group.files.any? { |f| f.path == 'PhotoEncoder.swift' }
+  runner.add_file_references([runner_group.new_reference('PhotoEncoder.swift')])
 end
 
 project.save
