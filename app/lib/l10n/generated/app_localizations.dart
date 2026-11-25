@@ -561,7 +561,7 @@ abstract class AppLocalizations {
   /// SnackBar when another app shared a file to CimBar but it could not be read
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t read the shared file. Open it with Import GIF instead.'**
+  /// **'Couldn\'t read the shared item.'**
   String get shareReadFailed;
 
   /// SnackBar when a file is shared to CimBar while a GIF is being decoded
@@ -569,6 +569,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finish the current decode first, then share the file again.'**
   String get shareWhileDecoding;
+
+  /// SnackBar while a photo shared to CimBar is checked for a barcode (decode it) or not (send it)
+  ///
+  /// In en, this message translates to:
+  /// **'Checking shared photo…'**
+  String get shareChecking;
+
+  /// SnackBar when several items were shared at once; only the first usable one is used
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Only 1 item is sent} other{Only the first of {count} items is sent}}'**
+  String shareOnlyFirst(int count);
+
+  /// SnackBar when a shared file is above the Send cap and its exact size is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'File too large (limit {max}).'**
+  String shareTooLarge(String max);
 
   /// Bottom navigation tab for file explorer
   ///

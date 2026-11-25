@@ -274,12 +274,32 @@ class AppLocalizationsRu extends AppLocalizations {
   String get errorNoBarcodeFound => 'На фото не найден штрих-код CimBar';
 
   @override
-  String get shareReadFailed =>
-      'Не удалось прочитать отправленный файл. Откройте его через «Импорт GIF».';
+  String get shareReadFailed => 'Не удалось прочитать отправленный элемент.';
 
   @override
   String get shareWhileDecoding =>
       'Сначала дождитесь окончания текущего декодирования, затем отправьте файл снова.';
+
+  @override
+  String get shareChecking => 'Проверяем отправленное фото…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Отправляется только первый из $count элемента',
+      many: 'Отправляется только первый из $count элементов',
+      few: 'Отправляется только первый из $count элементов',
+      one: 'Отправляется только первый из $count элемента',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'Файл слишком большой (лимит $max).';
+  }
 
   @override
   String get tabFiles => 'Файлы';

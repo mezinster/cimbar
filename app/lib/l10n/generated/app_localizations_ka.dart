@@ -258,12 +258,24 @@ class AppLocalizationsKa extends AppLocalizations {
   String get errorNoBarcodeFound => 'ფოტოში CimBar შტრიხკოდი ვერ მოიძებნა';
 
   @override
-  String get shareReadFailed =>
-      'გაზიარებული ფაილის წაკითხვა ვერ მოხერხდა. გახსენით ის „GIF იმპორტით“.';
+  String get shareReadFailed => 'გაზიარებული ელემენტის წაკითხვა ვერ მოხერხდა.';
 
   @override
   String get shareWhileDecoding =>
       'ჯერ დაელოდეთ მიმდინარე დეკოდირების დასრულებას, შემდეგ ფაილი ხელახლა გააზიარეთ.';
+
+  @override
+  String get shareChecking => 'გაზიარებული ფოტოს შემოწმება…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    return '$count ელემენტიდან იგზავნება მხოლოდ პირველი';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'ფაილი ძალიან დიდია (ლიმიტი $max).';
+  }
 
   @override
   String get tabFiles => 'ფაილები';

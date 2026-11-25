@@ -257,12 +257,24 @@ class AppLocalizationsTr extends AppLocalizations {
   String get errorNoBarcodeFound => 'Fotoğrafta CimBar barkodu bulunamadı';
 
   @override
-  String get shareReadFailed =>
-      'Paylaşılan dosya okunamadı. Bunun yerine GIF İçe Aktar ile açın.';
+  String get shareReadFailed => 'Paylaşılan öğe okunamadı.';
 
   @override
   String get shareWhileDecoding =>
       'Önce mevcut çözümlemenin bitmesini bekleyin, ardından dosyayı yeniden paylaşın.';
+
+  @override
+  String get shareChecking => 'Paylaşılan fotoğraf kontrol ediliyor…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    return '$count öğeden yalnızca ilki gönderilir';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'Dosya çok büyük (sınır $max).';
+  }
 
   @override
   String get tabFiles => 'Dosyalar';

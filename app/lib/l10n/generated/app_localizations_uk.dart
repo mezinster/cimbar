@@ -274,12 +274,32 @@ class AppLocalizationsUk extends AppLocalizations {
   String get errorNoBarcodeFound => 'На фото не знайдено штрих-код CimBar';
 
   @override
-  String get shareReadFailed =>
-      'Не вдалося прочитати надісланий файл. Відкрийте його через «Імпорт GIF».';
+  String get shareReadFailed => 'Не вдалося прочитати надісланий елемент.';
 
   @override
   String get shareWhileDecoding =>
       'Спершу дочекайтеся завершення поточного декодування, потім надішліть файл знову.';
+
+  @override
+  String get shareChecking => 'Перевіряємо надіслане фото…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Надсилається лише перший із $count елемента',
+      many: 'Надсилається лише перший із $count елементів',
+      few: 'Надсилається лише перший із $count елементів',
+      one: 'Надсилається лише перший із $count елемента',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'Файл завеликий (ліміт $max).';
+  }
 
   @override
   String get tabFiles => 'Файли';

@@ -20,7 +20,8 @@ final cameraControllerProvider =
 /// 'passphrase_required', 'not_located', 'decode_failed'); the screen maps it
 /// to a localized string and only falls back to the English
 /// `progress.message` when it is null. [errorTotal] carries the frame count
-/// 'multi_frame' needs.
+/// 'multi_frame' needs. [fromShare] is true while the photo is one another
+/// app shared (adopted through [CameraController.adoptDetected]).
 class CameraState {
   final Uint8List? capturedPhotoBytes;
   final String? capturedPhotoPath;
@@ -29,6 +30,7 @@ class CameraState {
   final bool isDecoding;
   final String? errorCode;
   final int? errorTotal;
+  final bool fromShare;
 
   const CameraState({
     this.capturedPhotoBytes,
@@ -38,6 +40,7 @@ class CameraState {
     this.isDecoding = false,
     this.errorCode,
     this.errorTotal,
+    this.fromShare = false,
   });
 
   CameraState copyWith({
@@ -60,6 +63,7 @@ class CameraState {
       isDecoding: isDecoding ?? this.isDecoding,
       errorCode: clearError ? null : (errorCode ?? this.errorCode),
       errorTotal: clearError ? null : (errorTotal ?? this.errorTotal),
+      fromShare: fromShare,
     );
   }
 }
@@ -76,6 +80,15 @@ class CameraController extends StateNotifier<CameraState> {
       capturedPhotoBytes: bytes,
       capturedPhotoPath: path,
     );
+  }
+
+  /// Adopts a shared photo whose barcode detection already ran, so it isn't
+  /// decoded twice: the state ends exactly as [decode] leaves it after a
+  /// photo decode with result [r] (including the auto-save on success), plus
+  /// [CameraState.fromShare].
+  Future<void> adoptDetected(Uint8List bytes, String path, PhotoDecodeResult r) async {
+    state = CameraState(capturedPhotoBytes: bytes, capturedPhotoPath: path, fromShare: true);
+    await _applyPhotoResult(r);
   }
 
   Future<void> pickFromGallery() async {
@@ -115,20 +128,25 @@ class CameraController extends StateNotifier<CameraState> {
         }
       }
     } else {
-      final r = await decodePhotoBytes(bytes, passphrase);
-      state = state.copyWith(
-        isDecoding: false,
-        result: r.result,
-        errorCode: r.errorCode,
-        errorTotal: r.total,
-        progress: DecodeProgress(
-          state: r.error == null ? DecodeState.done : DecodeState.error,
-          progress: 1,
-          message: r.error ?? 'Decoded: ${r.result!.filename}',
-        ),
-      );
-      if (r.result != null) await _autoSave(r.result!);
+      await _applyPhotoResult(await decodePhotoBytes(bytes, passphrase));
     }
+  }
+
+  /// The state a finished photo decode leaves, shared by [decode] and
+  /// [adoptDetected] so the two can't drift apart.
+  Future<void> _applyPhotoResult(PhotoDecodeResult r) async {
+    state = state.copyWith(
+      isDecoding: false,
+      result: r.result,
+      errorCode: r.errorCode,
+      errorTotal: r.total,
+      progress: DecodeProgress(
+        state: r.error == null ? DecodeState.done : DecodeState.error,
+        progress: 1,
+        message: r.error ?? 'Decoded: ${r.result!.filename}',
+      ),
+    );
+    if (r.result != null) await _autoSave(r.result!);
   }
 
   Future<String?> _autoSave(DecodeResult result) async {

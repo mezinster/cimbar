@@ -75,8 +75,11 @@
   "errorPassphraseRequired": "Ten plik jest zaszyfrowany: wymagane jest hasło",
   "errorDecoderFailed": "Błąd dekodera: {detail}",
   "errorNoBarcodeFound": "Na zdjęciu nie znaleziono kodu kreskowego CimBar",
-  "shareReadFailed": "Nie udało się odczytać udostępnionego pliku. Otwórz go na karcie „Otwórz GIF”.",
+  "shareReadFailed": "Nie udało się odczytać udostępnionego elementu.",
   "shareWhileDecoding": "Najpierw zakończ bieżące dekodowanie, a potem udostępnij plik ponownie.",
+  "shareChecking": "Sprawdzanie udostępnionego zdjęcia…",
+  "shareOnlyFirst": "{count, plural, one{Wysyłany jest tylko 1 element} few{Wysyłany jest tylko pierwszy z {count} elementów} many{Wysyłany jest tylko pierwszy z {count} elementów} other{Wysyłany jest tylko pierwszy z {count} elementu}}",
+  "shareTooLarge": "Plik jest za duży (limit {max}).",
 
   "tabFiles": "Pliki",
   "filesTitle": "Zdekodowane pliki",

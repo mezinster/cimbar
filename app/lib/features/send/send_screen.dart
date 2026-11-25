@@ -28,13 +28,17 @@ class SendScreen extends ConsumerStatefulWidget {
 }
 
 class _SendScreenState extends ConsumerState<SendScreen> {
-  // Seeded from the provider: the controller outlives this widget across tab switches.
-  late final _text = TextEditingController(text: ref.read(sendControllerProvider).text);
+  // Seeded from the provider: the controller outlives this widget across tab
+  // switches. Created in initState, not lazily: a screen that opens in File
+  // mode (a shared file) would otherwise first touch it in dispose, when
+  // `ref` can no longer be read.
+  late final TextEditingController _text;
   final _pass = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _text = TextEditingController(text: ref.read(sendControllerProvider).text);
     _pass.addListener(_onPassChanged);
   }
 
@@ -108,6 +112,11 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(sendControllerProvider);
     final controller = ref.read(sendControllerProvider.notifier);
+    // Text set from outside (a shared text while this tab is showing) must
+    // reach the box; typing round-trips through setText and matches already.
+    ref.listen(sendControllerProvider.select((s) => s.text), (_, text) {
+      if (_text.text != text) _text.text = text;
+    });
     final canSend = state.hasInput && !state.busy;
     final inputBytes = state.mode == SendMode.text ? utf8Length(state.text) : (state.fileBytes?.length ?? 0);
 

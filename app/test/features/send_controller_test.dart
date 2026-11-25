@@ -104,4 +104,19 @@ void main() {
     expect(await c.encode('', cap: maxSendFrames), isNull);
     expect(c.state.error, allOf(startsWith('failed:'), contains('Invalid argument')));
   });
+
+  test('loadShared fills text mode or file mode and clears an error', () async {
+    final c = SendController(encoder: (_) => fakePayload(1))..setMode(SendMode.file);
+    await c.encode('', cap: maxSendFrames);
+    expect(c.state.error, 'empty');
+    c.loadShared(SendMode.text, text: 'shared words');
+    expect(c.state.mode, SendMode.text);
+    expect(c.state.text, 'shared words');
+    expect(c.state.error, isNull);
+
+    c.loadShared(SendMode.file, name: 'a.pdf', bytes: Uint8List.fromList([9, 8]));
+    expect(c.state.mode, SendMode.file);
+    expect(c.state.fileName, 'a.pdf');
+    expect(c.state.fileBytes, [9, 8]);
+  });
 }
