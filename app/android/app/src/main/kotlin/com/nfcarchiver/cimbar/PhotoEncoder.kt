@@ -274,6 +274,10 @@ class PhotoEncoder(messenger: BinaryMessenger) {
         val longest = max(w, h)
         var sample = 1
         while (longest / (sample * 2) >= side) sample *= 2
+        // Never allocate above MAX_PIXELS, even when the target side would allow
+        // it (sample 1 on a 47 MP source asked for 12 MP); the scale below
+        // copes with a decoded side slightly under [side].
+        while ((w / sample).toLong() * (h / sample) > MAX_PIXELS) sample *= 2
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
             inPreferredConfig = Bitmap.Config.ARGB_8888
