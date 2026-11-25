@@ -104,10 +104,13 @@ void main() {
       expect(pbx, contains('CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;'));
     });
 
-    test('is a share extension for images and files only (no TRUEPREDICATE)', () {
+    test('is a share extension for images, files, text and one web URL (no TRUEPREDICATE)', () {
       expect(plistString(extInfo, 'NSExtensionPointIdentifier'), 'com.apple.share-services');
       expect(extInfo, contains('NSExtensionActivationSupportsImageWithMaxCount'));
       expect(extInfo, contains('NSExtensionActivationSupportsFileWithMaxCount'));
+      expect(extInfo, contains('NSExtensionActivationSupportsText'));
+      expect(extInfo, contains('NSExtensionActivationSupportsWebURLWithMaxCount'));
+      expect(plistStrings(extInfo, 'PHSupportedMediaTypes'), ['Image']);
       expect(extInfo, isNot(contains('TRUEPREDICATE')));
     });
 

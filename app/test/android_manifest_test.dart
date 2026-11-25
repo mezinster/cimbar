@@ -42,12 +42,24 @@ void main() {
 
   // The store listings and the privacy policy promise "camera only"; F-Droid
   // shows every requested permission on the app's page.
-  // Galleries share as image/* (seen from Google Photos on a Pixel 8 Pro);
-  // GIFs go to Import and other images to the photo decoder (ShareIntake).
-  test('accepts shared images of any type (SEND image/*)', () {
-    final send = RegExp(r'<intent-filter>[\s\S]*?android\.intent\.action\.SEND"[\s\S]*?</intent-filter>').firstMatch(manifest)?.group(0);
-    expect(send, isNotNull, reason: 'no SEND intent filter');
-    expect(send, contains('android:mimeType="image/*"'));
+  // Any file or text can be shared in; ShareIntake decides (barcode photo or
+  // CimBar GIF -> decode, anything else -> Send).
+  List<String> filters() => RegExp(r'<intent-filter>[\s\S]*?</intent-filter>').allMatches(manifest).map((m) => m.group(0)!).toList();
+
+  for (final action in ['SEND', 'SEND_MULTIPLE']) {
+    test('accepts any shared content ($action */*)', () {
+      final f = filters().where((x) => x.contains('android.intent.action.$action"')).toList();
+      expect(f, hasLength(1), reason: 'one $action intent filter');
+      expect(f.single, contains('android:mimeType="*/*"'));
+      expect(f.single, contains('android.intent.category.DEFAULT'));
+    });
+  }
+
+  // singleTop would let another app's share chooser start a second activity and
+  // Flutter engine in the sender's task.
+  test('launcher activity is singleTask', () {
+    expect(manifest, contains('android:launchMode="singleTask"'));
+    expect(manifest, isNot(contains('singleTop')));
   });
 
   test('CAMERA is the only permission the app itself requests', () {
