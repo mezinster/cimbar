@@ -15,7 +15,7 @@
 - All commands run from `app/` unless stated. Single test file: `flutter test <path> --reporter expanded 2>&1 | tail -30`. Full suite: `sh tests/run_all.sh`. Before every commit that touches Dart: `flutter analyze` must print exactly `No issues found!`.
 - No new pub dependencies; `pubspec.lock` must not change.
 - Android permissions stay `CAMERA` only; no new iOS usage strings.
-- Every new user-visible string: add to `lib/l10n/app_en.arb` (with `@key` description) then `app_ru.arb`, `app_uk.arb`, `app_tr.arb`, `app_ka.arb`; run `flutter gen-l10n`; commit `lib/l10n/generated/` with the ARB edits. Never write "CimBar v2" in user text.
+- Every new user-visible string: add to `lib/l10n/app_en.arb` (with `@key` description) then `app_ru.arb`, `app_uk.arb`, `app_tr.arb`, `app_ka.arb`, `app_pl.arb`, `app_be.arb`; run `flutter gen-l10n`; commit `lib/l10n/generated/` with the ARB edits. Never write "CimBar v2" in user text.
 - `CimbarSpec.fileBytesPerFrame` = 2104, `CimbarSpec.maxInflatedBytes` = 134217728 (128 MB), `maxSendFrames` = 4096, `maxGifFrames` = 500, encryption overhead = 48 B.
 - Presets `320, 480, 640, 800, 1024, 1280, 1440, 1600, 1920, 2560, 3840` + Original; fit rule: largest side reaching q ≥ 50, else largest fitting at q ≥ 30, else smallest result unfit. Starting N = frames of the 640 px / q70 encode. Stepper range 1 … min(original's frames, 4096).
 - Native channel name `com.nfcarchiver.cimbar/photo`. Detection pixel cap 12 MP (12 000 000 px).
@@ -185,7 +185,7 @@
   - Continue lands in Send File mode with `fileName == outputName` and the result bytes; Skip lands with the original name;
   - a `.heic` pick through Choose file opens the optimiser; a `.gif` and a `.pdf` do not.
 - [ ] **Step 2: Run** — expected FAIL.
-- [ ] **Step 3: Implement** the screen (layout per spec: preview + label, Frames to send stepper with hold-to-repeat and tap-to-type, transfer time, GIF note, Manual presets + quality slider, pinned Skip/Continue), the Send tab changes (Choose photo = `FilePicker.pickFiles(type: FileType.image)`), the strings in five languages, `flutter gen-l10n`.
+- [ ] **Step 3: Implement** the screen (layout per spec: preview + label, Frames to send stepper with hold-to-repeat and tap-to-type, transfer time, GIF note, Manual presets + quality slider, pinned Skip/Continue), the Send tab changes (Choose photo = `FilePicker.pickFiles(type: FileType.image)`), the strings in seven languages, `flutter gen-l10n`.
 - [ ] **Step 4: Verify:** the tests pass; `sh tests/run_all.sh` all green; `flutter analyze` → `No issues found!`; `flutter build apk --debug` succeeds.
 - [ ] **Step 5: Docs:** in `app/CLAUDE.md` add `features/photo/` to Project Structure, a "Photo optimiser" bullet under the Send tab section (native channel + `decodePixels`, frame budget with 48 B reserve via `frame_budget.dart`, metadata stripped natively and by `stripJpegMetadata`, `temp/share_in`/`temp/photo_optimiser` cleared on launch), new test files in the Tests table, the PR's device checks (Choose photo without a permission prompt, portrait upright, no GPS after transfer) in the device checklist.
 - [ ] **Step 6: Commit and open PR 1** — `git commit -m "feat(send): Choose photo and the Optimise photo screen"`; `git push -u origin feat/photo-send-share-in`; `gh pr create --base master --title "Send: Choose photo and photo optimiser"` with a body summarising Tasks 1–7 and linking the spec.

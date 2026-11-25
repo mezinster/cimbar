@@ -130,12 +130,12 @@ Checked after the async read, against the destination:
 ### iOS (`app/ios/ShareExtension/Info.plist`, via `configure_xcode_project.rb` where it touches the project)
 
 - Activation rule: keep `NSExtensionActivationSupportsImageWithMaxCount` and `…FileWithMaxCount` (10), add `NSExtensionActivationSupportsText` and `NSExtensionActivationSupportsWebURLWithMaxCount` = 1 (share_handler_ios already turns URLs into text content). `PHSupportedMediaTypes` stays `Image` only (no videos from Photos).
-- No new target, App Group or entitlement — the Share Extension and `group.com.nfcarchiver.cimbar` App Group exist already. Extend `test/ios_project_test.dart` for the activation rule.
+- No new target, App Group or entitlement — the Share Extension and `group.com.nfcarchiver.cimbarscanner` App Group exist already. Extend `test/ios_project_test.dart` for the activation rule.
 - iOS remains compile-checked only in CI; the device checklist below covers it.
 
 ## Localization
 
-Every new string in `app_en.arb` first, then ru, uk, tr, ka; `flutter gen-l10n`; commit the generated files with the ARB edit. User-facing text never says "CimBar v2" (CLAUDE.md naming rule).
+Every new string in `app_en.arb` first, then ru, uk, tr, ka, pl, be (seven languages); `flutter gen-l10n`; commit the generated files with the ARB edit. User-facing text never says "CimBar v2" (CLAUDE.md naming rule).
 
 ## Docs
 
