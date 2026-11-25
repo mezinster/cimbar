@@ -64,7 +64,7 @@ void main() {
     expect(find.byType(PhotoOptimiserScreen), findsOneWidget);
     final pending = container.read(pendingPhotoProvider)!;
     expect(pending.path, photoFixture);
-    expect(pending.name, isNull);
+    expect(pending.name, 'crop_frame_1.png', reason: 'the staged file keeps the sanitised original name');
   });
 
   testWidgets('a photo taken in the app has no "Send this photo instead"', (tester) async {

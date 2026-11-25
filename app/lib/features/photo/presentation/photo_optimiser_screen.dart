@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app.dart';
 import '../../../core/encode/frame_budget.dart';
 import '../../../core/encode/send_jobs.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -55,8 +56,10 @@ class _PhotoOptimiserScreenState extends ConsumerState<PhotoOptimiserScreen> {
   /// second tap cannot deliver twice.
   bool _delivering = false;
 
-  /// Runs [action] and, if it handed a file over, puts it in the Send tab
-  /// and pops — synchronously, before anything else can run.
+  /// Runs [action] and, if it handed a file over, puts it in the Send tab,
+  /// pops and shows the Send tab — synchronously, before anything else can
+  /// run. Showing Send matters when the optimiser was opened from elsewhere
+  /// (the Camera tab's "Send this photo instead").
   Future<void> _continue(
     Future<({String name, Uint8List bytes})?> Function() action,
   ) async {
@@ -71,7 +74,15 @@ class _PhotoOptimiserScreenState extends ConsumerState<PhotoOptimiserScreen> {
     ref.read(sendControllerProvider.notifier)
       ..setMode(SendMode.file)
       ..setFile(r.name, r.bytes);
+    _popToSend();
+  }
+
+  /// Pops this screen and switches the shell to the Send tab, where the
+  /// file now waits.
+  void _popToSend() {
+    final router = ref.read(routerProvider);
     Navigator.of(context).pop();
+    router.go('/send');
   }
 
   /// Sends the untouched original through [SendController.loadFile], which
@@ -87,7 +98,7 @@ class _PhotoOptimiserScreenState extends ConsumerState<PhotoOptimiserScreen> {
     unawaited(
       send.loadFile(original.name, length: file.length, read: file.readAsBytes),
     );
-    Navigator.of(context).pop();
+    _popToSend();
   }
 
   /// Asks for the frame count; empty or invalid input changes nothing.

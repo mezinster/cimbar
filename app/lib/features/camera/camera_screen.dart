@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -173,8 +174,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               key: const Key('sendPhotoInstead'),
+              // Opened on the root navigator's context: the optimiser's
+              // Continue switches to the Send tab, which disposes this screen.
+              // The staged file's name is the sanitised original name.
               onPressed: () => openPhotoOptimiser(
-                  context, ref, PendingPhoto(path: state.capturedPhotoPath!, name: null)),
+                  rootNavigatorKey.currentContext ?? context,
+                  ref,
+                  PendingPhoto(
+                      path: state.capturedPhotoPath!,
+                      name: state.capturedPhotoPath!.split(RegExp(r'[\\/]')).last)),
               icon: const Icon(Icons.send),
               label: Text(l10n.shareSendInstead),
             ),

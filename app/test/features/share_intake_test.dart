@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cimbar_scanner/app.dart';
 import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
+import 'package:cimbar_scanner/core/models/decode_result.dart';
 import 'package:cimbar_scanner/core/providers/shared_preferences_provider.dart';
 import 'package:cimbar_scanner/core/services/incoming_share.dart';
 import 'package:cimbar_scanner/features/camera/live_scan_screen.dart';
@@ -96,6 +97,20 @@ class _DecodingCameraController extends CameraController {
   _DecodingCameraController() {
     // A real image (the Camera tab renders it), distinct from the shared photoFixture.
     state = CameraState(capturedPhotoBytes: File('test/fixtures/crop_frame_2.png').readAsBytesSync(), isDecoding: true);
+  }
+}
+
+/// A [CameraController] holding a shared photo, staged at [path], whose
+/// decode failed — the Camera tab then offers "Send this photo instead".
+class _FailedSharedPhotoController extends CameraController {
+  _FailedSharedPhotoController(String path) {
+    state = CameraState(
+      capturedPhotoBytes: File(path).readAsBytesSync(),
+      capturedPhotoPath: path,
+      fromShare: true,
+      errorCode: 'decode_failed',
+      progress: const DecodeProgress(state: DecodeState.error, progress: 1, message: 'RS failed'),
+    );
   }
 }
 
@@ -500,6 +515,69 @@ void main() {
 
     expect(find.text('Finish the current decode first, then share the file again.'), findsOneWidget);
     expect(container.read(cameraControllerProvider).capturedPhotoBytes, File('test/fixtures/crop_frame_2.png').readAsBytesSync());
+  });
+
+  group('"Send this photo instead"', () {
+    /// A shared photo staged as `share_in/1/IMG_9.png` whose decode failed,
+    /// shown on the Camera tab; taps "Send this photo instead".
+    Future<ProviderContainer> openEscapeHatch(WidgetTester tester, FakeShareSource source) async {
+      final temp = Directory.systemTemp.createTempSync('share_hatch');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final staged = File('${temp.path}/share_in/1/IMG_9.png')..createSync(recursive: true);
+      File(photoFixture).copySync(staged.path);
+      final container = await pumpApp(tester, source,
+          tempDir: temp,
+          extraOverrides: [cameraControllerProvider.overrideWith((ref) => _FailedSharedPhotoController(staged.path))]);
+      await tester.tap(find.byIcon(Icons.camera_alt_outlined));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final button = find.byKey(const Key('sendPhotoInstead'));
+      await tester.scrollUntilVisible(button, 200, scrollable: find.byType(Scrollable).first);
+      await tester.pump();
+      await tester.tap(button);
+      await settleUntil(tester, () => container.read(photoOptimiserProvider).canContinue);
+      expect(find.byType(PhotoOptimiserScreen), findsOneWidget);
+      return container;
+    }
+
+    Future<void> tapContinue(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('photoContinue')));
+      await settleIo(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+
+    testWidgets('Continue lands on the Send tab in File mode with the photo', (tester) async {
+      final source = FakeShareSource();
+      final container = await openEscapeHatch(tester, source);
+      expect(container.read(pendingPhotoProvider)!.name, 'IMG_9.png', reason: 'the staged name, not null');
+
+      await tapContinue(tester);
+
+      expect(find.byType(PhotoOptimiserScreen), findsNothing);
+      expect(find.byType(SendScreen), findsOneWidget);
+      expect(find.byType(CameraScreen), findsNothing);
+      final send = container.read(sendControllerProvider);
+      expect(send.mode, SendMode.file);
+      expect(send.fileName, 'IMG_9.jpg');
+      expect(send.fileBytes, isNotNull);
+    });
+
+    testWidgets('a photo shared into that optimiser replaces its photo, and Continue lands on Send', (tester) async {
+      final source = FakeShareSource();
+      final container = await openEscapeHatch(tester, source);
+
+      source.controller.add(photoShare(File('test/fixtures/crop_frame_2.png').absolute.path));
+      await settleUntil(tester, () => container.read(pendingPhotoProvider)!.name == 'crop_frame_2.png');
+      await settleUntil(tester, () => container.read(photoOptimiserProvider).canContinue);
+      expect(find.byType(PhotoOptimiserScreen), findsOneWidget);
+
+      await tapContinue(tester);
+
+      expect(find.byType(SendScreen), findsOneWidget);
+      final send = container.read(sendControllerProvider);
+      expect(send.mode, SendMode.file);
+      expect(send.fileName, 'crop_frame_2.jpg');
+    });
   });
 
   group('busy guards', () {
