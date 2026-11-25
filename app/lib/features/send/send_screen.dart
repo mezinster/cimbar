@@ -60,7 +60,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Future<void> _pickPhoto() async {
     final result = await FilePicker.pickFiles(type: FileType.image);
     if (result.isEmpty) return;
-    await _take(result.first, optimise: true);
+    final f = result.first;
+    // A GIF stays a file even from the gallery: optimising would flatten it.
+    await _take(f, optimise: f.extension?.toLowerCase() != 'gif');
   }
 
   /// Opens the photo optimiser for [f] when [optimise] and it is on disk;
