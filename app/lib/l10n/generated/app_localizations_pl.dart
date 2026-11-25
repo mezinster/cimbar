@@ -425,13 +425,13 @@ class AppLocalizationsPl extends AppLocalizations {
   }
 
   @override
-  String get sendChoosePhoto => 'Choose photo';
+  String get sendChoosePhoto => 'Wybierz zdjęcie';
 
   @override
-  String get photoOptimiseTitle => 'Optimise photo';
+  String get photoOptimiseTitle => 'Optymalizacja zdjęcia';
 
   @override
-  String get photoFramesToSend => 'Frames to send';
+  String get photoFramesToSend => 'Klatki do wysłania';
 
   @override
   String photoTransferTime(int frames, double seconds, int delay) {
@@ -442,47 +442,51 @@ class AppLocalizationsPl extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       frames,
       locale: localeName,
-      other: '$frames frames',
-      one: '1 frame',
+      other: '$frames klatki',
+      many: '$frames klatek',
+      few: '$frames klatki',
+      one: '$frames klatka',
     );
-    return '$_temp0 · ≈ $secondsString s at $delay ms';
+    return '$_temp0 · ≈ $secondsString s przy $delay ms';
   }
 
   @override
   String photoGifCapNote(int max) {
-    return 'Share GIF holds up to $max frames; Present only';
+    return '„Udostępnij GIF” mieści do $max klatek; więcej — tylko „Pokaż na ekranie”';
   }
 
   @override
-  String get photoManual => 'Manual';
+  String get photoManual => 'Ręcznie';
 
   @override
-  String get photoBackToAuto => 'Back to auto';
+  String get photoBackToAuto => 'Automatycznie';
 
   @override
   String photoQuality(int quality) {
-    return 'Quality $quality';
+    return 'Jakość $quality';
   }
 
   @override
-  String get photoSide => 'Longest side';
+  String get photoSide => 'Dłuższy bok';
 
   @override
-  String get photoOriginal => 'Original';
+  String get photoOriginal => 'Oryginał';
 
   @override
-  String get photoSkip => 'Skip (keep original)';
+  String get photoSkip => 'Pomiń (zachowaj oryginał)';
 
   @override
-  String get photoContinue => 'Continue';
+  String get photoContinue => 'Kontynuuj';
 
   @override
   String photoContinueWith(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Continue with $count frames',
-      one: 'Continue with 1 frame',
+      other: 'Kontynuuj z $count klatki',
+      many: 'Kontynuuj z $count klatkami',
+      few: 'Kontynuuj z $count klatkami',
+      one: 'Kontynuuj z $count klatką',
     );
     return '$_temp0';
   }
@@ -492,8 +496,10 @@ class AppLocalizationsPl extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Continue with this image ($count frames)',
-      one: 'Continue with this image (1 frame)',
+      other: 'Kontynuuj z tym obrazem ($count klatki)',
+      many: 'Kontynuuj z tym obrazem ($count klatek)',
+      few: 'Kontynuuj z tym obrazem ($count klatki)',
+      one: 'Kontynuuj z tym obrazem ($count klatka)',
     );
     return '$_temp0';
   }
@@ -503,25 +509,29 @@ class AppLocalizationsPl extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       frames,
       locale: localeName,
-      other: 'Doesn\'t fit in $frames frames',
-      one: 'Doesn\'t fit in 1 frame',
+      other: 'Nie mieści się w $frames klatki',
+      many: 'Nie mieści się w $frames klatkach',
+      few: 'Nie mieści się w $frames klatkach',
+      one: 'Nie mieści się w $frames klatce',
     );
     String _temp1 = intl.Intl.pluralLogic(
       needed,
       locale: localeName,
-      other: 'needs at least $needed frames',
-      one: 'needs at least 1 frame',
+      other: 'potrzeba co najmniej $needed klatki',
+      many: 'potrzeba co najmniej $needed klatek',
+      few: 'potrzebne są co najmniej $needed klatki',
+      one: 'potrzebna jest co najmniej $needed klatka',
     );
     return '$_temp0 — $_temp1';
   }
 
   @override
   String get photoDecodeError =>
-      'This photo can\'t be read. Tap Skip to send the original file.';
+      'Nie można odczytać tego zdjęcia. Dotknij „Pomiń”, aby wysłać oryginalny plik.';
 
   @override
   String get photoMemoryError =>
-      'Not enough memory on this device to optimise this photo.';
+      'Za mało pamięci na tym urządzeniu, aby zoptymalizować to zdjęcie.';
 
   @override
   String photoResultLabel(int width, int height, int quality, int kb) {
@@ -529,11 +539,11 @@ class AppLocalizationsPl extends AppLocalizations {
   }
 
   @override
-  String get photoFewerFrames => 'Fewer frames';
+  String get photoFewerFrames => 'Mniej klatek';
 
   @override
-  String get photoMoreFrames => 'More frames';
+  String get photoMoreFrames => 'Więcej klatek';
 
   @override
-  String get photoEditFrameCount => 'Double-tap to type the number';
+  String get photoEditFrameCount => 'Dotknij dwukrotnie, aby wpisać liczbę';
 }

@@ -391,6 +391,21 @@ void main() {
       );
     });
 
+    test('Polish and Belarusian: one / few / many', () {
+      expect(l('pl').photoContinueWith(1), 'Kontynuuj z 1 klatką');
+      expect(l('pl').photoContinueAsIs(22), 'Kontynuuj z tym obrazem (22 klatki)');
+      expect(
+        l('pl').photoDoesNotFit(5, 21),
+        'Nie mieści się w 5 klatkach — potrzeba co najmniej 21 klatek',
+      );
+      expect(l('be').photoContinueWith(21), 'Працягнуць з 21 кадрам');
+      expect(l('be').photoContinueAsIs(3), 'Працягнуць з гэтай выявай (3 кадры)');
+      expect(
+        l('be').photoDoesNotFit(1, 11),
+        'Не змяшчаецца ў 1 кадр — патрэбна мінімум 11 кадраў',
+      );
+    });
+
     test('every locale renders the numbers', () {
       for (final loc in AppLocalizations.supportedLocales) {
         final a = lookupAppLocalizations(loc);
