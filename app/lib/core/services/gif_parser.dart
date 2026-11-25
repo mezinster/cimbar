@@ -2,6 +2,10 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+import '../decode/frame_decoder.dart';
+import '../decode/rgb_buffer.dart';
+import '../format/cimbar_spec.dart';
+
 /// Wrapper around the `image` package's GIF decoder.
 /// Returns per-frame images suitable for CimBar decoding.
 ///
@@ -47,5 +51,21 @@ class GifParser {
       throw ArgumentError('Failed to read GIF header');
     }
     return info.width;
+  }
+
+  /// True when [bytes] is a GIF whose first frame decodes as a CimBar frame:
+  /// a 608x608 logical screen and a valid frame header.
+  static bool isCimbarGif(Uint8List bytes) {
+    try {
+      if (bytes.length < 10) return false;
+      final w = bytes[6] | (bytes[7] << 8);
+      final h = bytes[8] | (bytes[9] << 8);
+      if (w != CimbarSpec.framePx || h != CimbarSpec.framePx) return false;
+      final frame = parseFirstFrame(bytes);
+      if (frame == null) return false;
+      return FrameDecoder().decodeExact(RgbBuffer.fromImage(frame)).header != null;
+    } catch (_) {
+      return false;
+    }
   }
 }

@@ -8,12 +8,13 @@ import '../decode/frame_decoder.dart';
 import '../decode/rateless_assembler.dart';
 import '../decode/rgb_buffer.dart';
 import '../models/decode_result.dart';
+import '../../features/photo/data/platform_jpeg_session.dart' show DecodedPixels;
 import 'payload_decoder.dart';
 
 /// Result of a still-photo v2 decode attempt.
 ///
 /// [errorCode] is a stable, l10n-mappable tag ('multi_frame',
-/// 'passphrase_required', 'not_located', 'decode_failed'); [error] is the
+/// 'passphrase_required', 'not_located', 'unsupported_grid', 'unreadable_image', 'decode_failed'); [error] is the
 /// English message the screen falls back to when it doesn't map the code.
 class PhotoDecodeResult {
   final DecodeResult? result;
@@ -44,15 +45,42 @@ Future<PhotoDecodeResult> decodePhotoBytes(Uint8List imageBytes, String passphra
 PhotoDecodeResult decodePhotoSync(Uint8List imageBytes, String passphrase) {
   final image = img.decodeImage(imageBytes);
   if (image == null) {
-    return const PhotoDecodeResult(error: 'Cannot decode image', errorCode: 'decode_failed');
+    return const PhotoDecodeResult(error: 'Cannot decode image', errorCode: 'unreadable_image');
   }
-  final r = FrameDecoder().decode(RgbBuffer.fromImage(image));
+  return decodePhotoBuffer(RgbBuffer.fromImage(image), passphrase);
+}
+
+/// Decode already-decoded pixels (RGBA, e.g. from the native decoder) off the
+/// UI isolate.
+Future<PhotoDecodeResult> decodePhotoPixels(DecodedPixels px, String passphrase) {
+  return Isolate.run(() {
+    final n = px.width * px.height;
+    final rgb = Uint8List(n * 3);
+    final rgba = px.rgba;
+    for (var i = 0, j = 0, k = 0; i < n; i++, j += 4, k += 3) {
+      rgb[k] = rgba[j];
+      rgb[k + 1] = rgba[j + 1];
+      rgb[k + 2] = rgba[j + 2];
+    }
+    return decodePhotoBuffer(RgbBuffer(px.width, px.height, rgb), passphrase);
+  });
+}
+
+/// Maps a failed [DecodeStatus] to a stable error code.
+String photoErrorCode(DecodeStatus s) => switch (s) {
+      DecodeStatus.notLocated => 'not_located',
+      DecodeStatus.unsupportedGrid => 'unsupported_grid',
+      _ => 'decode_failed',
+    };
+
+/// Locate, decode and (if needed) decrypt a single-frame barcode in [image].
+PhotoDecodeResult decodePhotoBuffer(RgbBuffer image, String passphrase) {
+  final r = FrameDecoder().decode(image);
   final diag = r.diag.toMap();
   if (r.status != DecodeStatus.ok) {
-    final errorCode = r.status == DecodeStatus.notLocated ? 'not_located' : 'decode_failed';
     return PhotoDecodeResult(
       error: 'Barcode ${r.status.name}${r.diag.note.isEmpty ? '' : ': ${r.diag.note}'}',
-      errorCode: errorCode,
+      errorCode: photoErrorCode(r.status),
       diag: diag,
     );
   }

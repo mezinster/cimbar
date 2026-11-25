@@ -52,6 +52,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       'multi_frame' => l10n.errorMultiFrameNeedsLive(s.errorTotal ?? 0),
       'passphrase_required' => l10n.errorPassphraseRequired,
       'not_located' => l10n.errorNoBarcodeFound,
+      'unreadable_image' || 'unsupported_grid' => l10n.errorDecoderFailed(p.message ?? ''),
       'decode_failed' => l10n.errorDecoderFailed(p.message ?? ''),
       _ => p.message ?? '',
     };
