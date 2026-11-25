@@ -63,21 +63,43 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
     final source = ref.read(shareSourceProvider);
     // A platform without the plugin (e.g. widget tests using the real
     // source) reports MissingPluginException; sharing is then simply absent.
-    _sub = source.mediaStream.listen(_handle, onError: (Object _) {});
+    _sub = source.mediaStream.listen(_enqueue, onError: (Object _) {});
     source.initialMedia().then((media) async {
       if (media == null) return;
       await source.resetInitialMedia();
-      await _handle(media);
+      _enqueue(media);
     }, onError: (Object _) {});
   }
 
+  /// The share being handled; each new one is chained after it, so two
+  /// shares in quick succession never run their dialogs, SnackBars and
+  /// navigation at the same time.
+  Future<void> _queue = Future<void>.value();
+
+  void _enqueue(SharedMedia media) {
+    // _handle catches its own errors; the catchError only keeps one escaping
+    // anyway from stopping every later share.
+    _queue = _queue.catchError((Object _) {}).then((_) => _handle(media));
+  }
+
   Future<void> _handle(SharedMedia media) async {
+    if (!mounted) return;
     // Nothing from here should escape as an unhandled zone error — a
     // malformed attachment or a mid-teardown provider read must not crash
     // the app; it's simply reported as unreadable / dropped.
+    SharedFileItem? chosen;
     try {
       final share = await readShare(media);
       final item = share.item;
+      chosen = item is SharedFileItem ? item : null;
+      // Only the chosen item is used: the plugin's copies of the others
+      // (items 2..N, a too-large or unreadable item) go now, before any busy
+      // guard can drop the share. The chosen one is released once read, or
+      // staged (which deletes it).
+      await Future.wait([
+        for (final path in share.paths)
+          if (path != chosen?.path) _deleteCopy(path),
+      ]);
       if (!mounted || item == null) return;
       final route = await routeShare(
         item,
@@ -92,8 +114,9 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
       if (loaded && mounted && share.count > 1) _snack(AppLocalizations.of(context)!.shareOnlyFirst(share.count));
     } catch (_) {
       // Unreadable/unexpected share payload — nothing to show, nothing to
-      // crash.
+      // crash. The chosen item's copy may not have been released yet.
       _hideChecking();
+      if (chosen != null) await _deleteCopy(chosen.path);
     }
   }
 
@@ -106,9 +129,14 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
   }
 
   /// Deletes the plugin's copy of a GIF or other file once it is read.
-  Future<void> _release(SharedFileItem f) async {
-    final temp = await ref.read(photoTempDirProvider)();
-    await deletePluginCopy(f.path, cacheDir: temp.path);
+  Future<void> _release(SharedFileItem f) => _deleteCopy(f.path);
+
+  /// Deletes [path] if it is the share plugin's copy ([deletePluginCopy]).
+  Future<void> _deleteCopy(String path) async {
+    try {
+      final temp = await ref.read(photoTempDirProvider)();
+      await deletePluginCopy(path, cacheDir: temp.path);
+    } catch (_) {}
   }
 
   bool _checking = false;
@@ -165,10 +193,11 @@ class _ShareIntakeState extends ConsumerState<ShareIntake> {
       rootNavigatorKey.currentState?.popUntil((r) => r.isFirst);
       return true;
     }
-    // Only a text share replaces typed text: a file or photo switches Send to
-    // File mode and leaves the text in place.
+    // Only a text share replaces typed text — even text hidden behind File
+    // mode; a file or photo switches Send to File mode and leaves the text in
+    // place.
     final send = ref.read(sendControllerProvider);
-    if (route is ToSendText && send.mode == SendMode.text && send.text.isNotEmpty) {
+    if (route is ToSendText && send.text.isNotEmpty) {
       return _confirm(l10n.shareReplaceTextConfirm);
     }
     return true;

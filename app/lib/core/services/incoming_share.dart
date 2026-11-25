@@ -67,45 +67,78 @@ String _basename(String path) {
   return i == -1 ? path : path.substring(i + 1);
 }
 
-/// The first usable item of [media] and how many attachments it carried.
-/// Returns paths, never file bytes. An oversized attachment (the plugin's
-/// marker, or a file above [cap]) is [ShareTooLarge]; attachments that all
-/// fail (a path the app holds no permission for, a malformed `file://` URI,
-/// an empty path) are [ShareUnreadable]. With no attachments, non-empty
-/// `content` (text, or a URL-only share) is [SharedText]; otherwise `item` is null.
-Future<({ShareItem? item, int count})> readShare(SharedMedia media, {int cap = CimbarSpec.maxInflatedBytes}) async {
+/// The real filesystem path of attachment path [raw] (`file://` URIs
+/// resolved), or null for the plugin's too-large marker, an empty path or a
+/// URI that names no local file.
+String? _resolvedPath(String raw) {
+  if (raw.isEmpty || raw.startsWith(_tooLargePrefix)) return null;
+  try {
+    return raw.startsWith('file://') ? Uri.parse(raw).toFilePath() : raw;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// The first usable item of [media], how many attachments it carried, and
+/// the real path of every attachment ([paths], markers excluded) so the caller
+/// can delete the plugin's copies of the ones it doesn't use. Returns paths,
+/// never file bytes. An attachment that is too large (the plugin's marker, or
+/// a file above [cap]) or unreadable (a path the app holds no permission for,
+/// a malformed `file://` URI, an empty path) is skipped for a later usable
+/// one; only when none is usable is the share [ShareTooLarge] (if any item
+/// was) or else [ShareUnreadable]. With no attachments, non-empty `content`
+/// (text, or a URL-only share) is [SharedText]; otherwise `item` is null.
+Future<({ShareItem? item, int count, List<String> paths})> readShare(
+  SharedMedia media, {
+  int cap = CimbarSpec.maxInflatedBytes,
+}) async {
   final attachments = (media.attachments ?? const <SharedAttachment?>[]).whereType<SharedAttachment>().toList();
+  final paths = [for (final a in attachments) _resolvedPath(a.path)].whereType<String>().toList();
+  ShareTooLarge? tooLarge;
   for (final a in attachments) {
+    if (a.path.startsWith(_tooLargePrefix)) {
+      tooLarge ??= ShareTooLarge(length: _parseSize(a.path.substring(_tooLargePrefix.length)));
+      continue;
+    }
+    final path = _resolvedPath(a.path);
+    if (path == null) continue;
     try {
-      if (a.path.startsWith(_tooLargePrefix)) {
-        return (
-          item: ShareTooLarge(length: _parseSize(a.path.substring(_tooLargePrefix.length))),
-          count: attachments.length,
-        );
-      }
-      final path = a.path.startsWith('file://') ? Uri.parse(a.path).toFilePath() : a.path;
       final length = await File(path).length();
-      if (length > cap) return (item: ShareTooLarge(length: length), count: attachments.length);
-      return (item: SharedFileItem(name: _basename(path), path: path, length: length), count: attachments.length);
+      if (length > cap) {
+        tooLarge ??= ShareTooLarge(length: length);
+        continue;
+      }
+      return (
+        item: SharedFileItem(name: _basename(path), path: path, length: length),
+        count: attachments.length,
+        paths: paths,
+      );
     } catch (_) {
       continue;
     }
   }
-  if (attachments.isNotEmpty) return (item: const ShareUnreadable(), count: attachments.length);
+  if (attachments.isNotEmpty) {
+    return (item: tooLarge ?? const ShareUnreadable(), count: attachments.length, paths: paths);
+  }
   final content = media.content;
-  if (content != null && content.isNotEmpty) return (item: SharedText(content), count: 0);
-  return (item: null, count: 0);
+  if (content != null && content.isNotEmpty) return (item: SharedText(content), count: 0, paths: paths);
+  return (item: null, count: 0, paths: paths);
 }
 
 /// Copies [f] into `<tempBase>/share_in/<timestamp>/<safe name>` and returns the
 /// new path, then deletes the original if it was only the plugin's copy
-/// ([deletePluginCopy]).
-Future<String> stageSharedFile(SharedFileItem f, {required Directory tempBase, required String cacheDir}) async {
+/// ([deletePluginCopy]; [ios] as there).
+Future<String> stageSharedFile(
+  SharedFileItem f, {
+  required Directory tempBase,
+  required String cacheDir,
+  bool? ios,
+}) async {
   final dir = Directory('${tempBase.path}/share_in/${DateTime.now().microsecondsSinceEpoch}');
   await dir.create(recursive: true);
   final dest = '${dir.path}/${FileService.safeBasename(f.name)}';
   await File(f.path).copy(dest);
-  await deletePluginCopy(f.path, cacheDir: cacheDir);
+  await deletePluginCopy(f.path, cacheDir: cacheDir, ios: ios);
   return dest;
 }
 
@@ -119,22 +152,18 @@ String _normalise(String path) {
   return p;
 }
 
-/// True when [path] is [dir] or inside it, after normalising both — so
-/// `<cache>_other/x` and `<cache>/../x` are not inside `<cache>`.
-bool isWithinDir(String path, String dir) {
-  final p = _normalise(path);
-  final d = _normalise(dir);
-  final sep = Platform.pathSeparator;
-  return p == d || p.startsWith(d.endsWith(sep) ? d : '$d$sep');
-}
-
-/// Deletes [path] if, and only if, it is the share plugin's own copy: inside
-/// [cacheDir] (Android) or an iOS App Group container. Anything else is a
-/// file the app doesn't own and is left alone. Never throws.
-Future<void> deletePluginCopy(String path, {required String cacheDir}) async {
+/// Deletes [path] if, and only if, it is the share plugin's own copy: a
+/// direct child of [cacheDir] (where the patched Android plugin writes, see
+/// `safeCacheFile`) or, on iOS ([ios], default: the running platform), a file
+/// in the App Group container. Anything else — including a crafted
+/// `file://` share naming one of CimBar's own files nested deeper in the cache,
+/// like a staged photo in `share_in/` — is left alone. Never throws.
+Future<void> deletePluginCopy(String path, {required String cacheDir, bool? ios}) async {
   try {
-    if (isWithinDir(path, cacheDir) || _normalise(path).contains('/Shared/AppGroup/')) {
-      await File(path).delete();
-    }
+    final p = _normalise(path);
+    final i = p.lastIndexOf(Platform.pathSeparator);
+    final directChild = i > 0 && p.substring(0, i) == _normalise(cacheDir);
+    final appGroup = (ios ?? Platform.isIOS) && p.contains('/Shared/AppGroup/');
+    if (directChild || appGroup) await File(p).delete();
   } catch (_) {}
 }

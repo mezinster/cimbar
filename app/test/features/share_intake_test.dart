@@ -9,6 +9,7 @@ import 'package:share_handler/share_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cimbar_scanner/app.dart';
+import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 import 'package:cimbar_scanner/core/providers/shared_preferences_provider.dart';
 import 'package:cimbar_scanner/core/services/incoming_share.dart';
 import 'package:cimbar_scanner/features/camera/live_scan_screen.dart';
@@ -382,6 +383,69 @@ void main() {
     expect(pdf.existsSync(), isFalse);
   });
 
+  group("plugin copies of items that aren't used", () {
+    /// A cache directory (the temp directory doubles as the plugin's cacheDir,
+    /// as on Android) holding [names], each a small PDF.
+    (Directory, List<File>) cacheWith(List<String> names) {
+      final temp = Directory.systemTemp.createTempSync('share_cache');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      return (temp, [for (final n in names) File('${temp.path}/$n')..writeAsBytesSync('%PDF-1.4 $n'.codeUnits)]);
+    }
+
+    SharedMedia shareOf(List<File> files) => SharedMedia(attachments: [
+          for (final f in files) SharedAttachment(path: f.path, type: SharedAttachmentType.file),
+        ]);
+
+    testWidgets('items 2..N of a multi-item share are deleted; the first is loaded', (tester) async {
+      final source = FakeShareSource();
+      final (temp, files) = cacheWith(['a.pdf', 'b.pdf', 'c.png']);
+      final container = await pumpApp(tester, source, tempDir: temp);
+
+      source.controller.add(shareOf(files));
+      await settleUntil(tester, () => container.read(sendControllerProvider).fileName != null);
+
+      expect(container.read(sendControllerProvider).fileName, 'a.pdf');
+      for (final f in files) {
+        expect(f.existsSync(), isFalse, reason: f.path);
+      }
+    });
+
+    testWidgets("a too-large item's real file is deleted", (tester) async {
+      final source = FakeShareSource();
+      final temp = Directory.systemTemp.createTempSync('share_cache');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      // Sparse: above the cap without writing 128 MB.
+      final big = File('${temp.path}/movie.mov');
+      final raf = big.openSync(mode: FileMode.write)
+        ..setPositionSync(CimbarSpec.maxInflatedBytes + 1)
+        ..writeByteSync(0);
+      raf.closeSync();
+      await pumpApp(tester, source, tempDir: temp);
+
+      source.controller.add(shareOf([big]));
+      await settleIo(tester);
+
+      expect(find.textContaining('File too large'), findsOneWidget);
+      expect(big.existsSync(), isFalse);
+    });
+
+    testWidgets('a share dropped by a busy guard leaves no plugin copies', (tester) async {
+      final source = FakeShareSource();
+      final (temp, files) = cacheWith(['a.pdf', 'b.pdf']);
+      final container = await pumpApp(tester, source,
+          tempDir: temp, extraOverrides: [sendControllerProvider.overrideWith((ref) => _BusySendController())]);
+
+      source.controller.add(shareOf(files));
+      await settleIo(tester);
+
+      expect(find.text('Finish creating the current barcode first, then share again.'), findsOneWidget);
+      expect(container.read(sendControllerProvider).fileName, 'old.bin');
+      for (final f in files) {
+        expect(f.existsSync(), isFalse, reason: f.path);
+      }
+    });
+  });
+
   testWidgets('several shared items: the first is used and a SnackBar says so', (tester) async {
     final source = FakeShareSource();
     final container = await pumpApp(tester, source);
@@ -561,6 +625,44 @@ void main() {
 
       expect(find.byType(AlertDialog), findsNothing);
       expect(container.read(sendControllerProvider).text, 'my typed text');
+    });
+
+    testWidgets('shared text over typed text hidden behind File mode still asks first', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier)
+        ..setText('my typed text')
+        ..setMode(SendMode.file);
+
+      source.controller.add(SharedMedia(content: 'shared text'));
+      await settleIo(tester);
+
+      expect(find.text('Replace the text you typed?'), findsOneWidget);
+      await tester.tap(find.text('No'));
+      await settleIo(tester);
+      expect(container.read(sendControllerProvider).text, 'my typed text');
+    });
+
+    testWidgets('two shares in quick succession are handled one after the other', (tester) async {
+      final source = FakeShareSource();
+      final container = await pumpApp(tester, source);
+      container.read(sendControllerProvider.notifier).setText('my typed text');
+
+      source.controller
+        ..add(SharedMedia(content: 'first'))
+        ..add(SharedMedia(content: 'second'));
+      await settleIo(tester);
+
+      expect(find.byType(AlertDialog), findsOneWidget, reason: 'the second share waits for the first');
+      await tester.tap(find.text('Yes'));
+      await settleIo(tester);
+      expect(container.read(sendControllerProvider).text, 'first');
+
+      expect(find.byType(AlertDialog), findsOneWidget, reason: 'now the second share asks');
+      await tester.tap(find.text('Yes'));
+      await settleIo(tester);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(sendControllerProvider).text, 'second');
     });
 
     testWidgets('shared text over typed text: Yes replaces it', (tester) async {

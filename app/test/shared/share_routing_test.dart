@@ -150,6 +150,16 @@ void main() {
     expect(r, isA<ShowUnreadable>());
   });
 
+  test("an item that can't be opened is unreadable and its copy still released", () async {
+    final f = file('locked.pdf', '%PDF-1.4'.codeUnits);
+    Process.runSync('chmod', ['000', f.path]);
+    addTearDown(() => Process.runSync('chmod', ['644', f.path]));
+    final released = <String>[];
+    final r = await routeShare(f, decodePixels: neverDecode, stage: stage, release: (i) async => released.add(i.path));
+    expect(r, isA<ShowUnreadable>());
+    expect(released, [f.path]);
+  });
+
   test('onDetecting fires only for photos', () async {
     var detecting = 0;
     await routeShare(const SharedText('x'), decodePixels: neverDecode, stage: stage, onDetecting: () => detecting++);

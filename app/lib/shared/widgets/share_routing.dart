@@ -64,7 +64,8 @@ class ShowUnreadable extends ShareRoute {
 /// optimiser; everything else is sent as a file. [onDetecting] fires just
 /// before a photo is staged and detected, so the caller can show progress.
 /// [release] is called with a GIF or other file once its bytes are in memory,
-/// to delete the share plugin's copy (a photo's copy goes in [stage]).
+/// and with any file that turns out unreadable, to delete the share plugin's
+/// copy (a photo's copy goes in [stage]).
 Future<ShareRoute> routeShare(
   ShareItem item, {
   required PixelDecoder decodePixels,
@@ -83,7 +84,11 @@ Future<ShareRoute> routeShare(
       try {
         return await _routeFile(item, decodePixels, stage, release, onDetecting);
       } on FileSystemException {
-        // Gone or unreadable between readShare and here.
+        // Gone or unreadable between readShare and here; the plugin's copy,
+        // if any, is of no further use.
+        try {
+          await release?.call(item);
+        } catch (_) {}
         return const ShowUnreadable();
       }
   }

@@ -31,6 +31,40 @@ void main() {
     expect((r.item as SharedFileItem).path, a.path);
   });
 
+  test('a leading too-large attachment does not hide a later usable one', () async {
+    final big = make('big.bin', 2048);
+    final b = make('b.bin', 5);
+    for (final first in [att('cimbar-too-large:999999999'), att(big.path)]) {
+      final r = await readShare(SharedMedia(attachments: [first, att(b.path)]), cap: 1024);
+      expect((r.item as SharedFileItem).name, 'b.bin', reason: first.path);
+      expect(r.count, 2);
+    }
+  });
+
+  test('too large is reported only when nothing is usable, ahead of unreadable', () async {
+    final big = make('big.bin', 2048);
+    final r = await readShare(SharedMedia(attachments: [att('/nonexistent/x'), att(big.path)]), cap: 1024);
+    expect((r.item as ShareTooLarge).length, 2048);
+  });
+
+  test('paths lists every real attachment path, markers and unparsable URIs excluded', () async {
+    final a = make('a.bin', 3);
+    final big = make('big.bin', 2048);
+    final r = await readShare(
+        SharedMedia(attachments: [
+          att('cimbar-too-large:-1'),
+          att(Uri.file(a.path).toString()),
+          att(big.path),
+          att('/nonexistent/x'),
+          att('file://example.com/some/path.gif'),
+          att(''),
+        ]),
+        cap: 1024);
+    expect((r.item as SharedFileItem).path, a.path);
+    expect(r.paths, [a.path, big.path, '/nonexistent/x']);
+    expect((await readShare(SharedMedia(content: 'hi'))).paths, isEmpty);
+  });
+
   test('first unreadable then readable gives the readable one', () async {
     final b = make('b.bin', 5);
     final r = await readShare(SharedMedia(attachments: [att('/nonexistent/x'), att(b.path)]));
@@ -91,13 +125,24 @@ void main() {
     late Directory cache;
     setUp(() => cache = Directory('${tmp.path}/cache')..createSync());
 
-    test('deletes a file inside cacheDir, with or without a trailing separator', () async {
+    test('deletes a direct child of cacheDir, with or without a trailing separator', () async {
       final a = File('${cache.path}/a.pdf')..writeAsBytesSync([1]);
-      final b = File('${cache.path}/sub/b.pdf')..createSync(recursive: true);
-      await deletePluginCopy(a.path, cacheDir: cache.path);
-      await deletePluginCopy(b.path, cacheDir: '${cache.path}/');
+      final b = File('${cache.path}/b.pdf')..writeAsBytesSync([1]);
+      await deletePluginCopy(a.path, cacheDir: cache.path, ios: false);
+      await deletePluginCopy(b.path, cacheDir: '${cache.path}/', ios: false);
       expect(a.existsSync(), isFalse);
       expect(b.existsSync(), isFalse);
+    });
+
+    test('keeps a file nested below cacheDir (the plugin only writes direct children)', () async {
+      // A crafted file:// share naming CimBar's own staged photo.
+      final nested = File('${cache.path}/share_in/123/x.jpg')..createSync(recursive: true);
+      final viaDotDot = File('${cache.path}/sub/y.pdf')..createSync(recursive: true);
+      await deletePluginCopy(nested.path, cacheDir: cache.path, ios: false);
+      await deletePluginCopy('${cache.path}/sub/../sub/y.pdf', cacheDir: cache.path, ios: false);
+      await deletePluginCopy(nested.path, cacheDir: cache.path, ios: true);
+      expect(nested.existsSync(), isTrue);
+      expect(viaDotDot.existsSync(), isTrue);
     });
 
     test('keeps a file outside cacheDir, in a sibling with the same prefix, or reached by ..', () async {
@@ -112,9 +157,11 @@ void main() {
       expect(dotdot.existsSync(), isTrue);
     });
 
-    test('deletes an iOS App Group copy', () async {
+    test('deletes an iOS App Group copy on iOS only', () async {
       final f = File('${tmp.path}/Shared/AppGroup/1234/x.gif')..createSync(recursive: true);
-      await deletePluginCopy(f.path, cacheDir: cache.path);
+      await deletePluginCopy(f.path, cacheDir: cache.path, ios: false);
+      expect(f.existsSync(), isTrue, reason: 'no App Group on Android');
+      await deletePluginCopy(f.path, cacheDir: cache.path, ios: true);
       expect(f.existsSync(), isFalse);
     });
 
