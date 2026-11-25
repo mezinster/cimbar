@@ -396,4 +396,87 @@ class AppLocalizationsKa extends AppLocalizations {
   String sizeMegabytes(String value) {
     return '$value MB';
   }
+
+  @override
+  String get sendChoosePhoto => 'ფოტოს არჩევა';
+
+  @override
+  String get photoOptimiseTitle => 'ფოტოს ოპტიმიზაცია';
+
+  @override
+  String get photoFramesToSend => 'გასაგზავნი კადრები';
+
+  @override
+  String photoTransferTime(int frames, double seconds, int delay) {
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    return '$frames კადრი · ≈ $secondsString წმ, $delay ms დაყოვნებით';
+  }
+
+  @override
+  String photoGifCapNote(int max) {
+    return '„GIF-ის გაზიარება“ იტევს მაქსიმუმ $max კადრს; მეტი — მხოლოდ „ეკრანზე ჩვენებით“';
+  }
+
+  @override
+  String get photoManual => 'ხელით';
+
+  @override
+  String get photoBackToAuto => 'ავტომატურზე დაბრუნება';
+
+  @override
+  String photoQuality(int quality) {
+    return 'ხარისხი $quality';
+  }
+
+  @override
+  String get photoSide => 'გრძელი მხარე';
+
+  @override
+  String get photoOriginal => 'ორიგინალი';
+
+  @override
+  String get photoSkip => 'გამოტოვება (ორიგინალის შენარჩუნება)';
+
+  @override
+  String get photoContinue => 'გაგრძელება';
+
+  @override
+  String photoContinueWith(int count) {
+    return 'გაგრძელება $count კადრით';
+  }
+
+  @override
+  String photoContinueAsIs(int count) {
+    return 'ამ სურათით გაგრძელება ($count კადრი)';
+  }
+
+  @override
+  String photoDoesNotFit(int frames, int needed) {
+    return '$frames კადრში არ ეტევა — საჭიროა მინიმუმ $needed კადრი';
+  }
+
+  @override
+  String get photoDecodeError =>
+      'ამ ფოტოს წაკითხვა ვერ ხერხდება. ორიგინალი ფაილის გასაგზავნად შეეხეთ „გამოტოვებას“.';
+
+  @override
+  String get photoMemoryError =>
+      'ამ მოწყობილობაზე ამ ფოტოს ოპტიმიზაციისთვის საკმარისი მეხსიერება არ არის.';
+
+  @override
+  String photoResultLabel(int width, int height, int quality, int kb) {
+    return '$width×$height · q$quality · $kb KB';
+  }
+
+  @override
+  String get photoFewerFrames => 'ნაკლები კადრი';
+
+  @override
+  String get photoMoreFrames => 'მეტი კადრი';
+
+  @override
+  String get photoEditFrameCount => 'ორჯერ შეეხეთ რიცხვის შესაყვანად';
 }

@@ -14,6 +14,8 @@ const _sameInEveryLanguage = {
   'sizeBytes',
   'sizeKilobytes',
   'sizeMegabytes',
+  // Photo optimiser caption: pixel size, JPEG q-number and KB, the same units.
+  'photoResultLabel',
 };
 
 Map<String, dynamic> _read(File f) =>

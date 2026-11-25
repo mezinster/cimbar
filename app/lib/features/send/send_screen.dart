@@ -9,9 +9,16 @@ import '../../shared/format_size.dart';
 import '../../shared/widgets/file_picker_zone.dart';
 import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
+import '../photo/presentation/photo_optimiser_provider.dart';
+import '../photo/presentation/photo_optimiser_screen.dart';
 import 'present_screen.dart';
 import 'screen_controls.dart';
 import 'send_controller.dart';
+
+/// Extensions (lower case) a Choose file pick hands to the photo optimiser.
+/// GIF is left out: optimising would flatten an animation, and a GIF is what
+/// Send itself produces.
+const photoExtensions = {'jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'};
 
 class SendScreen extends ConsumerStatefulWidget {
   const SendScreen({super.key});
@@ -47,6 +54,24 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final result = await FilePicker.pickFiles();
     if (result.isEmpty) return;
     final f = result.first;
+    await _take(f, optimise: photoExtensions.contains(f.extension?.toLowerCase()));
+  }
+
+  Future<void> _pickPhoto() async {
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    if (result.isEmpty) return;
+    await _take(result.first, optimise: true);
+  }
+
+  /// Opens the photo optimiser for [f] when [optimise] and it is on disk;
+  /// otherwise loads it as a plain file.
+  Future<void> _take(PlatformFile f, {required bool optimise}) async {
+    final path = f.path;
+    if (optimise && path != null) {
+      if (!mounted) return;
+      await openPhotoOptimiser(context, ref, PendingPhoto(path: path, name: f.name));
+      return;
+    }
     // The controller outlives this widget, so no mounted check is needed.
     await ref.read(sendControllerProvider.notifier).loadFile(f.name, length: f.length, read: f.readAsBytes);
   }
@@ -113,8 +138,16 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               ),
               onChanged: controller.setText,
             )
-          else
+          else ...[
             FilePickerZone(onTap: _pickFile, selectedFileName: state.fileName),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('sendChoosePhoto'),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: Text(l10n.sendChoosePhoto),
+              onPressed: _pickPhoto,
+            ),
+          ],
           const SizedBox(height: 8),
           if (state.hasInput)
             Text(

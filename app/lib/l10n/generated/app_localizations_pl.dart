@@ -423,4 +423,117 @@ class AppLocalizationsPl extends AppLocalizations {
   String sizeMegabytes(String value) {
     return '$value MB';
   }
+
+  @override
+  String get sendChoosePhoto => 'Choose photo';
+
+  @override
+  String get photoOptimiseTitle => 'Optimise photo';
+
+  @override
+  String get photoFramesToSend => 'Frames to send';
+
+  @override
+  String photoTransferTime(int frames, double seconds, int delay) {
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: '$frames frames',
+      one: '1 frame',
+    );
+    return '$_temp0 · ≈ $secondsString s at $delay ms';
+  }
+
+  @override
+  String photoGifCapNote(int max) {
+    return 'Share GIF holds up to $max frames; Present only';
+  }
+
+  @override
+  String get photoManual => 'Manual';
+
+  @override
+  String get photoBackToAuto => 'Back to auto';
+
+  @override
+  String photoQuality(int quality) {
+    return 'Quality $quality';
+  }
+
+  @override
+  String get photoSide => 'Longest side';
+
+  @override
+  String get photoOriginal => 'Original';
+
+  @override
+  String get photoSkip => 'Skip (keep original)';
+
+  @override
+  String get photoContinue => 'Continue';
+
+  @override
+  String photoContinueWith(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Continue with $count frames',
+      one: 'Continue with 1 frame',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String photoContinueAsIs(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Continue with this image ($count frames)',
+      one: 'Continue with this image (1 frame)',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String photoDoesNotFit(int frames, int needed) {
+    String _temp0 = intl.Intl.pluralLogic(
+      frames,
+      locale: localeName,
+      other: 'Doesn\'t fit in $frames frames',
+      one: 'Doesn\'t fit in 1 frame',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      needed,
+      locale: localeName,
+      other: 'needs at least $needed frames',
+      one: 'needs at least 1 frame',
+    );
+    return '$_temp0 — $_temp1';
+  }
+
+  @override
+  String get photoDecodeError =>
+      'This photo can\'t be read. Tap Skip to send the original file.';
+
+  @override
+  String get photoMemoryError =>
+      'Not enough memory on this device to optimise this photo.';
+
+  @override
+  String photoResultLabel(int width, int height, int quality, int kb) {
+    return '$width×$height · q$quality · $kb KB';
+  }
+
+  @override
+  String get photoFewerFrames => 'Fewer frames';
+
+  @override
+  String get photoMoreFrames => 'More frames';
+
+  @override
+  String get photoEditFrameCount => 'Double-tap to type the number';
 }
