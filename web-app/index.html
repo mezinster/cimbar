@@ -1436,14 +1436,17 @@ function renderPhoto(st) {
   document.getElementById('photoQualityLabel').textContent = t('photoQuality', { quality: Number(slider.value) || quality });
   document.getElementById('photoAutoBtn').hidden = !manual;
 
-  // Unfit: "Continue with M frames" (M ≤ 4096) and "Continue with this image (K frames)", as in the app.
+  // Unfit: "Continue with M frames" alone while M ≤ 4096, as in the app. Re-fitting at M
+  // sends an image at least as good as the one shown for the same M frames (manual keeps
+  // side and quality: the very same image), so "Continue with this image (K frames)" is
+  // offered only when M passes the cap and "Continue with M frames" cannot be.
   const withBtn = document.getElementById('photoContinueWithBtn');
   const cont = document.getElementById('photoContinueBtn');
   const blocked = st.busy || r === null;
   withBtn.hidden = final || st.continueWithFrames === null;
   if (st.continueWithFrames !== null) withBtn.textContent = t('photoContinueWith', { count: st.continueWithFrames });
   withBtn.disabled = blocked;
-  cont.hidden = final;
+  cont.hidden = final || st.continueWithFrames !== null;
   cont.textContent = unfit ? t('photoContinueAsIs', { count: st.asIsFrames }) : t('photoContinue');
   cont.disabled = blocked;
   // One primary button: Skip when the original is smaller, else the first Continue.

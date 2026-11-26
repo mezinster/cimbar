@@ -138,20 +138,23 @@ class _PhotoOptimiserScreenState extends ConsumerState<PhotoOptimiserScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (unfit) ...[
-                if (needed <= maxSendFrames) ...[
-                  FilledButton(
-                    key: const Key('photoContinueWith'),
-                    onPressed: canContinue
-                        ? () => _continue(notifier.continueAtNeeded)
-                        : null,
-                    child: Text(
-                      l10n.photoContinueWith(needed),
-                      textAlign: TextAlign.center,
-                    ),
+              // Unfit: "Continue with M frames" re-fits at M, which sends an
+              // image at least as good as the one shown for the same frame
+              // count (manual keeps side and quality, so the very same
+              // image), so the image shown is offered on its own only when
+              // M passes the send cap and Continue with M cannot be.
+              if (unfit && needed <= maxSendFrames)
+                FilledButton(
+                  key: const Key('photoContinueWith'),
+                  onPressed: canContinue
+                      ? () => _continue(notifier.continueAtNeeded)
+                      : null,
+                  child: Text(
+                    l10n.photoContinueWith(needed),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 4),
-                ],
+                )
+              else if (unfit)
                 OutlinedButton(
                   key: const Key('photoContinue'),
                   onPressed: canContinue
@@ -167,8 +170,8 @@ class _PhotoOptimiserScreenState extends ConsumerState<PhotoOptimiserScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                ),
-              ] else
+                )
+              else
                 FilledButton(
                   key: const Key('photoContinue'),
                   onPressed: canContinue
@@ -376,7 +379,9 @@ class _Preview extends StatelessWidget {
     final longest = state.longestSide;
     int scaled(int v) =>
         r.maxSide >= longest ? v : (v * r.maxSide / longest).round();
-    final kb = r.bytes.isEmpty ? 0 : math.max(1, (r.bytes.length / 1024).round());
+    final kb = r.bytes.isEmpty
+        ? 0
+        : math.max(1, (r.bytes.length / 1024).round());
     return l10n.photoResultLabel(
       scaled(state.width),
       scaled(state.height),
