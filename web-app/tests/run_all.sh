@@ -35,6 +35,9 @@ node tests/test_photo_fit.js
 echo ""; echo "--- JPEG metadata stripping ---"
 node tests/test_jpeg_metadata.js
 
+echo ""; echo "--- Image decode (HEIF sniff, vendored libheif, HEIC worker) ---"
+node tests/test_image_decode.js
+
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
