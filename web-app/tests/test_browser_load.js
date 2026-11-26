@@ -61,8 +61,8 @@ function loadLikeABrowser() {
   return window;
 }
 
-test('index.html lists the twenty-one local scripts in dependency order', () => {
-  assert(scripts.length === 21, `expected 21 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
+test('index.html lists the twenty-six local scripts in dependency order', () => {
+  assert(scripts.length === 26, `expected 26 local scripts, found ${scripts.length}: ${scripts.join(', ')}`);
   assert(scripts.indexOf('format-data.js') < scripts.indexOf('format.js'), 'format-data.js must precede format.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('cimbar.js'), 'format.js must precede cimbar.js');
   assert(scripts.indexOf('format.js') < scripts.indexOf('gif-encoder.js'), 'format.js must precede gif-encoder.js');
@@ -84,6 +84,20 @@ test('index.html lists the twenty-one local scripts in dependency order', () => 
   assert(scripts.indexOf('capture-policy.js') < scripts.indexOf('live-scan.js'), 'capture-policy.js must precede live-scan.js');
   assert(scripts.indexOf('live-scan.js') < scripts.indexOf('i18n.js'), 'live-scan.js must precede i18n.js');
   assert(!scripts.includes('scan-worker.js'), 'scan-worker.js is a worker script and must not be a page <script>');
+  // photo optimiser: photo-fit/jpeg-metadata read CimbarFormat/Cimbar, the
+  // chain image-decode -> canvas-jpeg -> photo-optimiser resolves its deps in order.
+  const at = (f) => { const i = scripts.indexOf(f); assert(i >= 0, `${f} is not a page script`); return i; };
+  assert(at('cimbar.js') < at('photo-fit.js'), 'cimbar.js must precede photo-fit.js');
+  assert(at('cimbar.js') < at('jpeg-metadata.js'), 'cimbar.js must precede jpeg-metadata.js');
+  assert(at('jpeg-metadata.js') < at('image-decode.js'), 'jpeg-metadata.js must precede image-decode.js');
+  assert(at('image-decode.js') < at('canvas-jpeg.js'), 'image-decode.js must precede canvas-jpeg.js');
+  assert(at('canvas-jpeg.js') < at('photo-optimiser.js'), 'canvas-jpeg.js must precede photo-optimiser.js');
+  assert(at('photo-fit.js') < at('photo-optimiser.js'), 'photo-fit.js must precede photo-optimiser.js');
+  for (const f of ['photo-fit.js', 'jpeg-metadata.js', 'image-decode.js', 'canvas-jpeg.js', 'photo-optimiser.js']) {
+    assert(at(f) < at('i18n.js'), `${f} must precede i18n.js`);
+  }
+  assert(!scripts.includes('heic-worker.js'), 'heic-worker.js is a worker script and must not be a page <script>');
+  assert(!scripts.some((s) => s.startsWith('vendor/')), 'nothing under vendor/ is a page <script> (libheif is imported by the worker)');
   assert(scripts[scripts.length - 1] === 'i18n.js', 'i18n.js is loaded last, right before the page script');
 });
 
@@ -95,7 +109,7 @@ test('the globals the inline page script uses are all defined', () => {
   const w = loadLikeABrowser();
   for (const g of ['ReedSolomon', 'CIMBAR_SPEC', 'CimbarFormat', 'CimbarRateless', 'Cimbar', 'CimbarCrypto', 'CimbarCompress', 'GifEncoder', 'GifDecoder',
                     'CimbarRgbBuffer', 'CimbarLumaPlane', 'CimbarHomography', 'CimbarFinderLocator', 'CimbarWhitePoint', 'CimbarCellSampler', 'CimbarCellClassifier', 'CimbarDriftSolver', 'CimbarPhoto',
-                    'CimbarCapturePolicy', 'CimbarLiveScan', 'CimbarI18n']) {
+                    'CimbarCapturePolicy', 'CimbarLiveScan', 'CimbarPhotoFit', 'CimbarJpegMeta', 'CimbarImageDecode', 'CimbarCanvasJpeg', 'CimbarPhotoOptimiser', 'CimbarI18n']) {
     assert(w[g] !== undefined, `window.${g} is not defined after loading the page scripts`);
   }
   for (const fn of ['renderFrame', 'decodeFrameExact', 'encodeRSFrame', 'decodeRSFrame', 'splitIntoFrames', 'repairFrame', 'frameBodies', 'gifRepairCount', 'RatelessAssembler', 'buildPayload', 'parsePayload']) {
