@@ -88,8 +88,24 @@ test('the deploy workflow stages every worker, the scripts it imports and the wa
   assert(wasm[1] === 'vendor/libheif/libheif.wasm', `unexpected WASM_URL ${wasm[1]}`);
 });
 
+/** Published (site/) name of a staged source file: the licences get a .txt suffix. */
+function publishedName(f) { return /^vendor\/libheif\/(DAV1D-)?LICENSE$/.test(f) ? f + '.txt' : f; }
+
+test('the libheif licences are published as .txt (extensionless keys are served as folders), typed in both tables, and nothing else is .txt', () => {
+  const rename = workflow.match(/case "\$f" in\s+vendor\/libheif\/LICENSE\|vendor\/libheif\/DAV1D-LICENSE\) dest="\$f\.txt"/);
+  assert(rename, 'the staging loop must rename the two licences to <name>.txt');
+  const published = stagedFiles().map(publishedName);
+  for (const f of ['vendor/libheif/LICENSE.txt', 'vendor/libheif/DAV1D-LICENSE.txt']) {
+    assert(published.includes(f), `${f} is not published`);
+    assert(workflow.split('Verify the staged bundle')[1].split('Verify the healthcheck')[0].includes(f), `the verify allow-list does not accept ${f}`);
+  }
+  assert(published.filter((f) => f.endsWith('.txt')).length === 2, 'only the two licences may be .txt (the *.txt type is text/plain)');
+  assert(!workflow.includes('*LICENSE'), 'no extensionless *LICENSE pattern may remain');
+  assert((workflow.match(/^\s*\*\.txt\s+text\/plain; charset=utf-8\s*$/gm) || []).length === 2, '*.txt text/plain must be in both type tables');
+});
+
 test('the staging loop keeps subdirectories', () => {
-  assert(/mkdir -p "\$\(dirname "..\/site\/\$f"\)"/.test(workflow), 'the staging loop must mkdir -p the destination directory of each file');
+  assert(/mkdir -p "\$\(dirname "..\/site\/\$dest"\)"/.test(workflow), 'the staging loop must mkdir -p the destination directory of each file');
 });
 
 test('the deploy verify step checks <link href> as well as <script src>', () => {
@@ -106,7 +122,7 @@ test('upload and rollback give every staged file type its own Content-Type', () 
     '*.svg': 'image/svg+xml',
     '*.webmanifest': 'application/manifest+json',
     '*.wasm': 'application/wasm',
-    '*LICENSE': 'text/plain; charset=utf-8',
+    '*.txt': 'text/plain; charset=utf-8',
   };
   for (const [pattern, type] of Object.entries(want)) {
     const line = new RegExp(`^\\s*${pattern.replace(/[.*]/g, '\\$&')}\\s+${type.replace(/[+.]/g, '\\$&')}\\s*$`, 'gm');
@@ -116,7 +132,7 @@ test('upload and rollback give every staged file type its own Content-Type', () 
   assert(/find \. -type f/.test(workflow.split('Verify the staged bundle')[1] || ''), 'the verify step must walk subdirectories (find), not just *');
   assert(!/--content-type 'text\/javascript[^']*'\s*\\?\s*\n\s*--cache-control/.test(workflow),
     'a sync still forces text/javascript on every file');
-  for (const f of stagedFiles()) {
+  for (const f of stagedFiles().map(publishedName)) {
     if (f === 'index.html') continue;
     const key = Object.keys(want).find((p) => (p.startsWith('*.') ? f.endsWith(p.slice(1)) : f.endsWith(p.slice(1))));
     assert(key, `staged file ${f} has no Content-Type entry`);

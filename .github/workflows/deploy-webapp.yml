@@ -61,8 +61,14 @@ jobs:
           cd web-app
           for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js rgb-buffer.js luma-plane.js homography.js finder-locator.js white-point.js cell-sampler.js cell-classifier.js drift-solver.js photo-decoder.js capture-policy.js live-scan.js scan-worker.js photo-fit.js jpeg-metadata.js image-decode.js canvas-jpeg.js photo-optimiser.js heic-worker.js vendor/libheif/libheif.js vendor/libheif/libheif.wasm vendor/libheif/LICENSE vendor/libheif/DAV1D-LICENSE i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
             [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
-            mkdir -p "$(dirname "../site/$f")"
-            cp "$f" "../site/$f"
+            # Extensionless names are taken for folders by the CloudFront
+            # directory-index rewrite, so the licences are published as .txt.
+            dest="$f"
+            case "$f" in
+              vendor/libheif/LICENSE|vendor/libheif/DAV1D-LICENSE) dest="$f.txt" ;;
+            esac
+            mkdir -p "$(dirname "../site/$dest")"
+            cp "$f" "../site/$dest"
           done
           cd ../site
           awk -v m="<!-- cimbar-build:${SHA} -->" '/<\/head>/ && !done { print m; done=1 } { print }' index.html > index.tmp
@@ -96,7 +102,7 @@ jobs:
           done
           for f in $(find . -type f | sed 's|^\./||'); do
             case "$f" in
-              index.html|*.js|*.png|*.svg|*.webmanifest|*.wasm|vendor/libheif/LICENSE|vendor/libheif/DAV1D-LICENSE) ;;
+              index.html|*.js|*.png|*.svg|*.webmanifest|*.wasm|vendor/libheif/LICENSE.txt|vendor/libheif/DAV1D-LICENSE.txt) ;;
               *) echo "::error::$f has no upload Content-Type; add its pattern to the type tables"; missing=1 ;;
             esac
           done
@@ -234,7 +240,7 @@ jobs:
             *.svg           image/svg+xml
             *.webmanifest   application/manifest+json
             *.wasm          application/wasm
-            *LICENSE        text/plain; charset=utf-8
+            *.txt           text/plain; charset=utf-8
           TYPES
 
       - name: Upload index.html last (no-cache)
@@ -290,7 +296,7 @@ jobs:
             *.svg           image/svg+xml
             *.webmanifest   application/manifest+json
             *.wasm          application/wasm
-            *LICENSE        text/plain; charset=utf-8
+            *.txt           text/plain; charset=utf-8
           TYPES
           if [ -f ./previous/index.html ]; then
             aws s3 cp ./previous/index.html "s3://${BUCKET}/${PREFIX}index.html" \
