@@ -41,6 +41,9 @@ node tests/test_image_decode.js
 echo ""; echo "--- Canvas JPEG session ---"
 node tests/test_canvas_jpeg.js
 
+echo ""; echo "--- Photo optimiser controller ---"
+node tests/test_photo_optimiser.js
+
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 
