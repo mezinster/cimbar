@@ -12,19 +12,24 @@
 
 function stripJpegMetadata(jpeg) {
   if (jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new Error('Not a JPEG');
-  const out = [0xff, 0xd8];
-  const copy = (from, to) => {
-    for (let k = from; k < to; k++) out.push(jpeg[k]);
+  // Every kept piece is a contiguous range of the input: a marker's own FF is
+  // the byte before it (fill bytes before that are skipped), so each kept
+  // segment is [marker - 1, end). Ranges are collected, then copied once.
+  const ranges = [0, 2]; // SOI; flat [start, end) pairs
+  const keep = (from, to) => {
+    if (ranges[ranges.length - 1] === from) ranges[ranges.length - 1] = to; // adjacent: extend
+    else ranges.push(from, to);
   };
   let i = 2;
   while (i < jpeg.length) {
     if (jpeg[i] !== 0xff) throw new Error('Malformed JPEG marker');
     while (i < jpeg.length && jpeg[i] === 0xff) i++; // fill bytes
     if (i >= jpeg.length) throw new Error('Truncated JPEG');
+    const markerFF = i - 1; // the FF just before the marker byte
     const marker = jpeg[i++];
     // Standalone markers (no length): TEM, RSTn, SOI, EOI.
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
-      out.push(0xff, marker);
+      keep(markerFF, i);
       if (marker === 0xd9) break;
       continue;
     }
@@ -36,26 +41,30 @@ function stripJpegMetadata(jpeg) {
       // Scan header, then entropy data up to the next real marker: inside
       // entropy data FF is followed only by 00 or D0-D7.
       let j = segEnd;
-      while (
-        j + 1 < jpeg.length &&
-        !(jpeg[j] === 0xff && jpeg[j + 1] !== 0x00 && !(jpeg[j + 1] >= 0xd0 && jpeg[j + 1] <= 0xd7))
-      ) {
+      for (;;) {
+        j = jpeg.indexOf(0xff, j);
+        if (j < 0 || j + 1 >= jpeg.length) throw new Error('Truncated JPEG');
+        const next = jpeg[j + 1];
+        if (next !== 0x00 && !(next >= 0xd0 && next <= 0xd7)) break;
         j++;
       }
-      if (j + 1 >= jpeg.length) throw new Error('Truncated JPEG');
-      out.push(0xff, marker);
-      copy(i, j);
+      keep(markerFF, j);
       i = j;
       continue;
     }
     const drop = (marker >= 0xe1 && marker <= 0xef) || marker === 0xfe;
-    if (!drop) {
-      out.push(0xff, marker);
-      copy(i, segEnd);
-    }
+    if (!drop) keep(markerFF, segEnd);
     i = segEnd;
   }
-  return Uint8Array.from(out);
+  let total = 0;
+  for (let k = 0; k < ranges.length; k += 2) total += ranges[k + 1] - ranges[k];
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (let k = 0; k < ranges.length; k += 2) {
+    out.set(jpeg.subarray(ranges[k], ranges[k + 1]), at);
+    at += ranges[k + 1] - ranges[k];
+  }
+  return out;
 }
 
 const API = { stripJpegMetadata };

@@ -114,6 +114,33 @@ test('truncated input throws rather than returning a partial file', () => {
   }
 });
 
+test('a multi-MB JPEG strips exactly like a small one (segment ranges, not bytes)', () => {
+  // ~5 MB of entropy data with stuffed FF 00 and RSTn markers, a full-size
+  // EXIF segment, and a trailing gain map; the expected output is assembled
+  // from the same parts independently.
+  const n = 5 * 1024 * 1024;
+  const entropy = new Uint8Array(n);
+  let x = 0x12345678;
+  for (let k = 0; k < n; k++) {
+    x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+    entropy[k] = x >>> 24;
+  }
+  for (let k = 0; k < n - 1; k++) {
+    if (entropy[k] === 0xff) entropy[++k] = k % 4096 < 2 ? 0xd0 + (k & 7) : 0x00;
+  }
+  if (entropy[n - 1] === 0xff) entropy[n - 1] = 0x01;
+  const bigExif = seg(0xe1, [...ascii('Exif'), 0, 0, ...filled(65000, 0x47)]);
+  const head = (...parts) => Buffer.from(parts.flat());
+  const input = Buffer.concat([
+    head(soi, app0, bigExif, com, dqt, sof, dht, sos), entropy, head(eoi, soi, app1, eoi),
+  ]);
+  const want = Buffer.concat([head(soi, app0, dqt, sof, dht, sos), entropy, head(eoi)]);
+  const out = M.stripJpegMetadata(new Uint8Array(input.buffer, input.byteOffset, input.length));
+  eq(out instanceof Uint8Array, true, 'a Uint8Array');
+  eq(out.length, want.length, 'length');
+  eq(Buffer.from(out.buffer, out.byteOffset, out.length).equals(want), true, 'bytes');
+});
+
 Promise.all(pending).then(() => {
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
