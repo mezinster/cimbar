@@ -633,6 +633,30 @@ test('needed above the cap, continue superseded: the cap stays the original\'s',
   opt.dispose();
 });
 
+test('frames above the cap: − steps down by one, + and a typed count never go higher', async () => {
+  const { opt, clock } = await opened({ originalSize: 20_000 });
+  const cap = opt.state.cap;
+  opt.setManual({ side: 4032, quality: 100 });
+  clock.advance(REFIT_DEBOUNCE_MS);
+  await flush();
+  const p = opt.continueAtNeeded();
+  opt.setManual({ side: 640 }); // supersedes its fit: the count stays above the cap
+  eq(await p, null, 'superseded');
+  const above = opt.state.frames;
+  assert(above > cap + 2, `setup: frames ${above} above cap ${cap}`);
+  opt.step(-1);
+  eq(opt.state.frames, above - 1, '− from above the cap steps down by one, not to the cap');
+  opt.step(1);
+  eq(opt.state.frames, above - 1, '+ does not climb back above the cap');
+  opt.setFrames(5000);
+  eq(opt.state.frames, above - 1, 'a typed count higher than the current one is held');
+  opt.setFrames(cap - 1 > 0 ? cap - 1 : 1);
+  eq(opt.state.frames, Math.max(cap - 1, 1), 'a typed count within the cap is taken');
+  opt.setFrames(5000);
+  eq(opt.state.frames, cap, 'once back within the cap, the cap clamps again');
+  opt.dispose();
+});
+
 test('needed above 4096: continueWithFrames null while asIsFrames is set; continueAtNeeded refused', async () => {
   const { opt } = await opened({ session: new FakeJpegSession(4032, 3024, () => 20_000_000), originalSize: 30_000_000 });
   eq(opt.state.result.fits, false, 'unfit');

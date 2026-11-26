@@ -224,9 +224,15 @@ class PhotoOptimiser {
     }
   }
 
+  /**
+   * Clamped to 1 … cap. A count already above the cap (continueAtNeeded can
+   * raise it there) is the ceiling instead, so − steps down by one from it
+   * rather than jumping to the cap.
+   */
   setFrames(n) {
     this._framesChosen = true;
-    const frames = Math.min(Math.max(Math.round(n), 1), this._s.cap);
+    const top = Math.max(this._s.cap, this._s.frames);
+    const frames = Math.min(Math.max(Math.round(n), 1), top);
     if (frames === this._s.frames) return;
     this._set({ frames });
     this._schedule();

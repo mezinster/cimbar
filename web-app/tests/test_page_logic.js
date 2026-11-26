@@ -1417,6 +1417,91 @@ test('the frame stepper: + steps once on a tap, a typed count re-fits after the 
   assert(staged.bytes.length <= PhotoFit.photoByteBudget(3, 'IMG_1.jpg'), 'fits 3 frames');
 });
 
+const PNG_HEAD = [0x89, 0x50, 0x4E, 0x47];
+const isPrimary = (el) => el.classList.contains('btn-primary');
+const isSecondary = (el) => el.classList.contains('btn-secondary');
+
+test('tiny original: the result is bigger, so the note says so and Skip is the primary button — Review Focus 1', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  useSessions(ctx, calls, fakeSession({ width: 64, height: 64, size: () => 1800 }));
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('icon.png', 'image/png', PNG_HEAD, 1500), 'photo');
+  assertEq(PhotoFit.framesForFile('icon.png', 1500, true), 1, 'setup: cap 1');
+  assertEq(elements['photoFrames'].value, '1', 'one frame');
+  assertEq(elements['photoContinueBtn'].disabled, false, 'setup: the fit is done');
+  assertEq(elements['photoContinueBtn'].textContent, 'photoContinue', 'setup: the result fits');
+  assertEq(elements['photoNote'].textContent, 'photoLargerThanOriginal', 'the note says the original is smaller');
+  assert(isPrimary(elements['photoSkipBtn']), 'Skip is the primary button');
+  assert(!isPrimary(elements['photoContinueBtn']) && isSecondary(elements['photoContinueBtn']), 'Continue is secondary');
+  ctx.photoSkip();
+  assertEq((await stagedInput(ctx)).name, 'icon.png', 'Skip stages the original');
+});
+
+test('a result smaller than the original: no note, Continue stays primary', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  useSessions(ctx, calls, fakeSession({ width: 64, height: 64, size: () => 1000 }));
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('icon.png', 'image/png', PNG_HEAD, 1500), 'photo');
+  assertEq(elements['photoContinueBtn'].disabled, false, 'setup: the fit is done');
+  assertEq(elements['photoNote'].textContent, '', 'no note');
+  assert(!isPrimary(elements['photoSkipBtn']), 'Skip is not primary');
+  assert(isPrimary(elements['photoContinueBtn']), 'Continue is primary');
+});
+
+test('unfit and bigger than the original: both notes, Skip primary, both continues secondary', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  useSessions(ctx, calls, unfitSession());   // 30000-byte results, 15 frames needed
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_9.jpg', 'image/jpeg', JPEG_HEAD, 20000), 'photo');
+  assertEq(elements['photoNote'].textContent, 'photoDoesNotFit {"frames":1,"needed":15}\nphotoLargerThanOriginal', 'both lines');
+  assert(isPrimary(elements['photoSkipBtn']), 'Skip is primary');
+  assert(!isPrimary(elements['photoContinueWithBtn']) && isSecondary(elements['photoContinueWithBtn']), '"Continue with M frames" secondary');
+  assert(!isPrimary(elements['photoContinueBtn']), 'Continue as-is secondary');
+});
+
+test('the stepper shows "/ cap"; a count above the cap steps down by one, + stays put', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  useSessions(ctx, calls, unfitSession());
+  ctx.navigate('#/send');
+  const cap = PhotoFit.framesForFile('IMG_9.jpg', 20000, true);
+  assert(cap < 14, `setup: cap ${cap} below the 15 frames needed`);
+  await pick(ctx, fileOf('IMG_9.jpg', 'image/jpeg', JPEG_HEAD, 20000), 'photo');
+  assertEq(elements['photoCap'].textContent, `photoFramesCap {"cap":${cap}}`, 'the cap beside the count');
+  // "Continue with 15 frames", superseded by a − tap while its fit runs: the count stays above the cap.
+  const p = ctx.photoContinueAtNeeded();
+  assertEq(elements['photoFrames'].value, '15', 'raised past the cap');
+  const minus = elements['photoMinus']._listeners;
+  minus.pointerdown[0]({ button: 0, pointerId: 1 });
+  minus.pointerup[0]({});
+  await p;
+  await sleepMs(300); await flush();
+  assertEq(ctx.location.hash, '#/send/photo', 'still on the optimiser');
+  assertEq(elements['photoFrames'].value, '14', '− stepped down by one, not to the cap');
+  assertEq(elements['photoCap'].textContent, `photoFramesCap {"cap":${cap}}`, 'the cap is still the original\'s');
+  assertEq(elements['photoPlus'].getAttribute('aria-disabled'), 'true', '+ is disabled above the cap');
+  assertEq(elements['photoMinus'].getAttribute('aria-disabled'), 'false', '− is not');
+});
+
+test('closing the optimiser stops a hold in progress', async () => {
+  const { ctx, elements, calls } = freshPage();
+  useSessions(ctx, calls, fakeSession(), fakeSession());
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  const n = Number(elements['photoFrames'].value);
+  elements['photoPlus']._listeners.pointerdown[0]({ button: 0, pointerId: 1 });
+  await sleepMs(450);
+  assertEq(elements['photoFrames'].value, String(n + 1), 'setup: the hold is repeating');
+  ctx.navigate('#/send');   // Back, finger still down
+  await pick(ctx, fileOf('IMG_2.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  const m = elements['photoFrames'].value;
+  await sleepMs(450);
+  assertEq(elements['photoFrames'].value, m, 'the old hold does not step the next photo');
+});
+
 test('the File pill shows "<size> · ≈ <n> frames" with encryption counted', async () => {
   const { ctx, elements } = freshPage();
   showParams(ctx);
