@@ -16,6 +16,8 @@ const {
 const { photoByteBudget, framesForFile, MAX_FRAMES } = Fit;
 
 let passed = 0, failed = 0;
+let unhandled = 0;
+process.on('unhandledRejection', () => { unhandled++; });
 let chain = Promise.resolve();
 function test(name, fn) {
   chain = chain.then(async () => {
@@ -116,17 +118,24 @@ function setup(opts = {}) {
   const clock = new FakeClock();
   const session = opts.session || new FakeJpegSession(4032, 3024, model);
   const states = [];
+  const warnings = [];
+  // ctl.throwNext: the next onChange throws once (a buggy listener).
+  const ctl = { throwNext: false };
   const io = {
     openSession: opts.open || (async () => session),
     clock,
-    onChange: (s) => states.push(s),
+    onChange: (s) => {
+      states.push(s);
+      if (ctl.throwNext) { ctl.throwNext = false; throw new Error('listener'); }
+    },
+    warn: (msg) => warnings.push(msg),
   };
   const opt = new PhotoOptimiser(io, {
     source: {},
     fileName: NAME,
     originalSize: opts.originalSize !== undefined ? opts.originalSize : ORIGINAL_SIZE,
   });
-  return { opt, clock, session, states };
+  return { opt, clock, session, states, warnings, ctl };
 }
 
 /** Opened and first fit landed. */
@@ -597,6 +606,7 @@ test('manual and not fitting: continuing keeps the side and quality', async () =
 test('needed above the cap: the count passes the cap, never 4096', async () => {
   // A 20 kB original caps at 10 frames; a manual 4032 / q100 needs hundreds.
   const { opt, clock } = await opened({ originalSize: 20_000 });
+  const capAtOpen = opt.state.cap;
   opt.setManual({ side: 4032, quality: 100 });
   clock.advance(REFIT_DEBOUNCE_MS);
   await flush();
@@ -606,7 +616,21 @@ test('needed above the cap: the count passes the cap, never 4096', async () => {
   const choice = await opt.continueAtNeeded();
   assert(choice, 'choice');
   eq(opt.state.frames, needed, 'frames');
-  assert(opt.state.cap >= opt.state.frames, 'cap follows the count');
+  eq(opt.state.cap, capAtOpen, 'the cap stays the original\'s');
+});
+
+test('needed above the cap, continue superseded: the cap stays the original\'s', async () => {
+  const { opt, clock } = await opened({ originalSize: 20_000 });
+  const capAtOpen = opt.state.cap;
+  opt.setManual({ side: 4032, quality: 100 });
+  clock.advance(REFIT_DEBOUNCE_MS);
+  await flush();
+  assert(opt.state.needed > capAtOpen, 'needed above cap');
+  const p = opt.continueAtNeeded();
+  opt.setManual({ side: 640 }); // supersedes its fit
+  eq(await p, null, 'superseded');
+  eq(opt.state.cap, capAtOpen, 'cap unchanged');
+  opt.dispose();
 });
 
 test('needed above 4096: continueWithFrames null while asIsFrames is set; continueAtNeeded refused', async () => {
@@ -636,6 +660,45 @@ test('continueAtNeeded: a newer change during its fit makes it return null', asy
   opt.dispose();
 });
 
+test('continueAtNeeded pushes one state for the new count, already busy', async () => {
+  const { opt, states } = await openNothingFits();
+  const n = states.length;
+  const p = opt.continueAtNeeded();
+  eq(states.length, n + 1, 'one push');
+  eq(states[n].frames, opt.state.needed, 'new count');
+  eq(states[n].busy, true, 'busy');
+  await p;
+});
+
+test('continueAtNeeded resolves null, not a rejection, when its fit fails', async () => {
+  const { opt, ctl, warnings } = await openNothingFits();
+  const p = opt.continueAtNeeded();
+  ctl.throwNext = true; // the fit's result push throws
+  eq(await p, null, 'null');
+  eq(warnings.length, 1, 'reported through warn');
+  opt.step(1);
+  eq(opt.state.busy, true, 'still usable');
+  opt.dispose();
+});
+
+test('a throwing onChange during a fit does not stop later fits', async () => {
+  const { opt, clock, ctl, warnings } = await opened();
+  const before = unhandled;
+  opt.setFrames(7);
+  ctl.throwNext = true; // the 7-frame fit's result push throws
+  clock.advance(REFIT_DEBOUNCE_MS);
+  await flush();
+  eq(warnings.length, 1, 'reported through warn');
+  eq(opt.state.error, 'none', 'not a decode failure');
+  opt.setFrames(8);
+  clock.advance(REFIT_DEBOUNCE_MS);
+  await flush();
+  eq(opt.state.busy, false, 'the next fit ran');
+  eq(opt.state.frames, 8, 'frames');
+  assert(opt.state.result.bytes.length <= photoByteBudget(8, OUT), 'fitted for 8 frames');
+  eq(unhandled, before, 'no unhandled rejection');
+});
+
 test('continueAtNeeded: disposed returns null', async () => {
   const { opt } = await openNothingFits();
   const p = opt.continueAtNeeded();
@@ -643,7 +706,9 @@ test('continueAtNeeded: disposed returns null', async () => {
   eq(await p, null, 'disposed');
 });
 
-chain.then(() => {
+chain.then(async () => {
+  await flush();
+  if (unhandled) { failed++; console.log(`  FAIL  ${unhandled} unhandled rejection(s)`); }
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed) process.exit(1);
 });

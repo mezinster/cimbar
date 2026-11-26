@@ -285,7 +285,8 @@ class PhotoOptimiser {
 
   /**
    * "Continue with M frames": raises the count to `continueWithFrames` (past
-   * the cap if need be, never past 4096), re-fits at once and, if that fits,
+   * the cap if need be, never past 4096; the cap itself stays the
+   * original's), re-fits at once and, if that fits,
    * behaves as continueAsShown. Auto may find a better image that still fits;
    * manual keeps its side and quality. Null when busy, failed, superseded,
    * disposed or still not fitting.
@@ -297,12 +298,10 @@ class PhotoOptimiser {
     this._clearDebounce();
     this._holding = false;
     this._framesChosen = true;
-    this._set({ frames, cap: Math.max(st.cap, frames) });
     const gen = ++this._gen;
-    this._set({ busy: true });
-    const done = (this._chain = this._chain.then(() => this._fit(gen)));
-    await done;
-    if (!this._isCurrent(gen)) return null;
+    this._set({ frames, busy: true });
+    const ok = await this._enqueue(gen);
+    if (!ok || !this._isCurrent(gen)) return null;
     const after = this._s;
     if (after.frames !== frames || after.result === null || !after.result.fits) return null;
     return this.continueAsShown();
@@ -346,10 +345,25 @@ class PhotoOptimiser {
     if (this._holding) return; // endHold schedules the fit
     const run = () => {
       this._debounce = null;
-      this._chain = this._chain.then(() => this._fit(gen));
+      this._enqueue(gen);
     };
     if (now) run();
     else this._debounce = this._io.clock.setTimeout(run, REFIT_DEBOUNCE_MS);
+  }
+
+  /**
+   * Queues a fit behind the running one. The returned promise (and so the
+   * queue) always settles: true when the fit ran through, false when it threw
+   * (only an onChange listener can make it throw), so one failure never stops
+   * later fits.
+   */
+  _enqueue(gen) {
+    const run = this._chain.then(() => this._fit(gen)).then(
+      () => true,
+      (e) => { this._warn(`photo optimiser fit failed: ${e instanceof Error ? e.name : typeof e}`); return false; },
+    );
+    this._chain = run;
+    return run;
   }
 
   _isCurrent(gen) {
@@ -394,8 +408,8 @@ class PhotoOptimiser {
       },
       close: () => {},
     };
+    let r;
     try {
-      let r;
       if (st.mode === 'auto') {
         r = this._autoFits.get(st.frames);
         if (r === undefined) {
@@ -405,17 +419,19 @@ class PhotoOptimiser {
       } else {
         r = await Fit.encodeManual(guarded, { maxSide: st.manualSide, quality: st.manualQuality, budget });
       }
-      if (!this._isCurrent(gen)) return;
-      if (standIn !== null && r.bytes === standIn) {
-        this._autoFits.delete(st.frames);
-        this._set({ result: null, needed: null, busy: false, error: 'memory' });
-        return;
-      }
-      this._set({ result: r, needed: this._framesFor(r.bytes.length), busy: false, error: 'none' });
     } catch (e) {
       if (e instanceof Stale) return;
       if (this._isCurrent(gen)) this._fail(e);
+      return;
     }
+    // Published outside the try: a throwing onChange is not a decode failure.
+    if (!this._isCurrent(gen)) return;
+    if (standIn !== null && r.bytes === standIn) {
+      this._autoFits.delete(st.frames);
+      this._set({ result: null, needed: null, busy: false, error: 'memory' });
+      return;
+    }
+    this._set({ result: r, needed: this._framesFor(r.bytes.length), busy: false, error: 'none' });
   }
 
   _fail(e) {
