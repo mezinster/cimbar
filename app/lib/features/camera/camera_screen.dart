@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app.dart';
 import '../../core/models/decode_result.dart';
 import '../../core/services/file_service.dart';
 import '../../l10n/generated/app_localizations.dart';
@@ -12,6 +13,8 @@ import '../../shared/widgets/language_switcher_button.dart';
 import '../../shared/widgets/passphrase_field.dart';
 import '../../shared/widgets/progress_card.dart';
 import '../../shared/widgets/result_card.dart';
+import '../photo/presentation/photo_optimiser_provider.dart';
+import '../photo/presentation/photo_optimiser_screen.dart';
 import 'camera_controller.dart';
 import 'live_scan_screen.dart';
 import 'photo_capture_screen.dart';
@@ -52,6 +55,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       'multi_frame' => l10n.errorMultiFrameNeedsLive(s.errorTotal ?? 0),
       'passphrase_required' => l10n.errorPassphraseRequired,
       'not_located' => l10n.errorNoBarcodeFound,
+      'unreadable_image' || 'unsupported_grid' => l10n.errorDecoderFailed(p.message ?? ''),
       'decode_failed' => l10n.errorDecoderFailed(p.message ?? ''),
       _ => p.message ?? '',
     };
@@ -64,6 +68,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final state = ref.watch(cameraControllerProvider);
     final controller = ref.read(cameraControllerProvider.notifier);
     final theme = Theme.of(context);
+    // A shared photo that didn't decode may be an ordinary photo detection
+    // mistook for a barcode: offer to send it instead.
+    final sharedPhotoFailed = state.fromShare &&
+        !state.isDecoding &&
+        state.result == null &&
+        state.capturedPhotoPath != null &&
+        (state.errorCode != null || state.progress?.state == DecodeState.error);
 
     return Scaffold(
       appBar: AppBar(
@@ -158,6 +169,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           const SizedBox(height: 16),
 
           if (state.progress != null) ProgressCard(progress: _localized(l10n, state)),
+
+          if (sharedPhotoFailed) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('sendPhotoInstead'),
+              // Opened on the root navigator's context: the optimiser's
+              // Continue switches to the Send tab, which disposes this screen.
+              // The staged file's name is the sanitised original name.
+              onPressed: () => openPhotoOptimiser(
+                  rootNavigatorKey.currentContext ?? context,
+                  ref,
+                  PendingPhoto(
+                      path: state.capturedPhotoPath!,
+                      name: state.capturedPhotoPath!.split(RegExp(r'[\\/]')).last)),
+              icon: const Icon(Icons.send),
+              label: Text(l10n.shareSendInstead),
+            ),
+          ],
 
           if (state.result != null) ...[
             const SizedBox(height: 16),

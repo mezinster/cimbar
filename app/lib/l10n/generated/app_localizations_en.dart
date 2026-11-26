@@ -270,12 +270,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorNoBarcodeFound => 'No CimBar barcode found in the photo';
 
   @override
-  String get shareReadFailed =>
-      'Couldn\'t read the shared file. Open it with Import GIF instead.';
+  String get shareReadFailed => 'Couldn\'t read the shared item.';
 
   @override
   String get shareWhileDecoding =>
       'Finish the current decode first, then share the file again.';
+
+  @override
+  String get shareChecking => 'Checking shared photo…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Only the first of $count items is sent',
+      one: 'Only 1 item is sent',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'File too large (limit $max).';
+  }
 
   @override
   String get tabFiles => 'Files';
@@ -526,4 +544,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Double-tap to type the number';
+
+  @override
+  String get shareWhileEncoding =>
+      'Finish creating the current barcode first, then share again.';
+
+  @override
+  String get sharePresentConfirm => 'Stop presenting and load the shared item?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Replace the text you typed?';
+
+  @override
+  String get shareSendInstead => 'Send this photo instead';
+
+  @override
+  String get commonYes => 'Yes';
+
+  @override
+  String get commonNo => 'No';
 }

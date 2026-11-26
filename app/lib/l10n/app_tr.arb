@@ -75,8 +75,11 @@
   "errorPassphraseRequired": "Bu dosya şifreli: parola gerekli",
   "errorDecoderFailed": "Çözücü hatası: {detail}",
   "errorNoBarcodeFound": "Fotoğrafta CimBar barkodu bulunamadı",
-  "shareReadFailed": "Paylaşılan dosya okunamadı. Bunun yerine GIF İçe Aktar ile açın.",
+  "shareReadFailed": "Paylaşılan öğe okunamadı.",
   "shareWhileDecoding": "Önce mevcut çözümlemenin bitmesini bekleyin, ardından dosyayı yeniden paylaşın.",
+  "shareChecking": "Paylaşılan fotoğraf kontrol ediliyor…",
+  "shareOnlyFirst": "{count} öğeden yalnızca ilki gönderilir",
+  "shareTooLarge": "Dosya çok büyük (sınır {max}).",
 
   "tabFiles": "Dosyalar",
   "filesTitle": "Dosyalar",
@@ -135,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} KB",
   "photoFewerFrames": "Daha az kare",
   "photoMoreFrames": "Daha fazla kare",
-  "photoEditFrameCount": "Sayıyı yazmak için iki kez dokunun"
+  "photoEditFrameCount": "Sayıyı yazmak için iki kez dokunun",
+  "shareWhileEncoding": "Önce mevcut barkodun oluşturulmasının bitmesini bekleyin, ardından yeniden paylaşın.",
+  "sharePresentConfirm": "Gösterim durdurulup paylaşılan öğe yüklensin mi?",
+  "shareReplaceTextConfirm": "Yazdığınız metin değiştirilsin mi?",
+  "shareSendInstead": "Bunun yerine bu fotoğrafı gönder",
+  "commonYes": "Evet",
+  "commonNo": "Hayır"
 }

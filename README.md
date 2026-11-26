@@ -80,6 +80,8 @@ The bottom bar has five tabs, in this order (the app opens on Import):
 - **Files** — Every decoded file, to open, save or share
 - **About** (the fifth tab, `SettingsScreen`) — Developer debug switch (live-scan diagnostics overlay/logcat and corpus capture button), language selection (English, Russian, Turkish, Ukrainian, Georgian), and Privacy Policy / License / Source Code links
 
+**Share to CimBar:** share any file or text from another app to CimBar to send it (a CimBar GIF or a photo of a barcode is decoded instead); photos are shrunk to fit a frame count you choose.
+
 A received **text message** (a container named `*.txt` holding valid UTF-8, up to 1 MiB — the same convention the web app's Text mode uses) is shown in the result card with Copy, Share and Save as .txt, instead of as a bare file.
 
 ### Live Camera Scanning

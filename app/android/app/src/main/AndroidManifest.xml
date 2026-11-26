@@ -32,7 +32,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -47,13 +47,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Accept shared images: galleries share as image/* (Google Photos
-                 does, even for a GIF). ShareIntake routes by content: a GIF to
-                 Import, any other image to the photo decoder. -->
+            <!-- Accept any shared file or text (one or several). ShareIntake
+                 routes by content: a barcode photo or a CimBar GIF goes to
+                 decode, anything else to Send. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
 
         </activity>

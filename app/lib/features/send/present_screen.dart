@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/encode/cell_grid.dart';
 import '../../core/encode/frame_raster.dart';
@@ -17,6 +18,14 @@ Future<ui.Image> _rgbaToImage(Uint8List rgba) {
   ui.decodeImageFromPixels(rgba, CimbarSpec.framePx, CimbarSpec.framePx, ui.PixelFormat.rgba8888, c.complete);
   return c.future;
 }
+
+/// How many [PresentScreen]s are mounted; above 0 a Present is on screen, so
+/// a share arriving meanwhile asks before stopping it. Each screen counts
+/// itself in (initState) and out (dispose), however it is closed. A count, not
+/// a flag: a Present re-opened while the old one is still in its exit
+/// transition is counted in before the old one counts out, and a flag would
+/// end false then.
+final presentCountProvider = StateProvider<int>((_) => 0);
 
 class PresentScreen extends StatefulWidget {
   final EncodedPayload payload;
@@ -48,11 +57,34 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
   /// chain, and every exit ends with the screen restored.
   int _run = 0;
 
+  late final ProviderContainer _container;
+
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    // Riverpod refuses provider writes from widget life-cycle methods, so
+    // both writes run just after the current frame's build.
+    Future.microtask(() {
+      if (mounted) _count(1);
+    });
     WidgetsBinding.instance.addObserver(this);
     _start();
+  }
+
+  /// Whether this screen is in [presentCountProvider], so dispose takes out
+  /// only what initState put in.
+  bool _counted = false;
+
+  void _count(int delta) {
+    if ((delta > 0) == _counted) return;
+    try {
+      _container.read(presentCountProvider.notifier).update((n) => n + delta);
+      _counted = delta > 0;
+    } on StateError {
+      // The container went away with the app (a ProviderScope disposed
+      // together with this screen): nothing is left to tell.
+    }
   }
 
   /// Screen settings are best-effort: a plugin that throws (synchronously or
@@ -133,6 +165,7 @@ class _PresentScreenState extends State<PresentScreen> with WidgetsBindingObserv
       _run++;
     }
     _image?.dispose();
+    Future.microtask(() => _count(-1));
     super.dispose();
   }
 

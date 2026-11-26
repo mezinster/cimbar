@@ -75,8 +75,11 @@
   "errorPassphraseRequired": "ფაილი დაშიფრულია: საჭიროა პაროლი",
   "errorDecoderFailed": "დეკოდერის შეცდომა: {detail}",
   "errorNoBarcodeFound": "ფოტოში CimBar შტრიხკოდი ვერ მოიძებნა",
-  "shareReadFailed": "გაზიარებული ფაილის წაკითხვა ვერ მოხერხდა. გახსენით ის „GIF იმპორტით“.",
+  "shareReadFailed": "გაზიარებული ელემენტის წაკითხვა ვერ მოხერხდა.",
   "shareWhileDecoding": "ჯერ დაელოდეთ მიმდინარე დეკოდირების დასრულებას, შემდეგ ფაილი ხელახლა გააზიარეთ.",
+  "shareChecking": "გაზიარებული ფოტოს შემოწმება…",
+  "shareOnlyFirst": "{count} ელემენტიდან იგზავნება მხოლოდ პირველი",
+  "shareTooLarge": "ფაილი ძალიან დიდია (ლიმიტი {max}).",
 
   "tabFiles": "ფაილები",
   "filesTitle": "ფაილები",
@@ -135,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} KB",
   "photoFewerFrames": "ნაკლები კადრი",
   "photoMoreFrames": "მეტი კადრი",
-  "photoEditFrameCount": "ორჯერ შეეხეთ რიცხვის შესაყვანად"
+  "photoEditFrameCount": "ორჯერ შეეხეთ რიცხვის შესაყვანად",
+  "shareWhileEncoding": "ჯერ დაელოდეთ მიმდინარე შტრიხკოდის შექმნის დასრულებას, შემდეგ ხელახლა გააზიარეთ.",
+  "sharePresentConfirm": "შეწყდეს ჩვენება და ჩაიტვირთოს გაზიარებული ელემენტი?",
+  "shareReplaceTextConfirm": "ჩანაცვლდეს თქვენ მიერ აკრეფილი ტექსტი?",
+  "shareSendInstead": "ამის ნაცვლად ამ ფოტოს გაგზავნა",
+  "commonYes": "დიახ",
+  "commonNo": "არა"
 }

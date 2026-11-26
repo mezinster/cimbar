@@ -75,8 +75,11 @@
   "errorPassphraseRequired": "Файл зашифровано: потрібен пароль",
   "errorDecoderFailed": "Помилка декодера: {detail}",
   "errorNoBarcodeFound": "На фото не знайдено штрих-код CimBar",
-  "shareReadFailed": "Не вдалося прочитати надісланий файл. Відкрийте його через «Імпорт GIF».",
+  "shareReadFailed": "Не вдалося прочитати надісланий елемент.",
   "shareWhileDecoding": "Спершу дочекайтеся завершення поточного декодування, потім надішліть файл знову.",
+  "shareChecking": "Перевіряємо надіслане фото…",
+  "shareOnlyFirst": "{count, plural, one{Надсилається лише перший із {count} елемента} few{Надсилається лише перший із {count} елементів} many{Надсилається лише перший із {count} елементів} other{Надсилається лише перший із {count} елемента}}",
+  "shareTooLarge": "Файл завеликий (ліміт {max}).",
 
   "tabFiles": "Файли",
   "filesTitle": "Декодовані файли",
@@ -135,5 +138,11 @@
   "photoResultLabel": "{width}×{height} · q{quality} · {kb} КБ",
   "photoFewerFrames": "Менше кадрів",
   "photoMoreFrames": "Більше кадрів",
-  "photoEditFrameCount": "Двічі торкніться, щоб ввести число"
+  "photoEditFrameCount": "Двічі торкніться, щоб ввести число",
+  "shareWhileEncoding": "Спершу дочекайтеся завершення створення поточного штрих-коду, потім поділіться знову.",
+  "sharePresentConfirm": "Зупинити показ і завантажити отриманий елемент?",
+  "shareReplaceTextConfirm": "Замінити введений текст?",
+  "shareSendInstead": "Надіслати це фото",
+  "commonYes": "Так",
+  "commonNo": "Ні"
 }

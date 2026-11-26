@@ -63,6 +63,14 @@ class SendController extends StateNotifier<SendState> {
   void setMode(SendMode m) => state = state.copyWith(mode: m, clearError: true);
   void setText(String t) => state = state.copyWith(text: t, clearError: true);
   void setFile(String name, Uint8List bytes) => state = state.copyWith(fileName: name, fileBytes: bytes, clearError: true);
+
+  /// Loads an item another app shared: [text] in Text mode, or the file
+  /// [name]/[bytes] in File mode (its size was checked when the share was read).
+  void loadShared(SendMode mode, {String? text, String? name, Uint8List? bytes}) {
+    state = mode == SendMode.text
+        ? state.copyWith(mode: mode, text: text ?? '', clearError: true)
+        : state.copyWith(mode: mode, fileName: name, fileBytes: bytes, clearError: true);
+  }
   /// Loads a picked file, checking its [length] before [read]ing it so a large
   /// video never lands in memory: over [CimbarSpec.maxInflatedBytes] (what
   /// receivers will inflate) it is refused with error 'fileTooBig:<len>:<max>'.

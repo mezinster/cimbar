@@ -207,13 +207,15 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
     return when (intent.action) {
       Intent.ACTION_SEND -> {
         val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return null
-        return listOf(attachmentForUri(uri)).mapNotNull { it }
+        return listOf(attachmentForUri(uri, CopyBudget())).mapNotNull { it }
       }
 
       Intent.ACTION_SEND_MULTIPLE -> {
         val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+        // CimBar patch: one budget for the whole intent.
+        val budget = CopyBudget()
         val value = uris?.mapNotNull { uri ->
-          attachmentForUri(uri)
+          attachmentForUri(uri, budget)
         }?.toList()
         return value
       }
@@ -222,14 +224,22 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
     }
   }
 
-  private fun attachmentForUri(uri: Uri): Messages.SharedAttachment? {
+  private fun attachmentForUri(uri: Uri, budget: CopyBudget): Messages.SharedAttachment? {
     val contentResolver = applicationContext.contentResolver
 
     // Obtain the MIME type of the URI
     val mimeType = contentResolver.getType(uri)
 
     // Get the absolute path from the URI
-    val path = FileDirectory.getAbsolutePath(applicationContext, uri) ?: return null
+    val path = FileDirectory.getAbsolutePath(applicationContext, uri, budget) ?: return null
+
+    // CimBar patch: FileDirectory refused an oversized share (see SafeCacheFile.kt).
+    if (path.startsWith(TOO_LARGE_PREFIX)) {
+      return Messages.SharedAttachment.Builder()
+        .setPath(path)
+        .setType(getAttachmentType(mimeType))
+        .build()
+    }
 
     val file = File(path)
 
@@ -251,10 +261,17 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
       // CimBar patch: never trust the sender's display name as a path.
       val newFile = safeCacheFile(applicationContext.cacheDir, fileName) ?: return null
 
+      // CimBar patch: refuse shares above the cap instead of copying them on the main thread.
+      val size = reportedSize(contentResolver, uri)
+      if (shouldSkipCopy(size, budget.remaining)) {
+        return tooLargeAttachment(size ?: -1, mimeType)
+      }
+
       // Copy the contents from the URI to the new file
-      val success = copyFile(contentResolver, uri, newFile)
-      if (!success) {
-        return null
+      when (copyFile(contentResolver, uri, newFile, budget)) {
+        CopyResult.FAILED -> return null
+        CopyResult.TOO_LARGE -> return tooLargeAttachment(size ?: -1, mimeType)
+        CopyResult.OK -> budget.consume(newFile.length())
       }
 
       // Determine the attachment type using the MIME type
@@ -296,22 +313,32 @@ class ShareHandlerPlugin : FlutterPlugin, Messages.ShareHandlerApi, EventChannel
     return fileName
   }
 
-  // Function to copy the file content from the URI to the destination file
-  private fun copyFile(contentResolver: ContentResolver, uri: Uri, destinationFile: File): Boolean {
+  private enum class CopyResult { OK, TOO_LARGE, FAILED }
+
+  private fun tooLargeAttachment(size: Long, mimeType: String?): Messages.SharedAttachment =
+    Messages.SharedAttachment.Builder()
+      .setPath("$TOO_LARGE_PREFIX$size")
+      .setType(getAttachmentType(mimeType))
+      .build()
+
+  // Function to copy the file content from the URI to the destination file.
+  // CimBar patch: capped at SHARE_SIZE_CAP; a partial file is deleted.
+  private fun copyFile(contentResolver: ContentResolver, uri: Uri, destinationFile: File, budget: CopyBudget): CopyResult {
     return try {
+      var ok = true
       contentResolver.openInputStream(uri)?.use { inputStream ->
         FileOutputStream(destinationFile).use { outputStream ->
-          val buffer = ByteArray(8 * 1024) // 8KB buffer
-          var bytesRead: Int
-          while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-            outputStream.write(buffer, 0, bytesRead)
-          }
+          ok = copyCapped(inputStream, outputStream, budget.remaining)
         }
       }
-      true
+      if (ok) CopyResult.OK else {
+        destinationFile.delete()
+        budget.consume(budget.remaining)
+        CopyResult.TOO_LARGE
+      }
     } catch (e: Exception) {
       e.printStackTrace()
-      false
+      CopyResult.FAILED
     }
   }
 

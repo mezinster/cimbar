@@ -30,12 +30,65 @@ This is the "Dirty Stream" class of path traversal.
 The commit before the patch commit is the pristine upstream copy, so
 `git log -p -- app/third_party/share_handler_android` shows exactly what changed.
 
+## Second fix: size cap
+
+The launcher accepts `*/*` shares and `handleIntent` copied every `content://` stream
+into `cacheDir` synchronously on the main thread, so a multi-GB share froze the app and
+filled the disk. Both copy sites (`FileDirectory.getDataColumn` and
+`ShareHandlerPlugin.attachmentForUri` -> `copyFile`) now:
+
+- ask the provider for `OpenableColumns.SIZE` first (`reportedSize`) and skip the copy
+  above `SHARE_SIZE_CAP` (134217728 bytes, equal to `CimbarSpec.maxInflatedBytes`);
+- otherwise copy through `copyCapped`, which stops once more than the cap was seen
+  (providers can lie or omit the size) and the partial file is deleted.
+
+The cap is one budget per share intent (`CopyBudget`), not per item: every attachment of an
+`ACTION_SEND_MULTIPLE` draws from the same 128 MB, each copied item subtracts its size,
+and a cut-off exhausts it. (Since the third fix every attachment is copied.)
+
+Either way the attachment's `path` becomes `cimbar-too-large:<size or -1>` (type
+unchanged); the Dart side reads that marker. `FileDirectory.getAbsolutePath` returns the
+marker as its path string and `attachmentForUri` short-circuits on the prefix before
+touching `File(path)`. Helpers live in `SafeCacheFile.kt`; tests in `CappedCopyTest.kt`
+and `test/share_handler_patch_test.dart`.
+
+## Third fix: copy every content URI
+
+Upstream's `FileDirectory.getAbsolutePath` ran paulburke's path heuristics on
+Storage Access Framework document URIs and returned a *path* instead of copying:
+an `ExternalStorageProvider` `primary:<rel>` document became
+`getExternalFilesDir(null)/<rel>` (the app's own external files dir, where the
+file doesn't exist), and a `MediaProvider` document became the MediaStore `_data`
+column (a path under `/storage/emulated/0`, which CimBar can't read with `CAMERA`
+as its only permission). A PDF or image shared from Android's system Files
+(DocumentsUI) app therefore reached Dart as an unreadable path.
+
+- `FileDirectory.getAbsolutePath` now sends every `content://` URI
+  (`isContentScheme`) through the capped stream copy (`getDataColumn`, now
+  copy-only: the `_data` branch, the selection arguments and the document helpers
+  are gone). A provider that throws makes that one attachment unreadable instead of
+  crashing `handleIntent`, and a partial copy is deleted.
+- Any other scheme, `file://` included, is refused (the attachment is skipped). A
+  modern sender can't put a `file://` URI in an intent (`FileUriExposedException`),
+  and with only `CAMERA` the files such a URI could name that CimBar can read are
+  CimBar's own private files.
+- The size decision is the pure `shouldSkipCopy(reported, remaining)`, used at both
+  copy sites.
+- Tests: `ContentCopyRuleTest.kt` (`shouldSkipCopy`, `isContentScheme`), and
+  `test/share_handler_patch_test.dart` fails if a `"_data"` lookup,
+  `getExternalFilesDir` or `DocumentsContract` reappears in `FileDirectory.kt`.
+
+Every attachment is therefore a direct child of `cacheDir` (or the too-large
+marker); the Dart side deletes exactly those, and only those, once the share is
+handled (`deletePluginCopy`).
+
 ## Tests
 
 - Kotlin, from `app/`: `flutter build apk --config-only && cd android && ./gradlew :share_handler_android:testDebugUnitTest`
-  (CI job *share_handler patch tests*).
-- Dart guard, `app/test/share_handler_patch_test.dart`: the override is in place and
-  no cache write uses an unsanitized name. It fails if a re-vendored upstream copy
+  (CI job *share_handler patch tests*): `SafeCacheFileTest`, `CappedCopyTest`, `ContentCopyRuleTest`.
+- Dart guard, `app/test/share_handler_patch_test.dart`: the override is in place,
+  no cache write uses an unsanitized name, both copy sites are capped, and no
+  content URI is resolved to a path. It fails if a re-vendored upstream copy
   loses the patch.
 
 ## Upgrading

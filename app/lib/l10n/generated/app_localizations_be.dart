@@ -277,12 +277,32 @@ class AppLocalizationsBe extends AppLocalizations {
   String get errorNoBarcodeFound => 'На фота не знойдзены штрых-код CimBar';
 
   @override
-  String get shareReadFailed =>
-      'Не ўдалося прачытаць дасланы файл. Адкрыйце яго праз «Імпарт GIF».';
+  String get shareReadFailed => 'Не ўдалося прачытаць дасланы элемент.';
 
   @override
   String get shareWhileDecoding =>
       'Спачатку дачакайцеся заканчэння бягучага дэкадавання, потым дашліце файл зноў.';
+
+  @override
+  String get shareChecking => 'Правяраем дасланае фота…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Адпраўляецца толькі першы з $count элемента',
+      many: 'Адпраўляецца толькі першы з $count элементаў',
+      few: 'Адпраўляецца толькі першы з $count элементаў',
+      one: 'Адпраўляецца толькі першы з $count элемента',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'Файл занадта вялікі (ліміт $max).';
+  }
 
   @override
   String get tabFiles => 'Файлы';
@@ -553,4 +573,24 @@ class AppLocalizationsBe extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Двойчы націсніце, каб увесці лік';
+
+  @override
+  String get shareWhileEncoding =>
+      'Спачатку дачакайцеся заканчэння стварэння бягучага штрых-кода, потым падзяліцеся зноў.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Спыніць паказ і загрузіць атрыманы элемент?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Замяніць уведзены тэкст?';
+
+  @override
+  String get shareSendInstead => 'Адправіць гэта фота';
+
+  @override
+  String get commonYes => 'Так';
+
+  @override
+  String get commonNo => 'Не';
 }

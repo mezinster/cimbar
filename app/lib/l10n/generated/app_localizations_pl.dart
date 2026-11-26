@@ -270,11 +270,32 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get shareReadFailed =>
-      'Nie udało się odczytać udostępnionego pliku. Otwórz go na karcie „Otwórz GIF”.';
+      'Nie udało się odczytać udostępnionego elementu.';
 
   @override
   String get shareWhileDecoding =>
       'Najpierw zakończ bieżące dekodowanie, a potem udostępnij plik ponownie.';
+
+  @override
+  String get shareChecking => 'Sprawdzanie udostępnionego zdjęcia…';
+
+  @override
+  String shareOnlyFirst(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Wysyłany jest tylko pierwszy z $count elementu',
+      many: 'Wysyłany jest tylko pierwszy z $count elementów',
+      few: 'Wysyłany jest tylko pierwszy z $count elementów',
+      one: 'Wysyłany jest tylko 1 element',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareTooLarge(String max) {
+    return 'Plik jest za duży (limit $max).';
+  }
 
   @override
   String get tabFiles => 'Pliki';
@@ -546,4 +567,24 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get photoEditFrameCount => 'Dotknij dwukrotnie, aby wpisać liczbę';
+
+  @override
+  String get shareWhileEncoding =>
+      'Najpierw zaczekaj, aż bieżący kod kreskowy zostanie utworzony, a potem udostępnij ponownie.';
+
+  @override
+  String get sharePresentConfirm =>
+      'Zakończyć wyświetlanie i wczytać udostępniony element?';
+
+  @override
+  String get shareReplaceTextConfirm => 'Zastąpić wpisany tekst?';
+
+  @override
+  String get shareSendInstead => 'Wyślij zamiast tego to zdjęcie';
+
+  @override
+  String get commonYes => 'Tak';
+
+  @override
+  String get commonNo => 'Nie';
 }

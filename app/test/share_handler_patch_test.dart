@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cimbar_scanner/core/format/cimbar_spec.dart';
 
 /// share_handler_android 0.0.11 wrote shared streams to
 /// `File(cacheDir, <display name chosen by the sending app>)` — a path
@@ -30,5 +31,36 @@ void main() {
       expect(raw, isEmpty, reason: '$name writes into cacheDir with an unsanitized name');
     }
     expect(File('$plugin/SafeCacheFile.kt').existsSync(), isTrue);
+  });
+
+  test('both copy sites check the reported size and copy through copyCapped', () {
+    for (final name in ['FileDirectory.kt', 'ShareHandlerPlugin.kt']) {
+      final src = File('$plugin/$name').readAsStringSync();
+      expect(src, contains('copyCapped('), reason: '$name must cap its copy');
+      expect(src, contains('reportedSize('), reason: '$name must check the size first');
+    }
+  });
+
+  test('every content:// URI is copied, never resolved to a path (third fix)', () {
+    final src = File('$plugin/FileDirectory.kt').readAsStringSync();
+    // Upstream's DocumentsContract heuristics returned paths CimBar can't read
+    // with CAMERA as its only permission: the `_data` column (a path under
+    // /storage/emulated/0) and getExternalFilesDir(null)/<relative path>.
+    expect(src, isNot(contains('"_data"')), reason: 'no _data column lookup');
+    expect(src, isNot(contains('getExternalFilesDir')), reason: 'no external-files path for a document');
+    expect(src, isNot(contains('DocumentsContract')), reason: 'documents take the same copy as any content URI');
+    expect(src, contains('isContentScheme('), reason: 'content URIs are recognised by isContentScheme');
+    for (final name in ['FileDirectory.kt', 'ShareHandlerPlugin.kt']) {
+      expect(File('$plugin/$name').readAsStringSync(), contains('shouldSkipCopy('),
+          reason: '$name must decide on the reported size through shouldSkipCopy');
+    }
+  });
+
+  test('the Kotlin share cap equals CimbarSpec.maxInflatedBytes', () {
+    final src = File('$plugin/SafeCacheFile.kt').readAsStringSync();
+    final m = RegExp(r'const val SHARE_SIZE_CAP: Long = (\d+)L').firstMatch(src);
+    expect(m, isNotNull);
+    expect(int.parse(m!.group(1)!), CimbarSpec.maxInflatedBytes);
+    expect(src, contains('const val TOO_LARGE_PREFIX = "cimbar-too-large:"'));
   });
 }
