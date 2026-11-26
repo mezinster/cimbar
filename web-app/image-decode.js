@@ -17,6 +17,9 @@
 const MAX_HEIF_PIXELS = 64_000_000;   // enforced in heic-worker.js
 const MAX_BITMAP_PIXELS = 16_000_000; // the encoder session's canvas cap
 const SNIFF_BYTES = 64;
+// A worker that never answers (a crafted file looping in libheif) is
+// terminated; a legitimate 48 MP decode on a phone takes seconds, not a minute.
+const HEIF_DECODE_TIMEOUT_MS = 60_000;
 const WASM_URL = 'vendor/libheif/libheif.wasm';
 const WORKER_URL = 'heic-worker.js';
 
@@ -66,6 +69,8 @@ const _impl = {
     (options === undefined ? createImageBitmap(source) : createImageBitmap(source, options)),
   createWorker: (url) => new Worker(url),
   compileWasm: (url) => WebAssembly.compileStreaming(fetch(url)),
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (id) => clearTimeout(id),
 };
 
 let libheifModule = null; // Promise<WebAssembly.Module>, memoised
@@ -90,7 +95,12 @@ function runWorker(wasm, buffer) {
       reject(new PhotoDecodeError(undefined, { cause: e }));
       return;
     }
+    let settled = false;
+    let timer = null;
     const done = (settle) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) _impl.clearTimeout(timer);
       worker.onmessage = worker.onerror = worker.onmessageerror = null;
       worker.terminate();
       settle();
@@ -102,7 +112,11 @@ function runWorker(wasm, buffer) {
       worker.postMessage({ module: wasm, buffer }, [buffer]);
     } catch (e) {
       done(() => reject(new PhotoDecodeError(undefined, { cause: e })));
+      return;
     }
+    timer = _impl.setTimeout(
+      () => done(() => reject(new PhotoDecodeError('HEIC decode timed out'))),
+      HEIF_DECODE_TIMEOUT_MS);
   });
 }
 
@@ -155,7 +169,7 @@ async function decodeImage(blob) {
 
 const API = {
   sniffHeif, decodeImage, PhotoDecodeError, ImageTooLargeError,
-  MAX_HEIF_PIXELS, MAX_BITMAP_PIXELS, _impl,
+  MAX_HEIF_PIXELS, MAX_BITMAP_PIXELS, HEIF_DECODE_TIMEOUT_MS, _impl,
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = API;

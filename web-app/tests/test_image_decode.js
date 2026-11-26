@@ -228,6 +228,10 @@ function setup({ native = 'fail', behave = okReply(32, 64), compile = async () =
   };
   M._impl.createWorker = (url) => { const w = new FakeWorker(url, behave); log.workers.push(w); return w; };
   M._impl.compileWasm = async (url) => { log.compiles++; log.compileUrl = url; return compile(url); };
+  // Fake timer: tests fire the timeout by hand; nothing waits 60 s.
+  log.timers = [];
+  M._impl.setTimeout = (fn, ms) => { const t = { fn, ms, cleared: false }; log.timers.push(t); return t; };
+  M._impl.clearTimeout = (t) => { t.cleared = true; };
   return { M, log };
 }
 
@@ -302,6 +306,46 @@ test('the wasm is compiled once across two decodes, each with a fresh worker', a
   eq(log.compiles, 1, 'compiles');
   eq(log.workers.length, 2, 'workers');
   assert(log.workers[0] !== log.workers[1], 'a new worker per decode');
+});
+/** Resolves once the stub has started a worker and armed its timeout. */
+async function armed(log) {
+  for (let i = 0; i < 100 && log.timers.length === 0; i++) await new Promise((r) => setImmediate(r));
+  assert(log.timers.length === 1, `expected one armed timeout, got ${log.timers.length}`);
+  return log.timers[0];
+}
+
+test('a worker that never replies is terminated after HEIF_DECODE_TIMEOUT_MS and rejects with PhotoDecodeError', async () => {
+  const { M, log } = setup({ behave: () => {} });
+  const p = M.decodeImage(heicBlob());
+  const timer = await armed(log);
+  eq(timer.ms, 60000, 'timeout');
+  eq(M.HEIF_DECODE_TIMEOUT_MS, 60000, 'exported timeout');
+  eq(log.workers[0].terminated, false, 'still running before the timeout');
+  timer.fn();
+  await rejects(p, M.PhotoDecodeError, 'timeout');
+  eq(log.workers[0].terminated, true, 'terminated on timeout');
+});
+test('a reply arriving after the timeout is ignored: no second settle, no second terminate', async () => {
+  let lateReply = null;
+  const { M, log } = setup({ behave: (w) => { lateReply = w.onmessage; } });
+  const p = M.decodeImage(heicBlob());
+  const timer = await armed(log);
+  for (let i = 0; i < 10 && !lateReply; i++) await new Promise((r) => setImmediate(r));
+  assert(lateReply, 'the stub captured the reply handler');
+  const w = log.workers[0];
+  let terminations = 0;
+  w.terminate = () => { terminations++; w.terminated = true; };
+  timer.fn();
+  lateReply({ data: { ok: true, width: 32, height: 64, rgba: new ArrayBuffer(32 * 64 * 4) } });
+  await rejects(p, M.PhotoDecodeError, 'still the timeout rejection');
+  eq(terminations, 1, 'terminate calls');
+  eq(log.bitmaps.length, 1, 'no bitmap built from the late reply (only the native attempt)');
+});
+test('a reply in time clears the timeout', async () => {
+  const { M, log } = setup();
+  await M.decodeImage(heicBlob());
+  eq(log.timers.length, 1, 'one timeout armed');
+  eq(log.timers[0].cleared, true, 'timeout cleared after the reply');
 });
 test('a 9000x8000 RGBA reply is resized to at most 16 MP', async () => {
   const { M } = setup({ behave: okReply(9000, 8000) });
