@@ -29,6 +29,21 @@ node tests/test_goldens.js
 echo ""; echo "--- Text-message rule (shared fixture) ---"
 node tests/test_text_message.js
 
+echo ""; echo "--- Photo fit and frame budget (shared fixture) ---"
+node tests/test_photo_fit.js
+
+echo ""; echo "--- JPEG metadata stripping ---"
+node tests/test_jpeg_metadata.js
+
+echo ""; echo "--- Image decode (HEIF sniff, vendored libheif, HEIC worker) ---"
+node tests/test_image_decode.js
+
+echo ""; echo "--- Canvas JPEG session ---"
+node tests/test_canvas_jpeg.js
+
+echo ""; echo "--- Photo optimiser controller ---"
+node tests/test_photo_optimiser.js
+
 echo ""; echo "--- End-to-end pipeline ---"
 node tests/test_pipeline_node.js
 

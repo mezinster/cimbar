@@ -50,16 +50,25 @@ jobs:
       - name: Stage the deployable files
         env:
           SHA: ${{ steps.stamp.outputs.sha }}
-        # Exactly the files index.html loads, nothing from tests/ or tools/.
+        # Exactly the files index.html loads (plus the HEIC worker and the vendored
+        # libheif it fetches; vendor/libheif/README.md is documentation and is not
+        # deployed), nothing from tests/ or tools/.
         # The build marker is an HTML comment before </head>; the healthcheck
         # requires it, so a stale edge copy cannot pass verification.
         run: |
           set -euo pipefail
           mkdir -p site
           cd web-app
-          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js rgb-buffer.js luma-plane.js homography.js finder-locator.js white-point.js cell-sampler.js cell-classifier.js drift-solver.js photo-decoder.js capture-policy.js live-scan.js scan-worker.js i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
+          for f in index.html rs.js format-data.js format.js rateless.js cimbar.js crypto.js compress.js gif-encoder.js gif-decoder.js rgb-buffer.js luma-plane.js homography.js finder-locator.js white-point.js cell-sampler.js cell-classifier.js drift-solver.js photo-decoder.js capture-policy.js live-scan.js scan-worker.js photo-fit.js jpeg-metadata.js image-decode.js canvas-jpeg.js photo-optimiser.js heic-worker.js vendor/libheif/libheif.js vendor/libheif/libheif.wasm vendor/libheif/LICENSE vendor/libheif/DAV1D-LICENSE i18n.js favicon.svg favicon-32.png apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest; do
             [ -s "$f" ] || { echo "::error::$f is missing or empty"; exit 1; }
-            cp "$f" ../site/
+            # Extensionless names are taken for folders by the CloudFront
+            # directory-index rewrite, so the licences are published as .txt.
+            dest="$f"
+            case "$f" in
+              vendor/libheif/LICENSE|vendor/libheif/DAV1D-LICENSE) dest="$f.txt" ;;
+            esac
+            mkdir -p "$(dirname "../site/$dest")"
+            cp "$f" "../site/$dest"
           done
           cd ../site
           awk -v m="<!-- cimbar-build:${SHA} -->" '/<\/head>/ && !done { print m; done=1 } { print }' index.html > index.tmp
@@ -91,15 +100,15 @@ jobs:
             esac
             [ -s "$src" ] || { echo "::error::index.html references $src, which is not staged"; missing=1; }
           done
-          for f in *; do
+          for f in $(find . -type f | sed 's|^\./||'); do
             case "$f" in
-              index.html|*.js|*.png|*.svg|*.webmanifest) ;;
+              index.html|*.js|*.png|*.svg|*.webmanifest|*.wasm|vendor/libheif/LICENSE.txt|vendor/libheif/DAV1D-LICENSE.txt) ;;
               *) echo "::error::$f has no upload Content-Type; add its pattern to the type tables"; missing=1 ;;
             esac
           done
           [ "$missing" -eq 0 ] || exit 1
-          echo "staged $(ls | wc -l) files, marker ok, build ${SHA}"
-          ls -l
+          echo "staged $(find . -type f | wc -l) files, marker ok, build ${SHA}"
+          find . -type f -ls
 
       - name: Verify the healthcheck starts
         # Bad usage must exit 2 — that is how the deploy job can tell "we
@@ -230,6 +239,8 @@ jobs:
             *.png           image/png
             *.svg           image/svg+xml
             *.webmanifest   application/manifest+json
+            *.wasm          application/wasm
+            *.txt           text/plain; charset=utf-8
           TYPES
 
       - name: Upload index.html last (no-cache)
@@ -284,6 +295,8 @@ jobs:
             *.png           image/png
             *.svg           image/svg+xml
             *.webmanifest   application/manifest+json
+            *.wasm          application/wasm
+            *.txt           text/plain; charset=utf-8
           TYPES
           if [ -f ./previous/index.html ]; then
             aws s3 cp ./previous/index.html "s3://${BUCKET}/${PREFIX}index.html" \

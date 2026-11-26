@@ -4,8 +4,8 @@ let passed = 0, failed = 0;
 function assertEq(a, b, msg) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${msg}: got ${JSON.stringify(a)}, want ${JSON.stringify(b)}`); }
 const tests = []; const test = (name, fn) => tests.push({ name, fn });
 
-const all = { hasGif: true, hasCamera: true, needsUnlock: true, hasResult: true };
-const none = { hasGif: false, hasCamera: false, needsUnlock: false, hasResult: false };
+const all = { hasGif: true, hasCamera: true, needsUnlock: true, hasResult: true, hasPendingPhoto: true };
+const none = { hasGif: false, hasCamera: false, needsUnlock: false, hasResult: false, hasPendingPhoto: false };
 
 test('empty and root hashes are the hub, no redirect', () => {
   const { ctx } = freshPage();
@@ -25,6 +25,12 @@ test('unknown hashes go to the hub', () => {
 test('reload on #/send/ready with no GIF goes back to compose', () => {
   const { ctx } = freshPage();
   assertEq(ctx.resolveRoute('#/send/ready', none), { route: '/send', redirect: '#/send' }, 'ready guard');
+});
+test('#/send/photo needs a photo in the optimiser; a reload or pasted URL lands on Send', () => {
+  const { ctx } = freshPage();
+  assertEq(ctx.resolveRoute('#/send/photo', none), { route: '/send', redirect: '#/send' }, 'no pending photo');
+  assertEq(ctx.resolveRoute('#/send/photo', { ...none, hasPendingPhoto: true }), { route: '/send/photo', redirect: null }, 'pending photo');
+  assertEq(ctx.routeState().hasPendingPhoto, false, 'nothing open at load');
 });
 test('#/receive without a camera API falls back to files', () => {
   const { ctx } = freshPage();

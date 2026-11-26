@@ -10,6 +10,10 @@ const Fmt = require(path.join(root, 'format.js'));
 const RatelessMod = require(path.join(root, 'rateless.js'));
 const Core = require(path.join(root, 'cimbar.js'));
 const { ReedSolomon } = require(path.join(root, 'rs.js'));
+const PhotoFit = require(path.join(root, 'photo-fit.js'));
+const ImageDecode = require(path.join(root, 'image-decode.js'));
+const CanvasJpeg = require(path.join(root, 'canvas-jpeg.js'));
+const PhotoOptimiserMod = require(path.join(root, 'photo-optimiser.js'));
 
 function assert(c, msg) { if (!c) throw new Error(msg); }
 
@@ -26,7 +30,7 @@ const INLINE_SCRIPT = (() => {
   return blocks[0][1];
 })();
 
-const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult', 'mimeFor', 'canOpen', 'openFile', 'shareFile', 'unlock', 'discardAndRescan', 'logDecodeError', 'renderDemo', 'receiveAnother', 'clearError', 'closePresent', 'routeState'];
+const REQUIRED_GLOBALS = ['addPhoto', 'addFrame', 'handleDecFile', 'startDecode', 'resetPhotoSession', 'finishDecode', 'isGifBytes', 'openScanner', 'closeScanner', 'setEncMode', 'encodeInput', 'updateTextInfo', 'copyText', 'saveText', 'hideTextResult', 'startEncode', 'onFileSelect', 'resolveRoute', 'navigate', 'renderRoute', 'askConfirm', 'showFileResult', 'showUnlock', 'showError', 'openLanguageSheet', 'chooseLanguage', 'encodeToGif', 'canShareFiles', 'openPhotoOptimiser', 'closePhotoOptimiser', 'photoSkip', 'photoContinue', 'photoContinueAtNeeded', 'stageEncFile', 'shareBlob', 'shareGif', 'requestClosePresent', 'acquireWakeLock', 'releaseWakeLock', 'onVisibilityChange', 'openPresentWith', 'presentOpenForTest', 'loadInsteadOfScanning', 'showTextResult', 'mimeFor', 'canOpen', 'openFile', 'shareFile', 'unlock', 'discardAndRescan', 'logDecodeError', 'renderDemo', 'receiveAnother', 'clearError', 'closePresent', 'routeState'];
 
 /**
  * Runs the inline page script fresh in its own vm context, with a minimal
@@ -44,7 +48,7 @@ function freshPage(opts = {}) {
   function makeEl(id) {
     const el = {
       id,
-      style: {}, dataset: {}, hidden: false, disabled: false, open: false,
+      style: {}, dataset: {}, hidden: false, disabled: false, open: false, _listeners: {},
       classList: {
         _set: new Set(),
         add(c) { this._set.add(c); },
@@ -55,8 +59,11 @@ function freshPage(opts = {}) {
       // log() builds a <span> and appends it; mirror the text into innerHTML
       // so tests can assert on what the user was actually told.
       appendChild(child) { if (child && child.textContent) el.innerHTML += child.textContent + '\n'; },
-      addEventListener() {},
+      // Kept so a test can fire what the page wired at load (drop, pointer…).
+      addEventListener(type, fn) { (el._listeners[type] = el._listeners[type] || []).push(fn); },
       setAttribute(k, v) { el['attr_' + k] = v; },
+      getAttribute(k) { return el['attr_' + k]; },
+      removeAttribute(k) { delete el['attr_' + k]; },
       append() {}, insertAdjacentHTML() {},
       showModal() { el.open = true; }, close() { el.open = false; },
       click() { el._clicked = (el._clicked || 0) + 1; },
@@ -66,7 +73,7 @@ function freshPage(opts = {}) {
   const elements = {};
   function getEl(id) { if (!elements[id]) elements[id] = makeEl(id); return elements[id]; }
 
-  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [], liveScans: [], docListeners: {} };
+  const calls = { decrypt: 0, parsePayload: 0, anchorClicks: 0, alerts: [], confirmResult: true, confirmPrompts: [], consoleErrors: [], consoleWarns: [], liveScans: [], docListeners: {}, sessionOpens: [] };
 
   const documentStub = {
     getElementById: getEl,
@@ -94,15 +101,18 @@ function freshPage(opts = {}) {
   const sandbox = {
     // The page console.error()s every decode failure; several tests provoke
     // one deliberately, so capture instead of printing a stack mid-suite.
-    console: Object.assign(Object.create(console), { error: (...a) => { calls.consoleErrors.push(a[0]); } }),
+    console: Object.assign(Object.create(console), {
+      error: (...a) => { calls.consoleErrors.push(a[0]); },
+      warn: (...a) => { calls.consoleWarns.push(a[0]); },
+    }),
     document: documentStub,
     alert: (msg) => { calls.alerts.push(msg); },
     confirm: (msg) => { calls.confirmPrompts.push(msg); return calls.confirmResult; },
     addEventListener() {},
     setInterval: () => 1, clearInterval: () => {},
     Math, JSON, Uint8Array, TextEncoder, TextDecoder, Uint8ClampedArray, Promise, Error, setTimeout, clearTimeout,
-    Blob: class { constructor() {} },
-    File: class { constructor(b, n, o) { this.name = n; this.type = (o || {}).type; } },
+    // Node's own: staged files are read back (arrayBuffer, slice, size).
+    Blob, File,
     URL: { createObjectURL: () => 'blob://x', revokeObjectURL() {} },
     CimbarFormat: Fmt,
     Cimbar: Object.assign({}, Core, {
@@ -116,6 +126,17 @@ function freshPage(opts = {}) {
     CimbarI18n: { t: (k) => k, apply: () => {}, LANGUAGES: [{ code: 'en', name: 'English' }, { code: 'ka', name: 'ქართული' }], getLang: () => 'en', setLang() {} },
     CimbarPhoto: { decode: () => { throw new Error('CimbarPhoto.decode was not stubbed for this test'); } },
     createImageBitmap: async () => ({ width: 10, height: 10, close() {} }),
+    // Per-page copies: a test may replace a member without leaking into the next page.
+    CimbarPhotoFit: Object.assign({}, PhotoFit),
+    CimbarImageDecode: Object.assign({}, ImageDecode, { decodeImage: async () => ({ width: 10, height: 10, close() {} }) }),
+    // The optimiser's encoder session needs a real canvas: tests hand it a fake
+    // through ctx.CimbarCanvasJpeg.CanvasJpegSession.open (calls.sessionOpens records each blob).
+    CimbarCanvasJpeg: Object.assign({}, CanvasJpeg, {
+      CanvasJpegSession: {
+        open: async (blob) => { calls.sessionOpens.push(blob); throw new Error('CanvasJpegSession.open was not stubbed for this test'); },
+      },
+    }),
+    CimbarPhotoOptimiser: PhotoOptimiserMod,
     innerWidth: 800, innerHeight: 600,
     navigator: opts.camera === false ? {} : { mediaDevices: { getUserMedia: async () => ({}) } },
     location: { search: '', hash: '' },
@@ -226,4 +247,4 @@ function encryptedPayload() {
 
 const okResult = (data) => ({ status: 'ok', data, blocksFailed: 0, header: Fmt.decodeHeader(data) });
 
-module.exports = { freshPage, makeFrame, makeCompletingFrame, makeFrameWithPayload, encryptedPayload, okResult, Fmt, Core, RatelessMod, ReedSolomon };
+module.exports = { PhotoFit, ImageDecode, CanvasJpeg, freshPage, makeFrame, makeCompletingFrame, makeFrameWithPayload, encryptedPayload, okResult, Fmt, Core, RatelessMod, ReedSolomon };

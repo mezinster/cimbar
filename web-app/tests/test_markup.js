@@ -34,7 +34,7 @@ test('no red primary action (btn-danger)', () => {
   assert(!html.includes('btn-danger'), 'btn-danger present');
 });
 test('every route has exactly one screen (except /receive, which is an overlay)', () => {
-  for (const r of ['/', '/send', '/send/ready', '/receive/files', '/receive/unlock', '/receive/done', '/how']) {
+  for (const r of ['/', '/send', '/send/photo', '/send/ready', '/receive/files', '/receive/unlock', '/receive/done', '/how']) {
     const n = html.split(`data-route="${r}"`).length - 1;
     assert(n === 1, `${r}: ${n} screens`);
   }
