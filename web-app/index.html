@@ -165,6 +165,8 @@ html,body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 var
 .file-pill > .i { color:var(--accent-fg); }
 .file-pill > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
 .file-pill .icon-btn { border:0; background:none; color:var(--text3); }
+.file-pill > .pill-meta { flex:none; max-width:55%; color:var(--text2); font-size:13px; }
+.file-pill > .pill-meta:empty { display:none; }
 textarea, select, input[type=password], .pass-field input { width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
   background:var(--surface); color:var(--text); font:15px var(--sans); }
 textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
@@ -181,6 +183,31 @@ textarea { display:block; margin-top:16px; min-height:160px; resize:vertical; }
 .details-log > summary { min-height:48px; font:500 13px var(--sans); color:var(--text2); }
 .details-log .log { margin:0 12px 12px; }
 .action-bar .progress-section { margin:0 0 12px; padding-top:0; border-top:0; }
+
+/* send: optimise photo */
+.photo-preview { position:relative; display:grid; place-items:center; min-height:180px; padding:8px; background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.photo-preview img { display:block; max-width:100%; max-height:45vh; border-radius:var(--radius-sm); }
+.photo-preview img[hidden] { display:none; }
+.photo-busy { position:absolute; top:8px; right:8px; display:inline-flex; align-items:center; height:28px; padding:0 10px; border-radius:14px;
+  background:var(--surface); border:1px solid var(--border); color:var(--text2); font:500 12px var(--mono); }
+.photo-busy[hidden], #photoControls[hidden] { display:none; }
+.photo-heading { margin:16px 0 6px; font-weight:500; font-size:14px; }
+.photo-frames { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.stepper { display:flex; align-items:center; gap:8px; }
+.stepper .icon-btn[aria-disabled="true"] { opacity:.45; cursor:not-allowed; }
+.stepper .icon-btn { width:48px; min-height:48px; padding:0; justify-content:center; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+.stepper input { width:96px; min-height:48px; padding:0 8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface);
+  color:var(--text); font:500 18px var(--mono); text-align:center; }
+.photo-time { font-size:13px; color:var(--text2); }
+.photo-note { margin:8px 0 0; font-size:14px; color:var(--warn); }
+.photo-note:empty { display:none; }
+.photo-sizes { margin-top:0; }
+.photo-sizes .chip { cursor:pointer; }
+.photo-sizes .chip[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+.photo-quality { display:block; margin-top:12px; font-size:13px; color:var(--text2); }
+.photo-quality input { display:block; width:100%; min-height:32px; accent-color:var(--accent); }
+.photo-actions { display:flex; flex-direction:column; gap:8px; }
 
 /* send: ready */
 .demo .ready-gif { width:min(300px,100%); height:auto; aspect-ratio:1; image-rendering:pixelated; }
@@ -278,6 +305,7 @@ body.scan-lock { overflow:hidden; }
 .hood-capacity > .i { width:24px; height:24px; }
 .hood-capacity > div { min-width:0; overflow-wrap:break-word; }
 .disclosure-body > .notice { margin:12px 0 0; font-size:13px; line-height:1.6; }
+.notice a { color:var(--accent-fg); }
 
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 </style>
@@ -354,10 +382,13 @@ body.scan-lock { overflow:hidden; }
   <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
   <path d="M3 16v3a2 2 0 0 0 2 2h3" />
   <path d="M16 21h3a2 2 0 0 0 2-2v-3" /></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
 <symbol id="i-monitor-play" viewBox="0 0 24 24"><path d="M10 7.75a.75.75 0 0 1 1.142-.638l3.664 2.249a.75.75 0 0 1 0 1.278l-3.664 2.25a.75.75 0 0 1-1.142-.64z" />
   <path d="M12 17v4" />
   <path d="M8 21h8" />
   <rect x="2" y="3" width="20" height="14" rx="2" /></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14" />
+  <path d="M12 5v14" /></symbol>
 <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
   <path d="M21 3v5h-5" />
   <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
@@ -481,7 +512,9 @@ body.scan-lock { overflow:hidden; }
         <span class="pick-hint" data-i18n="chooseFileHint">Any type · up to ~80 KB is quickest</span>
         <span class="pick-drop" data-i18n="dropHere">or drop it here</span>
       </label>
-      <div class="file-pill" id="pillEnc"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillEncText"></span>
+      <input type="file" id="photoEnc" accept="image/*" class="sr-only" onchange="onFileSelect(this,'photo')">
+      <button type="button" class="btn btn-secondary photo-btn" onclick="document.getElementById('photoEnc').click()"><svg class="i" aria-hidden="true"><use href="#i-image"/></svg><span data-i18n="choosePhoto">Choose photo</span></button>
+      <div class="file-pill" id="pillEnc"><svg class="i" aria-hidden="true"><use href="#i-file-text"/></svg><span id="pillEncText"></span><span class="pill-meta" id="pillEncMeta"></span>
         <button type="button" class="icon-btn" onclick="clearEncFile()" aria-label="Remove"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
     </div>
     <div id="encTextField" style="display:none">
@@ -517,6 +550,39 @@ body.scan-lock { overflow:hidden; }
         <details class="disclosure details-log"><summary data-i18n="details">Details</summary><div class="log" id="logEnc"></div></details>
       </div>
       <button type="button" class="btn btn-primary" id="encBtn" onclick="startEncode()"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg><span data-i18n="createCode">Create code</span></button>
+    </div>
+  </section>
+
+  <!-- Optimise photo: index.html renders PhotoOptimiser's state (photo-optimiser.js) and forwards taps to it. -->
+  <section class="screen" data-route="/send/photo" hidden>
+    <header class="topbar-sub"><a class="icon-btn back" href="#/send" aria-label="Back" data-i18n-title="back"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg></a><h1 data-i18n="photoOptimiseTitle">Optimise photo</h1></header>
+    <div class="photo-preview">
+      <img id="photoPreview" alt="" hidden>
+      <span class="photo-busy" id="photoBusy" role="status" data-i18n="processing" hidden>Processing…</span>
+    </div>
+    <p class="meta" id="photoLabel"></p>
+    <div class="form-error" id="photoError" role="alert" hidden></div>
+    <div id="photoControls">
+      <div class="photo-heading"><label for="photoFrames" data-i18n="photoFramesToSend">Frames to send</label></div>
+      <div class="photo-frames">
+        <div class="stepper">
+          <button type="button" class="icon-btn" id="photoMinus" data-i18n-aria-label="photoFewerFrames" data-i18n-title="photoFewerFrames"><svg class="i" aria-hidden="true"><use href="#i-minus"/></svg></button>
+          <input type="number" inputmode="numeric" id="photoFrames" min="1" step="1" onchange="photoFramesTyped()">
+          <button type="button" class="icon-btn" id="photoPlus" data-i18n-aria-label="photoMoreFrames" data-i18n-title="photoMoreFrames"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        </div>
+        <span class="photo-time" id="photoTime"></span>
+      </div>
+      <p class="photo-note" id="photoNote" role="status"></p>
+      <div class="photo-heading" data-i18n="photoManual">Manual</div>
+      <div class="chips photo-sizes" id="photoSizes"></div>
+      <label class="photo-quality"><span id="photoQualityLabel"></span>
+        <input type="range" id="photoQuality" min="1" max="100" step="1" oninput="photoQualityInput()"></label>
+      <button type="button" class="btn-link" id="photoAutoBtn" onclick="photoBackToAuto()" data-i18n="photoBackToAuto" hidden>Back to auto</button>
+    </div>
+    <div class="action-bar photo-actions">
+      <button type="button" class="btn btn-primary" id="photoContinueWithBtn" onclick="photoContinueAtNeeded()" hidden></button>
+      <button type="button" class="btn btn-primary" id="photoContinueBtn" onclick="photoContinue()"></button>
+      <button type="button" class="btn" id="photoSkipBtn" onclick="photoSkip()" data-i18n="photoSkip">Skip (keep original)</button>
     </div>
   </section>
 
@@ -694,6 +760,13 @@ body.scan-lock { overflow:hidden; }
           <strong>GIF palette:</strong> The GIF palette holds the four barcode colors plus black and white exactly,
           so encoding is lossless; Reed-Solomon is there for damage and camera errors, not quantization.
         </p>
+
+        <p class="notice" data-i18n-html="libheifCreditHtml">
+          <strong>HEIC photos:</strong> when your browser can’t open a HEIC photo itself, it is decoded on your device by
+          <a href="https://github.com/strukturag/libheif" target="_blank" rel="noopener">libheif</a> 1.23.5 with libde265 (both LGPL-3.0) and dav1d (BSD-2-Clause),
+          shipped unmodified from libheif-js 1.23.5 and loaded only when needed.
+          Licences: <a href="vendor/libheif/LICENSE.txt" target="_blank" rel="noopener">LGPL-3.0</a>, <a href="vendor/libheif/DAV1D-LICENSE.txt" target="_blank" rel="noopener">dav1d (BSD-2-Clause)</a>.
+        </p>
       </div>
     </details>
 
@@ -782,7 +855,7 @@ document.querySelectorAll('.js-version').forEach(e => e.textContent = document.g
 // Hashes never reach the server, so this works on the static S3/CloudFront
 // deploy with no rewrite rules. resolveRoute is pure (tests/test_router.js);
 // navigate/renderRoute are the thin glue around it.
-const ROUTES = ['/', '/send', '/send/ready', '/receive', '/receive/files', '/receive/unlock', '/receive/done', '/how'];
+const ROUTES = ['/', '/send', '/send/photo', '/send/ready', '/receive', '/receive/files', '/receive/unlock', '/receive/done', '/how'];
 let currentRoute = null;
 let unlockPending = false;   // a completion failed for lack of / a wrong passphrase (Task 3)
 
@@ -792,6 +865,7 @@ function resolveRoute(hash, s) {
   for (let i = 0; i < ROUTES.length; i++) {   // guards can chain (unlock → receive → files)
     const next =
       route === '/send/ready' && !s.hasGif ? '/send' :
+      route === '/send/photo' && !s.hasPendingPhoto ? '/send' :
       route === '/receive' && !s.hasCamera ? '/receive/files' :
       route === '/receive/unlock' && !s.needsUnlock ? '/receive' :
       route === '/receive/done' && !s.hasResult ? '/' : null;
@@ -807,6 +881,7 @@ function routeState() {
     hasCamera: !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function'),
     needsUnlock: unlockPending,
     hasResult: !!(textResult || fileResult),
+    hasPendingPhoto: !!photoOpt,
   };
 }
 
@@ -833,6 +908,7 @@ function renderRoute() {
 
 // Per-route side effects; later tasks add cases.
 function onEnterRoute(route, prev) {
+  if (prev === '/send/photo' && route !== '/send/photo') closePhotoOptimiser();   // Back cancels: whatever was staged stays
   if (route === '/send') updateTextInfo();   // Create code is disabled until something is staged
   if (route === '/receive') openScanner(prev);   // Receive opens the camera directly (spec §1)
 }
@@ -897,12 +973,43 @@ function updateLangCode() {
 let encFile = null, decFile = null;
 let encMode = 'file';
 
+// side: 'enc' (Choose a file), 'photo' (Choose photo) or 'dec' (Receive).
 function onFileSelect(input, side) {
   const file = input.files[0];
   if (!file) return;
-  if (side === 'enc') { encFile = file; showPill('pillEnc','pillEncText', file.name, file.size); updateTextInfo(); return; }
-  handleDecFile(file);
   input.value = '';   // allow re-selecting/re-shooting the same file
+  if (side === 'enc' || side === 'photo') return pickEncFile(file, side === 'photo');
+  handleDecFile(file);
+}
+
+// A Send pick goes to the optimiser or is staged as it is. Choose photo sends
+// everything but a GIF (by its magic bytes) or an SVG there; Choose a file and
+// drop only what isOptimisable says is a photo, which includes HEIF found by
+// content (galleries label HEIC application/octet-stream). Above 128 MB nothing
+// is optimised: the file is staged as Choose a file always did.
+let encPickGen = 0;
+async function pickEncFile(file, viaChoosePhoto) {
+  const gen = ++encPickGen;
+  let head = new Uint8Array(0);
+  try { head = new Uint8Array(await file.slice(0, 64).arrayBuffer()); } catch (_) { /* unreadable: decided by name and type */ }
+  if (gen !== encPickGen) return;   // a newer pick replaced this one
+  const svg = String(file.type).toLowerCase() === 'image/svg+xml' || /\.svg$/i.test(file.name || '');
+  const optimise = file.size <= CimbarFormat.SPEC.compression.maxInflatedBytes && (viaChoosePhoto
+    ? !isGifBytes(head) && !svg
+    : CimbarPhotoFit.isOptimisable(file.name, file.type, head, CimbarImageDecode.sniffHeif));
+  if (optimise) openPhotoOptimiser(file);
+  else stageEncFile(file);
+}
+
+// Stages a file for Create code: the pill shows its size and the frames it
+// needs with encryption counted, so a passphrase typed later never adds one.
+function stageEncFile(file) {
+  encFile = file;
+  document.getElementById('pillEncText').textContent = file.name;
+  document.getElementById('pillEncMeta').textContent =
+    t('pillEstimate', { size: fmtBytes(file.size), frames: CimbarPhotoFit.framesForFile(file.name, file.size, true) });
+  document.getElementById('pillEnc').classList.add('show');
+  setEncMode('file');   // also refreshes Create code
 }
 
 function setEncMode(mode) {
@@ -914,14 +1021,13 @@ function setEncMode(mode) {
   updateTextInfo();
 }
 
-// Byte count and an upper bound on frames (before compression; encryption adds 48 bytes).
+// Byte count and an upper bound on frames (before compression, encryption counted).
 function updateTextInfo() {
   const btn = document.getElementById('encBtn');
   if (encMode !== 'text') { btn.disabled = encoding || !encFile; return; }
   const text = document.getElementById('textEnc').value;
   const bytes = new TextEncoder().encode(text).length;
-  const framed = 4 + 4 + 27 + bytes + 48; // len prefix + name len + 'message-YYYYMMDD-HHMMSS.txt' + text + crypto
-  const frames = Math.max(1, Math.ceil(framed / CimbarFormat.fileBytesPerFrame()));
+  const frames = CimbarPhotoFit.framesForFile(Cimbar.textMessageName(new Date()), bytes, true);
   document.getElementById('textEncInfo').textContent = t('textEncInfo', { bytes: fmtBytes(bytes), frames });
   btn.disabled = encoding || text.length === 0;
 }
@@ -1007,7 +1113,7 @@ function fmtBytes(b) {
     e.preventDefault(); el.classList.remove('over');
     const f = e.dataTransfer.files[0];
     if (!f) return;
-    if (id === 'dropEnc') { encFile = f; showPill('pillEnc','pillEncText', f.name, f.size); updateTextInfo(); }
+    if (id === 'dropEnc') { pickEncFile(f, false); }
     else if (id === 'dropDec') { handleDecFile(f); }
   });
 });
@@ -1192,7 +1298,204 @@ function shareGif() {
   return shareBlob(outputBlob, gifFileName(), 'image/gif', 'ready');
 }
 
-function clearEncFile() { encFile = null; document.getElementById('pillEnc').classList.remove('show'); document.getElementById('fileEnc').value = ''; updateTextInfo(); }
+function clearEncFile() {
+  encFile = null;
+  document.getElementById('pillEnc').classList.remove('show');
+  document.getElementById('pillEncMeta').textContent = '';
+  document.getElementById('fileEnc').value = '';
+  updateTextInfo();
+}
+
+// ── Optimise photo (#/send/photo) ─────────────────────────
+// The logic is PhotoOptimiser (photo-optimiser.js) behind its IO seam; this
+// is only the DOM: render its state, forward taps. One optimiser at a time:
+// a new pick disposes the old one, whose late results are then ignored.
+let photoOpt = null;          // the optimiser on screen
+let photoFile = null;         // the File it was opened with (Skip stages it)
+let photoPreviewUrl = null, photoPreviewBytes = null;
+let photoSidesFor = '';       // the longest side the size chips were built for
+let photoSideChips = [];      // [{ side, el }]
+let photoShownFrames = -1;
+const photoClock = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h) };
+
+function openPhotoOptimiser(file) {
+  closePhotoOptimiser();
+  const opt = new CimbarPhotoOptimiser.PhotoOptimiser({
+    openSession: (blob) => CimbarCanvasJpeg.CanvasJpegSession.open(blob),
+    clock: photoClock,
+    onChange: (st) => { if (photoOpt === opt) renderPhoto(st); },
+    warn: (msg) => console.warn(msg),
+  }, { source: file, fileName: file.name, originalSize: file.size });
+  photoOpt = opt;
+  photoFile = file;
+  renderPhoto(opt.state);
+  navigate('#/send/photo', { replace: currentRoute === '/send/photo' });
+}
+
+function closePhotoOptimiser() {
+  if (photoOpt) photoOpt.dispose();
+  photoOpt = null;
+  photoFile = null;
+  if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+  photoPreviewUrl = null;
+  photoPreviewBytes = null;
+  photoSidesFor = '';
+  photoSideChips = [];
+  photoShownFrames = -1;
+  const img = document.getElementById('photoPreview');
+  img.removeAttribute('src');
+  img.hidden = true;
+}
+
+function fmtSeconds(v) {
+  try { return v.toLocaleString(CimbarI18n.getLang(), { maximumFractionDigits: 1 }); }
+  catch (_) { return String(Math.round(v * 10) / 10); }
+}
+
+function renderPhoto(st) {
+  const final = st.error === 'decodeFailed' || st.error === 'tooLarge';
+  const r = st.result;
+  const unfit = r !== null && !r.fits;
+  document.getElementById('photoBusy').hidden = !st.busy || final;
+
+  const img = document.getElementById('photoPreview');
+  if (r && r.bytes !== photoPreviewBytes) {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    photoPreviewBytes = r.bytes;
+    photoPreviewUrl = URL.createObjectURL(new Blob([r.bytes], { type: 'image/jpeg' }));
+    img.src = photoPreviewUrl;
+  }
+  img.hidden = final || !r || !photoPreviewUrl;
+  if (r && !final) {
+    const d = CimbarPhotoOptimiser.previewDimensions(st.width, st.height, r.maxSide);
+    const kb = r.bytes.length === 0 ? 0 : Math.max(1, Math.round(r.bytes.length / 1024));
+    document.getElementById('photoLabel').textContent = t('photoResultLabel', { width: d.width, height: d.height, quality: r.quality, kb });
+  } else {
+    document.getElementById('photoLabel').textContent = '';
+  }
+
+  const err = document.getElementById('photoError');
+  const errKey = { decodeFailed: 'photoDecodeError', tooLarge: 'photoTooLarge', memory: 'photoMemoryError' }[st.error];
+  err.textContent = errKey ? t(errKey) : '';
+  err.hidden = !errKey;
+
+  document.getElementById('photoControls').hidden = final || st.width === 0;
+  const input = document.getElementById('photoFrames');
+  input.max = String(st.cap);
+  // A focused field is left alone while the user types, but −/+ still move it.
+  if (document.activeElement !== input || st.frames !== photoShownFrames) input.value = String(st.frames);
+  photoShownFrames = st.frames;
+  // aria-disabled, not disabled: a button disabled mid-hold may never see its
+  // pointerup, and the hold (which defers every fit) would never end.
+  document.getElementById('photoMinus').setAttribute('aria-disabled', String(st.frames <= 1));
+  document.getElementById('photoPlus').setAttribute('aria-disabled', String(st.frames >= st.cap));
+  const delay = (parseInt(document.getElementById('frameDelay').value, 10) || 20) * 10;
+  document.getElementById('photoTime').textContent =
+    t('photoTransferTime', { frames: st.frames, seconds: fmtSeconds(st.frames * delay / 1000), delay });
+  document.getElementById('photoNote').textContent =
+    unfit && !st.busy && st.needed !== null ? t('photoDoesNotFit', { frames: st.frames, needed: st.needed }) : '';
+
+  const longest = Math.max(st.width, st.height);
+  const sizes = document.getElementById('photoSizes');
+  if (longest > 0 && String(longest) !== photoSidesFor) {
+    photoSidesFor = String(longest);
+    sizes.innerHTML = '';
+    photoSideChips = CimbarPhotoFit.candidateSides(longest).map((side, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = i === 0 ? t('photoOriginal') : String(side);
+      b.onclick = () => { if (photoOpt) photoOpt.setManual({ side }); };
+      sizes.appendChild(b);
+      return { side, el: b };
+    });
+  }
+  const manual = st.mode === 'manual';
+  const side = manual ? st.manualSide : r ? r.maxSide : null;
+  for (const c of photoSideChips) c.el.setAttribute('aria-pressed', String(c.side === side));
+  const quality = (manual ? st.manualQuality : r ? r.quality : null) || 70;
+  const slider = document.getElementById('photoQuality');
+  if (document.activeElement !== slider) slider.value = String(quality);
+  document.getElementById('photoQualityLabel').textContent = t('photoQuality', { quality: Number(slider.value) || quality });
+  document.getElementById('photoAutoBtn').hidden = !manual;
+
+  // Unfit: "Continue with M frames" (M ≤ 4096) and "Continue with this image (K frames)", as in the app.
+  const withBtn = document.getElementById('photoContinueWithBtn');
+  const cont = document.getElementById('photoContinueBtn');
+  const blocked = st.busy || r === null;
+  withBtn.hidden = final || st.continueWithFrames === null;
+  if (st.continueWithFrames !== null) withBtn.textContent = t('photoContinueWith', { count: st.continueWithFrames });
+  withBtn.disabled = blocked;
+  cont.hidden = final;
+  cont.textContent = unfit ? t('photoContinueAsIs', { count: st.asIsFrames }) : t('photoContinue');
+  cont.classList[unfit ? 'remove' : 'add']('btn-primary');
+  cont.classList[unfit ? 'add' : 'remove']('btn-secondary');
+  cont.disabled = blocked;
+}
+
+function photoFramesTyped() {
+  const n = parseInt(document.getElementById('photoFrames').value, 10);
+  if (!photoOpt) return;
+  if (Number.isFinite(n)) photoOpt.setFrames(n);
+  photoShownFrames = -1;
+  renderPhoto(photoOpt.state);   // shows the clamped count, or restores it after invalid input
+}
+function photoQualityInput() {
+  if (photoOpt) photoOpt.setManual({ quality: Number(document.getElementById('photoQuality').value) });
+}
+function photoBackToAuto() { if (photoOpt) photoOpt.backToAuto(); }
+
+// −/+ step on a tap and repeat while held (HoldRepeater's schedule).
+function wirePhotoStepper(id, dir) {
+  const btn = document.getElementById(id);
+  const repeater = new CimbarPhotoOptimiser.HoldRepeater(photoClock, {
+    onStep: (d) => { if (photoOpt) photoOpt.step(d); },
+    onHoldStart: () => { if (photoOpt) photoOpt.beginHold(); },
+    onHoldEnd: () => { if (photoOpt) photoOpt.endHold(); },
+  });
+  // Without capture a release outside the button never reaches it and the
+  // hold would repeat for ever: leaving the button ends it instead.
+  let captured = false;
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || btn.getAttribute('aria-disabled') === 'true') return;
+    try { btn.setPointerCapture(e.pointerId); captured = true; } catch (_) { captured = false; }
+    repeater.press(dir);
+  });
+  btn.addEventListener('pointerleave', () => { if (!captured) repeater.cancel(); });
+  btn.addEventListener('pointerup', () => repeater.release());
+  btn.addEventListener('pointercancel', () => repeater.cancel());
+  btn.addEventListener('lostpointercapture', () => repeater.cancel());
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());   // a long touch is a hold, not a menu
+  btn.addEventListener('click', (e) => { if (e.detail === 0 && photoOpt) photoOpt.step(dir); });   // keyboard
+}
+wirePhotoStepper('photoMinus', -1);
+wirePhotoStepper('photoPlus', 1);
+
+// Continue, "Continue with this image (K frames)": the result as shown.
+function photoContinue() {
+  if (!photoOpt) return;
+  const choice = photoOpt.continueAsShown();
+  if (choice) finishPhoto(new File([choice.bytes], choice.name, { type: 'image/jpeg' }));
+}
+// "Continue with M frames": re-fits at M; if that still doesn't fit (or a newer
+// change superseded it) the screen stays as it is.
+async function photoContinueAtNeeded() {
+  const opt = photoOpt;
+  if (!opt) return;
+  const choice = await opt.continueAtNeeded();
+  if (choice && photoOpt === opt) finishPhoto(new File([choice.bytes], choice.name, { type: 'image/jpeg' }));
+}
+function photoSkip() {
+  if (!photoOpt) return;
+  const original = photoFile;
+  photoOpt.skip();
+  finishPhoto(original);
+}
+function finishPhoto(file) {
+  closePhotoOptimiser();
+  stageEncFile(file);
+  navigate('#/send', { replace: true });
+}
 function togglePass(id, btn) {
   const el = document.getElementById(id);
   const show = el.type === 'password';
@@ -1404,7 +1707,9 @@ async function startDecode() {
 // and the photo path (addPhoto wraps its finishDecode call separately).
 function logDecodeError(err) {
   if (err.needPass) { console.error(err); showUnlock(!!err.wrongPass); return; }   // logged: a non-auth decrypt failure surfaces as needPass too
-  const msg = err.unsupported ? t('noDecompressionSupport')
+  const unreadable = err instanceof CimbarImageDecode.PhotoDecodeError || err instanceof CimbarImageDecode.ImageTooLargeError;
+  const msg = unreadable ? t('photoCantRead')
+    : err.unsupported ? t('noDecompressionSupport')
     : err.tooLarge ? t('inflatedTooLarge', { mb: Math.round((err.maxBytes || CimbarCompress.MAX_INFLATED) / (1024 * 1024)) })
     : t('errorPrefix', { msg: err.message });
   log(msg, 'err', 'logDec');
@@ -1593,7 +1898,8 @@ function resetPhotoSession() {
 }
 
 async function toImageData(file) {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  // The browser's decoder, or libheif for a HEIC it can't open (image-decode.js).
+  const bitmap = await CimbarImageDecode.decodeImage(file);
   try {
     const long = Math.max(bitmap.width, bitmap.height);
     const k = long > 1920 ? 1920 / long : 1;          // downscale during draw, never after

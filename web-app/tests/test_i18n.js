@@ -89,7 +89,7 @@ test('t() picks the plural form for the count', () => {
 test('every language translates every message (allow-listed technical strings excepted)', () => {
   // Same in every language: abbreviations and unit-only strings. Anything else
   // equal to English shipped untranslated ("LIVE DEMO" did, in four languages).
-  const SAME = new Set(['about2Title', 'chipAes', 'delayNormal', 'sizeB', 'sizeKB', 'sizeMB']);
+  const SAME = new Set(['about2Title', 'chipAes', 'delayNormal', 'sizeB', 'sizeKB', 'sizeMB', 'photoResultLabel']);
   for (const code of LANGS.filter((c) => c !== 'en')) {
     const same = Object.keys(en).filter((k) => !SAME.has(k) && I.STRINGS[code][k] === en[k]);
     assertEq(same.join(','), '', `${code}: messages identical to English`);

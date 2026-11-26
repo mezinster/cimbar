@@ -19,7 +19,8 @@
 // accessor, so the only way to reset them between tests is to re-run the
 // script from scratch.
 'use strict';
-const { freshPage, makeFrame, makeCompletingFrame, makeFrameWithPayload, encryptedPayload, okResult, Fmt, Core, RatelessMod } = require('./page_harness');
+const { freshPage, makeFrame, makeCompletingFrame, makeFrameWithPayload, encryptedPayload, okResult, Fmt, Core, RatelessMod, PhotoFit, ImageDecode } = require('./page_harness');
+const PhotoOptimiserMod = require('../photo-optimiser.js');
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
@@ -399,7 +400,7 @@ test('text mode: empty text disables Encode; whitespace-only does not', async ()
 
 test('switching modes encodes only the visible input — Review Focus 2', async () => {
   const { ctx, elements } = freshPage();
-  ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }] }, 'enc');
+  await ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }] }, 'enc');
   ctx.setEncMode('text');
   elements['textEnc'].value = 'hello';
   ctx.setEncMode('file');
@@ -425,7 +426,7 @@ test('file mode: a second Encode click while the file is still being read does n
   let reads = 0, release;
   const gate = new Promise((r) => { release = r; });
   const file = { name: 'a.bin', size: 3, arrayBuffer: async () => { reads++; await gate; return new Uint8Array([1, 2, 3]).buffer; } };
-  ctx.onFileSelect({ files: [file] }, 'enc');
+  await ctx.onFileSelect({ files: [file] }, 'enc');
   const first = ctx.startEncode();
   assertEq(elements['encBtn'].disabled, true, 'Encode is disabled before the file read is awaited');
   const second = ctx.startEncode();
@@ -442,7 +443,7 @@ test('file mode with nothing staged: Create code is disabled and a click is a no
   assertEq(elements['encBtn'].disabled, true, 'disabled until a file is chosen');
   await ctx.startEncode();
   assertEq(calls.alerts.length, 0, 'no alert');
-  ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new ArrayBuffer(3) }] }, 'enc');
+  await ctx.onFileSelect({ files: [{ name: 'a.bin', size: 3, arrayBuffer: async () => new ArrayBuffer(3) }] }, 'enc');
   assertEq(elements['encBtn'].disabled, false, 'enabled once a file is staged');
 });
 
@@ -981,7 +982,7 @@ test('a staged file that cannot be read shows an error and re-enables Create cod
   const { ctx, elements } = freshPage();
   ctx.setEncMode('file');
   const file = { name: 'a.bin', size: 3, arrayBuffer: async () => { const e = new Error('unreadable'); e.name = 'NotReadableError'; throw e; } };
-  ctx.onFileSelect({ files: [file] }, 'enc');
+  await ctx.onFileSelect({ files: [file] }, 'enc');
   let threw = null;
   try { await ctx.startEncode(); } catch (e) { threw = e; }
   assertEq(threw, null, 'startEncode does not reject');
@@ -1083,6 +1084,388 @@ test('"Receive another" clears a staged GIF and its pill — final 7', async () 
   assertEq(ctx.routeState().needsUnlock, false, 'no unlock pending');
   await ctx.startDecode();
   assertEq(elements['decError'].textContent, 'selectGifFirst', 'decFile cleared');
+});
+
+// ── Send: Choose photo and the Optimise photo screen (#/send/photo) ──────────
+// The real PhotoOptimiser (photo-optimiser.js) and photo-fit.js run; only the
+// canvas encoder session is faked. A fake encode embeds its (side, quality) in
+// the first three bytes so a test can tell which encode was staged.
+
+const flush = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+const MB128 = Fmt.SPEC.compression.maxInflatedBytes;
+const JPEG_HEAD = [0xFF, 0xD8, 0xFF, 0xE0];
+const GIF_HEAD = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61];
+// ftyp box: size 24, major brand heic, minor 0, compatible mif1 heic.
+const HEIC_HEAD = [0, 0, 0, 24, ...Buffer.from('ftypheic'), 0, 0, 0, 0, ...Buffer.from('mif1heic')];
+
+function fileOf(name, type, head, size = 300000) {
+  const b = new Uint8Array(size);
+  for (let i = 0; i < b.length; i++) b[i] = (i * 2654435761) >>> 24;   // incompressible-ish filler
+  b.set(head || [], 0);
+  return new File([b], name, { type });
+}
+
+/** Encoded size model: a function of (side, quality); bytes start with side (u16) and quality. */
+function fakeSession({ width = 4000, height = 3000, size = (side, q) => Math.round((side * side * q) / 4000), gate = null } = {}) {
+  const s = {
+    width, height, closed: 0, encodes: 0,
+    async encode(side, q) {
+      s.encodes++;
+      if (gate) await gate;
+      const n = Math.max(3, size(side, q));
+      const b = new Uint8Array(n);
+      for (let i = 3; i < n; i++) b[i] = (i * 2246822519 + side) >>> 24;
+      b[0] = side >> 8; b[1] = side & 255; b[2] = q;
+      return b;
+    },
+    close() { s.closed++; },
+  };
+  return s;
+}
+const encodedAs = (bytes) => ({ side: (bytes[0] << 8) | bytes[1], quality: bytes[2] });
+
+/** Hands out the given sessions in order to CanvasJpegSession.open. */
+function useSessions(ctx, calls, ...sessions) {
+  ctx.CimbarCanvasJpeg.CanvasJpegSession.open = async (blob) => {
+    calls.sessionOpens.push(blob);
+    const next = sessions.shift();
+    if (next instanceof Error) throw next;
+    return next;
+  };
+}
+
+/** t() that shows its params, so a test can read the numbers on screen. */
+function showParams(ctx) { ctx.CimbarI18n.t = (k, p) => (p ? `${k} ${JSON.stringify(p)}` : k); }
+
+async function pick(ctx, file, side) {
+  await ctx.onFileSelect({ files: [file], value: 'C:\\fakepath\\x' }, side);
+  await flush();
+}
+
+async function stagedInput(ctx) {
+  const input = await ctx.encodeInput();
+  return input && { name: input.name, bytes: input.bytes };
+}
+
+test('router: entering #/send/photo while a photo is open stays; Back to #/send disposes it', async () => {
+  const { ctx, calls } = freshPage();
+  const s = fakeSession();
+  useSessions(ctx, calls, s);
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(ctx.location.hash, '#/send/photo', 'Choose photo opens the optimiser screen');
+  assertEq(ctx.routeState().hasPendingPhoto, true, 'a photo is pending');
+  ctx.location.hash = '#/send'; ctx.renderRoute();   // browser Back
+  assertEq(ctx.routeState().hasPendingPhoto, false, 'leaving the screen ends the optimiser');
+  assertEq(s.closed, 1, 'its encoder session is closed');
+});
+
+test('Choose photo with a JPEG opens the optimiser with that file', async () => {
+  const { ctx, calls } = freshPage();
+  useSessions(ctx, calls, fakeSession());
+  ctx.navigate('#/send');
+  const f = fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD);
+  await pick(ctx, f, 'photo');
+  assertEq(ctx.location.hash, '#/send/photo', 'route');
+  assertEq(calls.sessionOpens.length, 1, 'one encoder session opened');
+  assert(calls.sessionOpens[0] === f, 'opened with the picked file itself');
+  assertEq(await ctx.encodeInput(), null, 'nothing staged until Continue or Skip');
+});
+
+test('Choose photo with GIF bytes stages it as a plain file, no optimiser', async () => {
+  const { ctx, elements, calls } = freshPage();
+  ctx.navigate('#/send');
+  const f = fileOf('anim.jpg', 'image/jpeg', GIF_HEAD, 5000);   // mislabelled: the magic bytes decide
+  await pick(ctx, f, 'photo');
+  assertEq(calls.sessionOpens.length, 0, 'no optimiser');
+  assertEq(ctx.location.hash, '#/send', 'stays on Send');
+  assertEq((await stagedInput(ctx)).name, 'anim.jpg', 'staged as picked');
+  assertEq(elements['pillEncText'].textContent, 'anim.jpg', 'pill shows it');
+});
+
+test('Choose a file and drop: photos open the optimiser, documents and GIFs stage directly', async () => {
+  const cases = [
+    { f: () => fileOf('photo.png', 'image/png', [0x89, 0x50, 0x4E, 0x47]), optimiser: true },
+    { f: () => fileOf('doc.pdf', 'application/pdf', [0x25, 0x50, 0x44, 0x46], 5000), optimiser: false },
+    { f: () => fileOf('anim.gif', 'image/gif', GIF_HEAD, 5000), optimiser: false },
+  ];
+  for (const via of ['choose', 'drop']) {
+    for (const c of cases) {
+      const { ctx, elements, calls } = freshPage();
+      useSessions(ctx, calls, fakeSession());
+      ctx.navigate('#/send');
+      const f = c.f();
+      if (via === 'choose') await pick(ctx, f, 'enc');
+      else {
+        for (const fn of elements['dropEnc']._listeners.drop) fn({ preventDefault() {}, dataTransfer: { files: [f] } });
+        await flush();
+      }
+      const label = `${via} ${f.name}`;
+      assertEq(calls.sessionOpens.length, c.optimiser ? 1 : 0, `${label}: optimiser opened`);
+      assertEq(ctx.location.hash, c.optimiser ? '#/send/photo' : '#/send', `${label}: route`);
+      const staged = await stagedInput(ctx);
+      assertEq(staged ? staged.name : null, c.optimiser ? null : f.name, `${label}: staged`);
+    }
+  }
+});
+
+test('octet-stream .heic via Choose a file opens the optimiser — Review Focus 3', async () => {
+  for (const f of [fileOf('IMG_0001.HEIC', 'application/octet-stream', HEIC_HEAD), fileOf('IMG_0002', 'application/octet-stream', HEIC_HEAD)]) {
+    const { ctx, calls } = freshPage();
+    useSessions(ctx, calls, fakeSession());
+    ctx.navigate('#/send');
+    await pick(ctx, f, 'enc');
+    assertEq(calls.sessionOpens.length, 1, `${f.name}: optimiser opened`);
+    assertEq(ctx.location.hash, '#/send/photo', `${f.name}: route`);
+  }
+  const { ctx, calls } = freshPage();   // the same name with non-HEIF bytes and no extension stays a file
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_0003', 'application/octet-stream', [1, 2, 3, 4], 5000), 'enc');
+  assertEq(calls.sessionOpens.length, 0, 'no sniff hit, no optimiser');
+});
+
+test('a photo over 128 MB stages directly (Choose a file and Choose photo)', async () => {
+  for (const side of ['enc', 'photo']) {
+    const { ctx, calls } = freshPage();
+    ctx.navigate('#/send');
+    const big = { name: 'huge.jpg', type: 'image/jpeg', size: MB128 + 1, slice: () => new Blob([new Uint8Array(JPEG_HEAD)]) };
+    await pick(ctx, big, side);
+    assertEq(calls.sessionOpens.length, 0, `${side}: no optimiser above 128 MB`);
+    assertEq(ctx.location.hash, '#/send', `${side}: stays on Send`);
+    const exactly = { name: 'max.jpg', type: 'image/jpeg', size: MB128, slice: () => new Blob([new Uint8Array(JPEG_HEAD)]) };
+    useSessions(ctx, calls, fakeSession());
+    await pick(ctx, exactly, side);
+    assertEq(calls.sessionOpens.length, 1, `${side}: exactly 128 MB still goes to the optimiser`);
+  }
+});
+
+test('Continue stages the optimised IMG_1234.jpg and returns to #/send in File mode', async () => {
+  const { ctx, elements, calls } = freshPage();
+  const s = fakeSession();
+  useSessions(ctx, calls, s);
+  ctx.navigate('#/send');
+  ctx.setEncMode('text');
+  await pick(ctx, fileOf('IMG_1234.HEIC', 'image/heic', HEIC_HEAD), 'photo');
+  assertEq(elements['photoContinueBtn'].disabled, false, 'Continue enabled once the fit is done');
+  assertEq(elements['photoContinueBtn'].hidden, false, 'Continue shown');
+  assertEq(elements['photoContinueWithBtn'].hidden, true, 'no "Continue with M frames" for a fitting result');
+  const frames = Number(elements['photoFrames'].value);
+  // The same fit, computed independently: start N from the 640 px / q70 probe.
+  const probe = await fakeSession().encode(640, 70);
+  assertEq(frames, PhotoFit.framesForFile('IMG_1234.jpg', probe.length, true), 'starting count from the 640/q70 probe');
+  const expected = await PhotoFit.fitToBudget(fakeSession(), PhotoFit.photoByteBudget(frames, 'IMG_1234.jpg'));
+  ctx.photoContinue();
+  assertEq(ctx.location.hash, '#/send', 'back on Send');
+  assertEq(elements['encFileField'].style.display, 'block', 'File mode');
+  assert(elements['encModeFile'].classList.contains('active'), 'File tab active');
+  const staged = await stagedInput(ctx);
+  assertEq(staged.name, 'IMG_1234.jpg', 'optimised name');
+  assertEq(Buffer.from(staged.bytes).equals(Buffer.from(expected.bytes)), true, 'the fitted JPEG bytes are staged');
+  assertEq(s.closed, 1, 'session closed');
+  assertEq(ctx.routeState().hasPendingPhoto, false, 'optimiser gone');
+});
+
+test('Skip stages the original File untouched', async () => {
+  const { ctx, calls } = freshPage();
+  useSessions(ctx, calls, fakeSession());
+  ctx.navigate('#/send');
+  const f = fileOf('IMG_1234.HEIC', 'image/heic', HEIC_HEAD);
+  await pick(ctx, f, 'photo');
+  ctx.photoSkip();
+  assertEq(ctx.location.hash, '#/send', 'back on Send');
+  const staged = await stagedInput(ctx);
+  assertEq(staged.name, 'IMG_1234.HEIC', 'original name');
+  assertEq(Buffer.from(staged.bytes).equals(Buffer.from(await f.arrayBuffer())), true, 'original bytes');
+});
+
+test('Back leaves the previously staged file untouched', async () => {
+  const { ctx, calls } = freshPage();
+  const s = fakeSession();
+  useSessions(ctx, calls, s);
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('doc.pdf', 'application/pdf', [0x25, 0x50], 5000), 'enc');
+  await pick(ctx, fileOf('IMG_1.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(ctx.location.hash, '#/send/photo', 'optimiser open');
+  ctx.navigate('#/send');   // the topbar back link
+  assertEq((await stagedInput(ctx)).name, 'doc.pdf', 'the earlier file is still staged');
+  assertEq(s.closed, 1, 'optimiser disposed');
+  ctx.photoContinue(); ctx.photoSkip();   // stray taps after leaving do nothing
+  assertEq((await stagedInput(ctx)).name, 'doc.pdf', 'still the earlier file');
+});
+
+// Every encode is 30000 bytes except the 640/q70 probe, so N starts at 1 and
+// nothing fits until 15 frames: framesForFile('IMG_1234.jpg', 30000, true) = 15.
+const unfitSession = () => fakeSession({ size: (side, q) => (side === 640 && q === 70 ? 1000 : 30000) });
+
+test('unfit: "Continue with M frames" re-fits at M through continueAtNeeded, then stages', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  const s = unfitSession();
+  useSessions(ctx, calls, s);
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(elements['photoFrames'].value, '1', 'starts at the probe count');
+  assertEq(elements['photoNote'].textContent, 'photoDoesNotFit {"frames":1,"needed":15}', 'does-not-fit note');
+  assertEq(elements['photoContinueWithBtn'].hidden, false, '"Continue with M frames" shown');
+  assertEq(elements['photoContinueWithBtn'].textContent, 'photoContinueWith {"count":15}', 'its label');
+  assertEq(elements['photoContinueBtn'].textContent, 'photoContinueAsIs {"count":15}', 'as-is label');
+  await ctx.photoContinueAtNeeded();
+  assertEq(ctx.location.hash, '#/send', 'back on Send');
+  const staged = await stagedInput(ctx);
+  assertEq(staged.name, 'IMG_1234.jpg', 'name');
+  assertEq(JSON.stringify(encodedAs(staged.bytes)), JSON.stringify({ side: 4000, quality: 95 }), 'the re-fit at 15 frames, not the unfit result');
+  assert(elements['pillEncMeta'].textContent.includes('"frames":15'), 'pill estimate shows 15 frames: ' + elements['pillEncMeta'].textContent);
+});
+
+test('unfit: "Continue with this image (K frames)" stages the unfit result as it is', async () => {
+  const { ctx, calls } = freshPage();
+  useSessions(ctx, calls, unfitSession());
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  ctx.photoContinue();
+  const staged = await stagedInput(ctx);
+  assertEq(JSON.stringify(encodedAs(staged.bytes)), JSON.stringify({ side: 320, quality: 30 }), 'the smallest result, unfit');
+  assertEq(staged.bytes.length, 30000, 'its bytes');
+});
+
+test('second pick while fitting disposes the first optimiser — Review Focus 2', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const a = fakeSession({ width: 4000, height: 3000, gate });
+  const b = fakeSession({ width: 1000, height: 500 });
+  useSessions(ctx, calls, a, b);
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('first.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(elements['photoContinueBtn'].disabled, true, 'Continue disabled while the first photo is fitting');
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('second.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(a.closed, 1, 'the first session is closed');
+  const label = elements['photoLabel'].textContent;
+  const frames = Number(elements['photoFrames'].value);
+  const r = await PhotoFit.fitToBudget(fakeSession({ width: 1000, height: 500 }), PhotoFit.photoByteBudget(frames, 'second.jpg'));
+  const d = PhotoOptimiserMod.previewDimensions(1000, 500, r.maxSide);
+  assertEq(label, `photoResultLabel ${JSON.stringify({ width: d.width, height: d.height, quality: r.quality, kb: Math.max(1, Math.round(r.bytes.length / 1024)) })}`, 'the second photo\'s result is on screen');
+  const encodesBefore = a.encodes;
+  release();
+  await flush();
+  assertEq(elements['photoLabel'].textContent, label, 'the first session\'s late result never reaches the screen');
+  assertEq(a.encodes, encodesBefore, 'the stale fit stops at its next encode');
+  ctx.photoContinue();
+  assertEq((await stagedInput(ctx)).name, 'second.jpg', 'Continue stages the second photo');
+});
+
+test('a photo that cannot be read says so; Skip still sends the original — Review Focus 4', async () => {
+  for (const [err, key] of [[new ImageDecode.PhotoDecodeError(), 'photoDecodeError'], [new ImageDecode.ImageTooLargeError(), 'photoTooLarge']]) {
+    const { ctx, elements, calls } = freshPage();
+    useSessions(ctx, calls, err);
+    ctx.navigate('#/send');
+    await pick(ctx, fileOf('IMG_7.heic', 'image/heic', HEIC_HEAD), 'photo');
+    assertEq(elements['photoError'].hidden, false, `${key}: error shown`);
+    assertEq(elements['photoError'].textContent, key, `${key}: message`);
+    assertEq(elements['photoBusy'].hidden, true, `${key}: no spinner left running`);
+    assertEq(elements['photoControls'].hidden, true, `${key}: controls hidden`);
+    assertEq(elements['photoContinueBtn'].hidden, true, `${key}: no Continue`);
+    ctx.photoSkip();
+    assertEq((await stagedInput(ctx)).name, 'IMG_7.heic', `${key}: Skip stages the original`);
+  }
+});
+
+test('the frame stepper: + steps once on a tap, a typed count re-fits after the debounce', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  elements['frameDelay'].value = '40';
+  useSessions(ctx, calls, fakeSession());
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  const n = Number(elements['photoFrames'].value);
+  const plus = elements['photoPlus']._listeners;
+  plus.pointerdown[0]({ button: 0, pointerId: 1 });
+  plus.pointerup[0]({});
+  assertEq(elements['photoFrames'].value, String(n + 1), '+ tap');
+  assertEq(elements['photoContinueBtn'].disabled, true, 'Continue disabled while the re-fit is pending');
+  assertEq(elements['photoTime'].textContent, `photoTransferTime ${JSON.stringify({ frames: n + 1, seconds: ctx.fmtSeconds((n + 1) * 0.4), delay: 400 })}`, 'transfer time at the Send screen\'s frame speed');
+  elements['photoFrames'].value = '3';
+  ctx.photoFramesTyped();
+  assertEq(elements['photoFrames'].value, '3', 'typed count');
+  await sleepMs(300); await flush();
+  assertEq(elements['photoContinueBtn'].disabled, false, 'fit done');
+  ctx.photoContinue();
+  const staged = await stagedInput(ctx);
+  assert(staged.bytes.length <= PhotoFit.photoByteBudget(3, 'IMG_1.jpg'), 'fits 3 frames');
+});
+
+test('the File pill shows "<size> · ≈ <n> frames" with encryption counted', async () => {
+  const { ctx, elements } = freshPage();
+  showParams(ctx);
+  ctx.navigate('#/send');
+  // 4160 bytes: 2 frames unencrypted, 3 once the 48-byte envelope is counted.
+  await pick(ctx, fileOf('doc.pdf', 'application/pdf', [0x25], 4160), 'enc');
+  assertEq(PhotoFit.framesForFile('doc.pdf', 4160, false), 2, 'setup: unencrypted count');
+  assertEq(elements['pillEncText'].textContent, 'doc.pdf', 'name');
+  assertEq(elements['pillEncMeta'].textContent, `pillEstimate ${JSON.stringify({ size: ctx.fmtBytes(4160), frames: 3 })}`, 'size and encrypted estimate');
+  ctx.clearEncFile();
+  assertEq(elements['pillEncMeta'].textContent, '', 'cleared with the file');
+});
+
+test('frame estimate on pill counts encryption; encoding the optimised file with a passphrase needs ≤ shown frames — Review Focus 5', async () => {
+  const NodeCrypto = require('../tools/node_crypto.js');
+  const Compress = require('../compress.js');
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  useSessions(ctx, calls, fakeSession());
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  const shown = Number(elements['photoFrames'].value);
+  ctx.photoContinue();
+  const staged = await stagedInput(ctx);
+  const estimate = Number(/"frames":(\d+)/.exec(elements['pillEncMeta'].textContent)[1]);
+  assert(estimate <= shown, `pill estimate ${estimate} ≤ optimiser's ${shown}`);
+  // encodeToGif's framing, with a passphrase typed after Continue.
+  const z = await Compress.maybeDeflate(Core.buildPayload(staged.name, staged.bytes));
+  const enc = NodeCrypto.encryptBytesNode(z.bytes, 'pass', new Uint8Array(16), new Uint8Array(12));
+  const frames = Core.splitIntoFrames(Core.withLengthPrefix(enc), 1, { encrypted: true, compressed: z.compressed }).length;
+  assert(frames <= estimate, `encrypted encode needs ${frames} ≤ estimate ${estimate}`);
+  assert(frames <= shown, `encrypted encode needs ${frames} ≤ shown ${shown}`);
+});
+
+test('updateTextInfo counts with CimbarPhotoFit.framesForFile — same numbers as before', () => {
+  const { ctx, elements } = freshPage();
+  showParams(ctx);
+  const seen = [];
+  const real = ctx.CimbarPhotoFit.framesForFile;
+  ctx.CimbarPhotoFit.framesForFile = (n, b, e) => { seen.push([n, b, e]); return real(n, b, e); };
+  ctx.setEncMode('text');
+  for (const len of [1, 2021, 2022, 10000]) {
+    elements['textEnc'].value = 'x'.repeat(len);
+    ctx.updateTextInfo();
+    const old = Math.max(1, Math.ceil((4 + 4 + 27 + len + 48) / Fmt.fileBytesPerFrame()));
+    const [name, bytes, encrypted] = seen[seen.length - 1];
+    assert(/^message-\d{8}-\d{6}\.txt$/.test(name), 'text message name: ' + name);
+    assertEq(bytes, len, 'byte count');
+    assertEq(encrypted, true, 'encryption reserved');
+    assert(elements['textEncInfo'].textContent.includes(`"frames":${old}`), `${len} bytes: ${elements['textEncInfo'].textContent} (want ${old})`);
+  }
+});
+
+test('addPhoto decodes through CimbarImageDecode.decodeImage (HEIC in every browser)', async () => {
+  const { ctx, elements } = freshPage();
+  const seen = [];
+  let nativeCalls = 0;
+  ctx.CimbarImageDecode.decodeImage = async (blob) => { seen.push(blob); return { width: 20, height: 10, close() {} }; };
+  ctx.createImageBitmap = async () => { nativeCalls++; return { width: 20, height: 10, close() {} }; };
+  ctx.CimbarPhoto.decode = () => ({ status: 'notLocated' });
+  const f = fileOf('shot.heic', 'image/heic', HEIC_HEAD, 100);
+  await ctx.addPhoto(f);
+  assertEq(seen.length, 1, 'decodeImage called once');
+  assert(seen[0] === f, 'with the picked file');
+  assertEq(nativeCalls, 0, 'not createImageBitmap directly');
+  assertEq(elements['decError'].textContent, 'errNotLocated', 'the decoded pixels went on to the barcode decoder');
+  ctx.CimbarImageDecode.decodeImage = async () => { throw new ImageDecode.PhotoDecodeError(); };
+  await ctx.addPhoto(f);
+  assertEq(elements['decError'].textContent, 'photoCantRead', 'an unreadable photo is explained in the page language');
 });
 
 (async () => {
