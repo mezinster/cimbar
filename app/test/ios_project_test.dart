@@ -197,4 +197,15 @@ void main() {
       expect(sb, contains('image="LaunchImage"'));
     });
   });
+
+  group('native photo channel', () {
+    test('PhotoEncoder.swift is in Runner\'s sources and registered', () {
+      expect(RegExp(r'PhotoEncoder\.swift in Sources').hasMatch(pbx), isTrue);
+      expect(read('ios/Runner/AppDelegate.swift'),
+          contains('registrar(forPlugin: "PhotoEncoder")'));
+      final swift = read('ios/Runner/PhotoEncoder.swift');
+      expect(swift, contains('"com.nfcarchiver.cimbar/photo"'));
+      expect(swift, contains('"decodePixels"'));
+    });
+  });
 }

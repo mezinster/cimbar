@@ -1,0 +1,338 @@
+package com.nfcarchiver.cimbar
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorSpace
+import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.media.ExifInterface
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.io.File
+import java.io.FileInputStream
+import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/**
+ * `com.nfcarchiver.cimbar/photo`: decodes a photo once per size and re-encodes it as a
+ * metadata-free JPEG at any longest side and quality, and decodes a photo to RGBA
+ * pixels for the barcode detector (`decodePixels`).
+ *
+ * A photo is never decoded above [MAX_PIXELS]. A larger source (48-200 MP
+ * sensors) is treated as if it were that size: `open` reports the capped
+ * dimensions and every encode works within them, so Dart needs no cap of its
+ * own and a full-resolution bitmap (190 MB at 48 MP) is never allocated.
+ *
+ * Each scaled bitmap has the EXIF orientation baked in, sits on white, and is
+ * cached per maxSide so the fit search's repeated encodes at one size skip the
+ * decode. All work runs on one background thread, which also owns [sessions];
+ * results are posted back on the main thread.
+ *
+ * Errors never carry the file path: diagnostics must not log paths.
+ */
+class PhotoEncoder(messenger: BinaryMessenger) {
+    private class DecodeFailed : Exception()
+    private class NoSession : Exception()
+
+    /** [longestSide] is the largest side ever decoded: the source's, capped. */
+    private class Session(val file: File, val longestSide: Int) {
+        var width = 0
+        var height = 0
+        // Access order: iteration starts at the least recently used size.
+        val cache = LinkedHashMap<Int, Bitmap>(8, 0.75f, true)
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private val sessions = HashMap<Int, Session>()
+    private var nextId = 1
+
+    init {
+        MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
+            executor.execute {
+                val reply = runCatching { handle(call) }
+                main.post {
+                    reply.fold(
+                        onSuccess = { if (it === NOT_IMPLEMENTED) result.notImplemented() else result.success(it) },
+                        onFailure = { e ->
+                            when (e) {
+                                is DecodeFailed ->
+                                    result.error("decode_failed", "The image could not be decoded", null)
+                                // The file may be fine: say so, rather than "can't be read".
+                                is OutOfMemoryError ->
+                                    result.error("out_of_memory", "Not enough memory for the image", null)
+                                is NoSession ->
+                                    result.error("no_session", "Unknown photo session", null)
+                                is IllegalArgumentException ->
+                                    result.error("bad_args", "Invalid photo channel arguments", null)
+                                else -> result.error("encode_failed", "The image could not be encoded", null)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    // Runs on the executor thread.
+    private fun handle(call: MethodCall): Any? = when (call.method) {
+        "open" -> open(call.argument<String>("path") ?: throw IllegalArgumentException())
+        "encode" -> {
+            val id = call.argument<Int>("id") ?: throw IllegalArgumentException()
+            val maxSide = call.argument<Int>("maxSide") ?: throw IllegalArgumentException()
+            val quality = call.argument<Int>("quality") ?: throw IllegalArgumentException()
+            require(maxSide > 0 && quality in 1..100)
+            val session = sessions[id] ?: throw NoSession()
+            encode(session, maxSide, quality)
+        }
+        "decodePixels" -> {
+            val path = call.argument<String>("path") ?: throw IllegalArgumentException()
+            val maxPixels = call.argument<Number>("maxPixels")?.toLong() ?: throw IllegalArgumentException()
+            require(maxPixels > 0)
+            decodePixels(File(path), maxPixels)
+        }
+        "close" -> {
+            call.argument<Int>("id")?.let { sessions.remove(it) }
+            null
+        }
+        else -> NOT_IMPLEMENTED
+    }
+
+    private fun open(path: String): Map<String, Int> {
+        val file = File(path)
+        val (w, h) = sourceSize(file)
+        val longest = cappedLongestSide(w, h)
+        val shortest = max(1, (longest.toDouble() * min(w, h) / max(w, h)).roundToInt())
+        val session = Session(file, longest)
+        // A small decode proves the file decodes and shows which way up it is
+        // after orientation; Dart's opening probe encode reuses it.
+        val probe = bitmap(session, min(PROBE_SIDE, longest))
+        val portrait = if (probe.width != probe.height) probe.width < probe.height else w < h
+        session.width = if (portrait) shortest else longest
+        session.height = if (portrait) longest else shortest
+        val id = nextId++
+        sessions[id] = session
+        return mapOf("id" to id, "width" to session.width, "height" to session.height)
+    }
+
+    /** Dimensions come from the header: nothing is decoded at full size. */
+    private fun sourceSize(file: File): Pair<Int, Int> {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        return if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+            bounds.outWidth to bounds.outHeight
+        } else if (Build.VERSION.SDK_INT >= 28) {
+            headerSize(file)
+        } else {
+            throw DecodeFailed()
+        }
+    }
+
+    /**
+     * RGBA pixels of the oriented, white-backed image, decoded once and scaled
+     * so that it holds at most min([maxPixels], [MAX_PIXELS]) pixels. Nothing
+     * is cached: the bitmap is released as soon as its bytes are copied out.
+     */
+    private fun decodePixels(file: File, maxPixels: Long): Map<String, Any> {
+        val (w, h) = sourceSize(file)
+        val cap = min(maxPixels, MAX_PIXELS)
+        val bitmap = decodeOnWhite(file, sideWithin(w, h, cap))
+        try {
+            // ARGB_8888 memory is R,G,B,A byte order; ImageDecoder may hand back
+            // another config (e.g. F16 for a wide-gamut source).
+            val rgba = if (bitmap.config == Bitmap.Config.ARGB_8888) bitmap else
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: throw DecodeFailed()
+            try {
+                val bytes = ByteArray(rgba.width * rgba.height * 4)
+                rgba.copyPixelsToBuffer(ByteBuffer.wrap(bytes))
+                return mapOf("width" to rgba.width, "height" to rgba.height, "rgba" to bytes)
+            } finally {
+                if (rgba !== bitmap) rgba.recycle()
+            }
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    /** The longest side (at most the source's) whose decoded size has <= [cap] pixels. */
+    private fun sideWithin(w: Int, h: Int, cap: Long): Int {
+        val longest = max(w, h)
+        if (w.toLong() * h <= cap) return longest
+        var side = max(1, (longest * sqrt(cap.toDouble() / (w.toLong() * h))).toInt())
+        // The decoders round each dimension, which can overshoot the cap by a pixel row.
+        while (side > 1) {
+            val scale = side.toDouble() / longest
+            val tw = max(1, (w * scale).roundToInt())
+            val th = max(1, (h * scale).roundToInt())
+            if (tw.toLong() * th <= cap) break
+            side--
+        }
+        return side
+    }
+
+    /** The longest side to work at: the source's, or less to stay in [MAX_PIXELS]. */
+    private fun cappedLongestSide(w: Int, h: Int): Int {
+        val longest = max(w, h)
+        val pixels = w.toLong() * h
+        if (pixels <= MAX_PIXELS) return longest
+        return max(1, (longest * sqrt(MAX_PIXELS.toDouble() / pixels)).toInt())
+    }
+
+    private fun encode(session: Session, maxSide: Int, quality: Int): ByteArray {
+        // Never upscale.
+        val bitmap = bitmap(session, minOf(maxSide, session.longestSide))
+        val out = ByteArrayOutputStream()
+        // Bitmap.compress writes a bare JFIF: no EXIF, XMP or GPS.
+        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)) throw IllegalStateException()
+        return out.toByteArray()
+    }
+
+    /** The oriented, white-backed bitmap whose longest side is [side], cached. */
+    private fun bitmap(session: Session, side: Int): Bitmap {
+        session.cache[side]?.let { return it }
+        val bitmap = decodeOnWhite(session.file, side)
+        session.cache[side] = bitmap
+        var total = session.cache.values.sumOf { it.allocationByteCount.toLong() }
+        val iter = session.cache.entries.iterator()
+        while (total > CACHE_BUDGET_BYTES && session.cache.size > 1) {
+            val eldest = iter.next()
+            total -= eldest.value.allocationByteCount
+            iter.remove()
+        }
+        return bitmap
+    }
+
+    /** Decodes [file] at longest side [side], oriented, sRGB, gain map dropped, on white. */
+    private fun decodeOnWhite(file: File, side: Int): Bitmap {
+        val decoded = try {
+            if (Build.VERSION.SDK_INT >= 28) decodeModern(file, side) else decodeLegacy(file, side)
+        } catch (e: DecodeFailed) {
+            throw e
+        } catch (e: Exception) {
+            throw DecodeFailed()
+        }
+        // API 34+ decodes an Ultra HDR gain map by default, and compress()
+        // would write it as a second image after EOI, with MPF and XMP.
+        if (Build.VERSION.SDK_INT >= 34) decoded.gainmap = null
+        return onWhite(decoded)
+    }
+
+    /** API 28+: the source size for formats BitmapFactory cannot size (HEIF). */
+    private fun headerSize(file: File): Pair<Int, Int> {
+        var w = 0
+        var h = 0
+        try {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                w = info.size.width
+                h = info.size.height
+                decoder.setTargetSampleSize(max(1, max(w, h) / 64))
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } catch (e: Exception) {
+            throw DecodeFailed()
+        }
+        if (w <= 0 || h <= 0) throw DecodeFailed()
+        return w to h
+    }
+
+    /** API 28+: ImageDecoder applies EXIF orientation itself. */
+    private fun decodeModern(file: File, side: Int): Bitmap =
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+            val w = info.size.width
+            val h = info.size.height
+            val scale = minOf(1.0, side.toDouble() / max(w, h))
+            // Proportional target: correct whether or not the reported size
+            // is already oriented.
+            decoder.setTargetSize(
+                max(1, (w * scale).roundToInt()),
+                max(1, (h * scale).roundToInt()),
+            )
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            // The ICC profile does not survive the metadata strip, so the
+            // pixels themselves must be sRGB (Display P3 sources included).
+            decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB))
+        }
+
+    /** API < 28: BitmapFactory subsampling, exact scaling, then EXIF rotation. */
+    private fun decodeLegacy(file: File, side: Int): Bitmap {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        val w = bounds.outWidth
+        val h = bounds.outHeight
+        if (w <= 0 || h <= 0) throw DecodeFailed()
+        val longest = max(w, h)
+        var sample = 1
+        while (longest / (sample * 2) >= side) sample *= 2
+        // Never allocate above MAX_PIXELS, even when the target side would allow
+        // it (sample 1 on a 47 MP source asked for 12 MP); the scale below
+        // copes with a decoded side slightly under [side].
+        while ((w / sample).toLong() * (h / sample) > MAX_PIXELS) sample *= 2
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            // API 26+: convert wide-gamut sources; the ICC profile is stripped.
+            if (Build.VERSION.SDK_INT >= 26) inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
+        }
+        var bitmap = BitmapFactory.decodeFile(file.path, opts) ?: throw DecodeFailed()
+
+        val scale = minOf(1.0, side.toDouble() / longest)
+        val tw = max(1, (w * scale).roundToInt())
+        val th = max(1, (h * scale).roundToInt())
+        if (bitmap.width != tw || bitmap.height != th) {
+            bitmap = Bitmap.createScaledBitmap(bitmap, tw, th, true)
+        }
+
+        val orientation = FileInputStream(file).use {
+            ExifInterface(it).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL,
+            )
+        }
+        val m = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> m.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> m.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> m.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> { m.setRotate(90f); m.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_ROTATE_90 -> m.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> { m.setRotate(-90f); m.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_ROTATE_270 -> m.setRotate(-90f)
+            else -> return bitmap
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+    }
+
+    /** JPEG has no alpha: Bitmap.compress would turn transparency black. */
+    private fun onWhite(src: Bitmap): Bitmap {
+        if (!src.hasAlpha()) return src
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        Canvas(out).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(src, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        }
+        return out
+    }
+
+    private companion object {
+        const val CHANNEL = "com.nfcarchiver.cimbar/photo"
+        /** A 12 MP photo alone is ~48 MB, so the newest entry is always kept. */
+        const val CACHE_BUDGET_BYTES = 64L * 1024 * 1024
+        /** 16 MP, a 64 MB bitmap: the web app's canvas limit, and above any 12 MP photo. */
+        const val MAX_PIXELS = 16_000_000L
+        /** The size of Dart's opening probe encode (photo_optimiser_provider.dart). */
+        const val PROBE_SIDE = 640
+        val NOT_IMPLEMENTED = Any()
+        /** Shared across engines, so a recreated activity doesn't leak a thread. */
+        val executor = Executors.newSingleThreadExecutor()
+    }
+}

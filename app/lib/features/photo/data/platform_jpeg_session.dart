@@ -1,0 +1,98 @@
+import 'package:flutter/services.dart';
+
+import '../domain/jpeg_metadata.dart';
+import '../domain/photo_fit.dart';
+
+/// Native JPEG encoder (ImageIO on iOS, ImageDecoder/BitmapFactory on
+/// Android). The native side decodes the source once per session and caches
+/// the scaled bitmap per maxSide, so repeated encodes stay cheap.
+const photoChannel = MethodChannel('com.nfcarchiver.cimbar/photo');
+
+/// The platform could not decode the chosen file as an image.
+class PhotoDecodeException implements Exception {
+  const PhotoDecodeException();
+
+  @override
+  String toString() => 'PhotoDecodeException';
+}
+
+/// The device ran out of memory working on the photo; the file itself may be
+/// fine. Android only: ImageIO on iOS reports no reason for a failed render.
+class PhotoMemoryException implements Exception {
+  const PhotoMemoryException();
+
+  @override
+  String toString() => 'PhotoMemoryException';
+}
+
+const _outOfMemoryCode = 'out_of_memory';
+
+class PlatformJpegSession implements JpegEncoderSession {
+  final int _id;
+  @override
+  final int width;
+  @override
+  final int height;
+
+  PlatformJpegSession._(this._id, this.width, this.height);
+
+  /// Opens [path] natively. [width]/[height] are after EXIF orientation.
+  /// Throws [PhotoDecodeException] when the file is not a decodable image and
+  /// [PhotoMemoryException] when there was no memory to decode it.
+  static Future<PlatformJpegSession> open(String path) async {
+    try {
+      final r = await photoChannel
+          .invokeMapMethod<String, Object?>('open', {'path': path});
+      return PlatformJpegSession._(
+          r!['id'] as int, r['width'] as int, r['height'] as int);
+    } on PlatformException catch (e) {
+      if (e.code == 'decode_failed') throw const PhotoDecodeException();
+      if (e.code == _outOfMemoryCode) throw const PhotoMemoryException();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Uint8List> encode({required int maxSide, required int quality}) async {
+    final Uint8List? bytes;
+    try {
+      bytes = await photoChannel.invokeMethod<Uint8List>(
+          'encode', {'id': _id, 'maxSide': maxSide, 'quality': quality});
+    } on PlatformException catch (e) {
+      if (e.code == _outOfMemoryCode) throw const PhotoMemoryException();
+      rethrow;
+    }
+    // Belt and braces: the native encoders write no metadata, but whatever
+    // they emit must never carry EXIF/XMP/GPS onto a tag.
+    return stripJpegMetadata(bytes!);
+  }
+
+  @override
+  Future<void> close() => photoChannel.invokeMethod<void>('close', {'id': _id});
+}
+
+/// Pixels decoded natively, for formats Dart's image code cannot read.
+class DecodedPixels {
+  final int width;
+  final int height;
+  final Uint8List rgba;
+
+  const DecodedPixels(this.width, this.height, this.rgba);
+}
+
+/// Decodes [path] natively to RGBA, downscaled so it holds at most
+/// [maxPixels] pixels. Throws [PhotoDecodeException] when the file is not a
+/// decodable image and [PhotoMemoryException] when memory ran out.
+Future<DecodedPixels> decodePixels(String path,
+    {int maxPixels = 12000000}) async {
+  try {
+    final r = await photoChannel.invokeMapMethod<String, Object?>(
+        'decodePixels', {'path': path, 'maxPixels': maxPixels});
+    return DecodedPixels(
+        r!['width'] as int, r['height'] as int, r['rgba'] as Uint8List);
+  } on PlatformException catch (e) {
+    if (e.code == 'decode_failed') throw const PhotoDecodeException();
+    if (e.code == _outOfMemoryCode) throw const PhotoMemoryException();
+    rethrow;
+  }
+}
