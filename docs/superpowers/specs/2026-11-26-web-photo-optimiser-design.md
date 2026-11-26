@@ -68,13 +68,13 @@ Behaviour is NFC Archiver's web optimiser, with frames for tags and the app's ru
           [Back to auto]
  note / error line
  [ Skip (keep original) ]         [ Continue ]
-   unfit:  [ Continue with M frames ]  [ Continue with this image (K frames) ]
+   unfit:  [ Continue with M frames ]   (M > 4096: [ Continue with this image (K frames) ])
 ```
 
 - **Preview** of the result with pixel size, JPEG quality and size in KB; a "working" badge while encoding.
 - **Frames to send** stepper: −/+ with hold-to-repeat (NFC Archiver's schedule: first repeat 400 ms, then 300/100/50 ms, ×10 steps after 3 s), and a number field to type into. Beside it the transfer time `≈ N × delay` at the Send screen's current **Frame speed** (100/200/400 ms).
 - **Manual**: preset chips and a quality slider (1–100); touching either switches to manual; **Back to auto** returns.
-- **Skip** stages the original file untouched; **Continue** stages the optimised JPEG. When the result is unfit, the action bar follows the app (`photo_optimiser_screen.dart`): **Continue with M frames** (only when M ≤ 4,096; sets N = M, re-fits, continues) and **Continue with this image (K frames)**, which stages the shown result as it is with its true frame count — the only way forward besides Skip when M > 4,096. Strings `photoContinueWith` / `photoContinueAsIs` come from the app's ARB files. Either returns to `#/send` in File mode with the file pill showing. **Back** (topbar or browser) cancels and leaves whatever was staged before.
+- **Skip** stages the original file untouched; **Continue** stages the optimised JPEG. When the result is unfit, the action bar follows the app (`photo_optimiser_screen.dart`): **Continue with M frames** alone while M ≤ 4,096 (sets N = M, re-fits, continues), else **Continue with this image (K frames)**, which stages the shown result as it is with its true frame count. Both were once shown together, but K = M and the re-fit at M is never worse than the shown image (manual keeps side and quality, so it is the same image), so the pair duplicated each other. Strings `photoContinueWith` / `photoContinueAsIs` come from the app's ARB files. Either returns to `#/send` in File mode with the file pill showing. **Back** (topbar or browser) cancels and leaves whatever was staged before.
 - `resolveRoute`: `#/send/photo` with no pending photo falls back to `#/send` (a reload or a pasted URL lands on Send).
 - The Send screen's Create code button can't be pressed while the optimiser is open (it isn't on screen).
 - No 500-frame note: that note in the app is about Share GIF's cap, which the web app doesn't have.

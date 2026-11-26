@@ -1326,24 +1326,13 @@ test('unfit: "Continue with M frames" re-fits at M through continueAtNeeded, the
   assertEq(elements['photoNote'].textContent, 'photoDoesNotFit {"frames":1,"needed":15}', 'does-not-fit note');
   assertEq(elements['photoContinueWithBtn'].hidden, false, '"Continue with M frames" shown');
   assertEq(elements['photoContinueWithBtn'].textContent, 'photoContinueWith {"count":15}', 'its label');
-  assertEq(elements['photoContinueBtn'].textContent, 'photoContinueAsIs {"count":15}', 'as-is label');
+  assertEq(elements['photoContinueBtn'].hidden, true, 'no "Continue with this image": it would send the same 15 frames, no better');
   await ctx.photoContinueAtNeeded();
   assertEq(ctx.location.hash, '#/send', 'back on Send');
   const staged = await stagedInput(ctx);
   assertEq(staged.name, 'IMG_1234.jpg', 'name');
   assertEq(JSON.stringify(encodedAs(staged.bytes)), JSON.stringify({ side: 4000, quality: 95 }), 'the re-fit at 15 frames, not the unfit result');
   assert(elements['pillEncMeta'].textContent.includes('"frames":15'), 'pill estimate shows 15 frames: ' + elements['pillEncMeta'].textContent);
-});
-
-test('unfit: "Continue with this image (K frames)" stages the unfit result as it is', async () => {
-  const { ctx, calls } = freshPage();
-  useSessions(ctx, calls, unfitSession());
-  ctx.navigate('#/send');
-  await pick(ctx, fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
-  ctx.photoContinue();
-  const staged = await stagedInput(ctx);
-  assertEq(JSON.stringify(encodedAs(staged.bytes)), JSON.stringify({ side: 320, quality: 30 }), 'the smallest result, unfit');
-  assertEq(staged.bytes.length, 30000, 'its bytes');
 });
 
 test('second pick while fitting disposes the first optimiser — Review Focus 2', async () => {
@@ -1450,7 +1439,7 @@ test('a result smaller than the original: no note, Continue stays primary', asyn
   assert(isPrimary(elements['photoContinueBtn']), 'Continue is primary');
 });
 
-test('unfit and bigger than the original: both notes, Skip primary, both continues secondary', async () => {
+test('unfit and bigger than the original: both notes, Skip primary, "Continue with M frames" secondary', async () => {
   const { ctx, elements, calls } = freshPage();
   showParams(ctx);
   useSessions(ctx, calls, unfitSession());   // 30000-byte results, 15 frames needed
@@ -1459,7 +1448,19 @@ test('unfit and bigger than the original: both notes, Skip primary, both continu
   assertEq(elements['photoNote'].textContent, 'photoDoesNotFit {"frames":1,"needed":15}\nphotoLargerThanOriginal', 'both lines');
   assert(isPrimary(elements['photoSkipBtn']), 'Skip is primary');
   assert(!isPrimary(elements['photoContinueWithBtn']) && isSecondary(elements['photoContinueWithBtn']), '"Continue with M frames" secondary');
-  assert(!isPrimary(elements['photoContinueBtn']), 'Continue as-is secondary');
+  assertEq(elements['photoContinueBtn'].hidden, true, 'no Continue as-is');
+});
+
+test('unfit beyond the 4096-frame cap: only "Continue with this image (K frames)"', async () => {
+  const { ctx, elements, calls } = freshPage();
+  showParams(ctx);
+  // 9,000,000 B needs 4278 frames, past the cap, so "Continue with M frames" cannot be offered.
+  useSessions(ctx, calls, fakeSession({ size: (side, q) => (side === 640 && q === 70 ? 1000 : 9_000_000) }));
+  ctx.navigate('#/send');
+  await pick(ctx, fileOf('IMG_1234.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
+  assertEq(elements['photoContinueWithBtn'].hidden, true, 'no "Continue with M frames"');
+  assertEq(elements['photoContinueBtn'].hidden, false, 'Continue as-is shown');
+  assert(/^photoContinueAsIs \{"count":\d+\}$/.test(elements['photoContinueBtn'].textContent), 'as-is label: ' + elements['photoContinueBtn'].textContent);
 });
 
 test('the stepper shows "/ cap"; a count above the cap steps down by one, + stays put', async () => {

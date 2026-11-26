@@ -190,7 +190,7 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, 'Original'), findsOneWidget);
   });
 
-  testWidgets('unfit shows "does not fit" and both ways to continue', (
+  testWidgets('unfit shows "does not fit" and only Continue with M frames', (
     tester,
   ) async {
     final c = await pumpHost(tester, original(200000));
@@ -204,15 +204,26 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Continue with $needed frames'), findsOneWidget);
-    final asIs = framesForFile(
-      s.outputName,
-      s.result!.bytes.length,
-      encrypted: true,
-    );
-    expect(
-      find.text('Continue with this image ($asIs frames)'),
-      findsOneWidget,
-    );
+    // The image shown needs the same M frames; re-fitting at M sends one at
+    // least as good, so a second button would only duplicate the first.
+    expect(find.byKey(const Key('photoContinue')), findsNothing);
+    expect(find.textContaining('Continue with this image'), findsNothing);
+  });
+
+  testWidgets('manual and unfit: still one Continue, at the needed count', (
+    tester,
+  ) async {
+    final c = await pumpHost(tester, original(200000));
+    await open(tester);
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, '1920'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '1920'));
+    await settle(tester);
+    await typeFrames(tester, 1);
+    final s = st(c);
+    expect(s.auto, isFalse);
+    expect(s.result!.fits, isFalse);
+    expect(find.text('Continue with ${s.neededFrames} frames'), findsOneWidget);
+    expect(find.byKey(const Key('photoContinue')), findsNothing);
   });
 
   testWidgets('Continue with M frames re-fits at M and hands the result over', (
@@ -364,7 +375,10 @@ void main() {
         l('en').photoDoesNotFit(3, 1),
         "Doesn't fit in 3 frames — needs at least 1 frame",
       );
-      expect(l('en').photoTransferTime(1, 0.2, 200), '1 frame · ≈ 0.2 s at 200 ms');
+      expect(
+        l('en').photoTransferTime(1, 0.2, 200),
+        '1 frame · ≈ 0.2 s at 200 ms',
+      );
     });
 
     test('Russian: one / few / many', () {
@@ -379,7 +393,10 @@ void main() {
         l('ru').photoDoesNotFit(5, 21),
         'Не помещается в 5 кадров — нужен минимум 21 кадр',
       );
-      expect(l('ru').photoTransferTime(3, 0.6, 200), '3 кадра · ≈ 0,6 с при 200 мс');
+      expect(
+        l('ru').photoTransferTime(3, 0.6, 200),
+        '3 кадра · ≈ 0,6 с при 200 мс',
+      );
     });
 
     test('Ukrainian: one / few / many', () {
@@ -393,13 +410,19 @@ void main() {
 
     test('Polish and Belarusian: one / few / many', () {
       expect(l('pl').photoContinueWith(1), 'Kontynuuj z 1 klatką');
-      expect(l('pl').photoContinueAsIs(22), 'Kontynuuj z tym obrazem (22 klatki)');
+      expect(
+        l('pl').photoContinueAsIs(22),
+        'Kontynuuj z tym obrazem (22 klatki)',
+      );
       expect(
         l('pl').photoDoesNotFit(5, 21),
         'Nie mieści się w 5 klatkach — potrzeba co najmniej 21 klatek',
       );
       expect(l('be').photoContinueWith(21), 'Працягнуць з 21 кадрам');
-      expect(l('be').photoContinueAsIs(3), 'Працягнуць з гэтай выявай (3 кадры)');
+      expect(
+        l('be').photoContinueAsIs(3),
+        'Працягнуць з гэтай выявай (3 кадры)',
+      );
       expect(
         l('be').photoDoesNotFit(1, 11),
         'Не змяшчаецца ў 1 кадр — патрэбна мінімум 11 кадраў',
