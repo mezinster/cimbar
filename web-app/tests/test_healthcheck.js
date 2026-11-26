@@ -33,6 +33,7 @@ const SHA = 'abc1234';
 const good = {
   '/cimbar/': { status: 200, type: 'text/html; charset=utf-8', body: `<!doctype html><html><head>${buildMarker(SHA)}</head></html>` },
   '/cimbar/cimbar.js': { status: 200, type: 'text/javascript; charset=utf-8', body: 'window.Cimbar={};' },
+  '/cimbar/vendor/libheif/libheif.wasm': { status: 200, type: 'application/wasm', body: Buffer.from([0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0]) },
 };
 
 test('buildMarker is a prefixed HTML comment, never a bare sha', () => {
@@ -44,9 +45,10 @@ test('healthy site passes; requests carry no-cache and a User-Agent', async () =
   try {
     const r = await checkOnce(s.base, SHA);
     assertEq(r.ok, true, r.failures.join('; '));
-    assertEq(s.seen.length, 2);
+    assertEq(s.seen.length, 3);
     assertEq(s.seen[0].url, '/cimbar/');
     assertEq(s.seen[1].url, '/cimbar/cimbar.js');
+    assertEq(s.seen[2].url, '/cimbar/vendor/libheif/libheif.wasm');
     assertEq(s.seen[0].ua, USER_AGENT);
     assertEq(s.seen[0].cc, 'no-cache');
   } finally { await s.close(); }
@@ -71,6 +73,42 @@ test('wrong content types and missing script are all reported together', async (
   } finally { await s.close(); }
 });
 
+test('libheif.wasm served as application/wasm is healthy; any other type is not', async () => {
+  const wasm = '/cimbar/vendor/libheif/libheif.wasm';
+  for (const [type, ok] of [['application/wasm', true], ['application/octet-stream', false], ['binary/octet-stream', false], ['text/html', false]]) {
+    const s = await serve({ ...good, [wasm]: { ...good[wasm], type } });
+    try {
+      const r = await checkOnce(s.base, SHA);
+      assertEq(r.ok, ok, `${type}: ${r.failures.join('; ')}`);
+      if (!ok) assert(r.failures.some((f) => f.includes('libheif.wasm') && f.includes('application/wasm')), `${type}: ${r.failures.join('; ')}`);
+    } finally { await s.close(); }
+  }
+});
+
+test('a missing libheif.wasm is unhealthy', async () => {
+  const routes = { ...good };
+  delete routes['/cimbar/vendor/libheif/libheif.wasm'];
+  const s = await serve(routes);
+  try {
+    const r = await checkOnce(s.base, SHA);
+    assertEq(r.ok, false);
+    assert(r.failures.some((f) => f.includes('libheif.wasm') && f.includes('404')), r.failures.join('; '));
+  } finally { await s.close(); }
+});
+
+test('CLI exits 0 against a healthy site, wasm included', async () => {
+  const cli = path.join(__dirname, '..', 'tools', 'healthcheck.js');
+  const s = await serve(good);
+  try {
+    const { spawn } = require('child_process');
+    const code = await new Promise((resolve) => {
+      const p = spawn(process.execPath, [cli, s.base, SHA], { env: { ...process.env, HEALTHCHECK_ATTEMPTS: '1' } });
+      p.on('exit', resolve);
+    });
+    assertEq(code, 0, 'healthy');
+  } finally { await s.close(); }
+});
+
 test('a redirect is a failure, not followed', async () => {
   const s = await serve({ ...good, '/cimbar/': { status: 301, type: 'text/html', body: '', headers: { location: '/cimbar/index.html' } } });
   try {
@@ -85,8 +123,9 @@ test('healthcheck retries with backoff until healthy', async () => {
   const fetcher = async (url) => {
     calls++;
     if (url.endsWith('cimbar.js')) return { status: 200, contentType: 'text/javascript', body: '' };
+    if (url.endsWith('.wasm')) return { status: 200, contentType: 'application/wasm', body: '' };
     // page is stale for the first two attempts, then fresh
-    const fresh = calls > 4;
+    const fresh = calls > 6;
     return { status: 200, contentType: 'text/html', body: fresh ? buildMarker(SHA) : buildMarker('old') };
   };
   const delays = [];

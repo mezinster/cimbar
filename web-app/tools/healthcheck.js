@@ -12,7 +12,9 @@
  * comment stamped by the deploy workflow's build job; one script is fetched
  * too, because index.html references its scripts by relative URL and a
  * stale or missing script would break the app while the page itself looks
- * fine.
+ * fine. libheif.wasm is fetched as well and must come back as
+ * application/wasm: WebAssembly.compileStreaming rejects any other type, so a
+ * wrong one would break HEIC decoding with the rest of the app looking fine.
  *
  * Exit codes: 0 healthy, 1 unhealthy, 2 bad usage. Exit 2 is asserted by the
  * workflow before the credentialed job depends on this file.
@@ -42,7 +44,7 @@ function buildMarker(sha) {
 /** Redirects are deliberately NOT followed: the deploy target is a directory
  *  URL that must resolve to index.html at the edge, so a 301 here is a real
  *  finding about the CDN configuration, not something to paper over. */
-function fetchPage(url) {
+function fetchPage(url, opts = {}) {
   return new Promise((resolve, reject) => {
     const target = new URL(url);
     const client = target.protocol === 'https:' ? https : http;
@@ -56,8 +58,12 @@ function fetchPage(url) {
       },
       (res) => {
         let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => { body += chunk; });
+        // A binary file (the wasm) is only checked for status and type.
+        if (opts.discardBody) res.resume();
+        else {
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => { body += chunk; });
+        }
         res.on('end', () => resolve({
           status: res.statusCode || 0,
           contentType: String(res.headers['content-type'] || ''),
@@ -76,6 +82,7 @@ async function checkOnce(baseUrl, expectedSha, fetcher = fetchPage) {
   const failures = [];
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const scriptUrl = `${base}cimbar.js`;
+  const wasmUrl = `${base}vendor/libheif/libheif.wasm`;
 
   const page = await fetcher(base);
   if (page.status !== 200) failures.push(`GET ${base} -> ${page.status} (want 200)`);
@@ -87,6 +94,11 @@ async function checkOnce(baseUrl, expectedSha, fetcher = fetchPage) {
   const js = await fetcher(scriptUrl);
   if (js.status !== 200) failures.push(`GET ${scriptUrl} -> ${js.status} (want 200)`);
   if (!js.contentType.includes('javascript')) failures.push(`GET ${scriptUrl} content-type "${js.contentType}" (want javascript)`);
+
+  const wasm = await fetcher(wasmUrl, { discardBody: true });
+  if (wasm.status !== 200) failures.push(`GET ${wasmUrl} -> ${wasm.status} (want 200)`);
+  const wasmType = wasm.contentType.split(';')[0].trim().toLowerCase();
+  if (wasmType !== 'application/wasm') failures.push(`GET ${wasmUrl} content-type "${wasm.contentType}" (want application/wasm)`);
 
   return { ok: failures.length === 0, failures };
 }
