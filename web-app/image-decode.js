@@ -157,6 +157,16 @@ async function decodeImage(blob) {
   } catch (e) {
     nativeError = e;
   }
+  // An engine that predates the 'from-image' value rejects the options with a
+  // TypeError before decoding anything; its default already applies EXIF
+  // orientation, so decode again without options.
+  if (nativeError instanceof TypeError) {
+    try {
+      return await _impl.createImageBitmap(blob);
+    } catch (e) {
+      nativeError = e;
+    }
+  }
   let head;
   try {
     head = new Uint8Array(await blob.slice(0, SNIFF_BYTES).arrayBuffer());

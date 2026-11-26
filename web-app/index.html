@@ -993,9 +993,12 @@ async function pickEncFile(file, viaChoosePhoto) {
   let head = new Uint8Array(0);
   try { head = new Uint8Array(await file.slice(0, 64).arrayBuffer()); } catch (_) { /* unreadable: decided by name and type */ }
   if (gen !== encPickGen) return;   // a newer pick replaced this one
-  const svg = String(file.type).toLowerCase() === 'image/svg+xml' || /\.svg$/i.test(file.name || '');
+  const type = String(file.type).toLowerCase();
+  // GIF by magic bytes, or by type/name when the head couldn't be read: a GIF is never optimised.
+  const gif = isGifBytes(head) || type === 'image/gif' || /\.gif$/i.test(file.name || '');
+  const svg = type === 'image/svg+xml' || /\.svg$/i.test(file.name || '');
   const optimise = file.size <= CimbarFormat.SPEC.compression.maxInflatedBytes && (viaChoosePhoto
-    ? !isGifBytes(head) && !svg
+    ? !gif && !svg
     : CimbarPhotoFit.isOptimisable(file.name, file.type, head, CimbarImageDecode.sniffHeif));
   if (optimise) openPhotoOptimiser(file);
   else stageEncFile(file);

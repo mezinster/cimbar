@@ -1184,6 +1184,23 @@ test('Choose photo with GIF bytes stages it as a plain file, no optimiser', asyn
   assertEq(elements['pillEncText'].textContent, 'anim.jpg', 'pill shows it');
 });
 
+test('Choose photo: a GIF whose head cannot be read is still never optimised (type or name)', async () => {
+  const unreadable = (name, type) => ({
+    name, type, size: 5000,
+    slice: () => ({ arrayBuffer: async () => { const e = new Error('unreadable'); e.name = 'NotReadableError'; throw e; } }),
+    arrayBuffer: async () => new ArrayBuffer(5000),
+  });
+  for (const f of [unreadable('a.gif', 'image/gif'), unreadable('anim', 'image/gif'), unreadable('b.GIF', '')]) {
+    const { ctx, elements, calls } = freshPage();
+    useSessions(ctx, calls, fakeSession());
+    ctx.navigate('#/send');
+    await pick(ctx, f, 'photo');
+    assertEq(calls.sessionOpens.length, 0, `${f.name}: no optimiser`);
+    assertEq(ctx.location.hash, '#/send', `${f.name}: stays on Send`);
+    assertEq(elements['pillEncText'].textContent, f.name, `${f.name}: staged as a plain file`);
+  }
+});
+
 test('Choose a file and drop: photos open the optimiser, documents and GIFs stage directly', async () => {
   const cases = [
     { f: () => fileOf('photo.png', 'image/png', [0x89, 0x50, 0x4E, 0x47]), optimiser: true },
@@ -1340,9 +1357,12 @@ test('second pick while fitting disposes the first optimiser — Review Focus 2'
   ctx.navigate('#/send');
   await pick(ctx, fileOf('first.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
   assertEq(elements['photoContinueBtn'].disabled, true, 'Continue disabled while the first photo is fitting');
-  ctx.navigate('#/send');
-  await pick(ctx, fileOf('second.jpg', 'image/jpeg', JPEG_HEAD), 'photo');
-  assertEq(a.closed, 1, 'the first session is closed');
+  assertEq(a.closed, 0, 'setup: the first session is open, its fit waiting on an encode');
+  // No route change in between: only openPhotoOptimiser's own guard can dispose the first.
+  ctx.openPhotoOptimiser(fileOf('second.jpg', 'image/jpeg', JPEG_HEAD));
+  assertEq(a.closed, 1, 'the first session is closed by the second pick itself');
+  assertEq(ctx.location.hash, '#/send/photo', 'still on the optimiser screen');
+  await flush();
   const label = elements['photoLabel'].textContent;
   const frames = Number(elements['photoFrames'].value);
   const r = await PhotoFit.fitToBudget(fakeSession({ width: 1000, height: 500 }), PhotoFit.photoByteBudget(frames, 'second.jpg'));

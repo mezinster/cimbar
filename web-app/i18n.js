@@ -33,6 +33,7 @@ const LANGUAGES = [
 // The How it works libheif credit: links shared by every language (upstream
 // project, and the licence copies deployed beside the vendored decoder).
 const HEIF_LIB = '<a href="https://github.com/strukturag/libheif" target="_blank" rel="noopener">libheif</a>';
+// The .txt names exist only after deploy staging renames vendor/libheif/LICENSE and DAV1D-LICENSE (a local server 404s them; expected).
 const HEIF_LICENCES = '<a href="vendor/libheif/LICENSE.txt" target="_blank" rel="noopener">LGPL-3.0</a>, '
   + '<a href="vendor/libheif/DAV1D-LICENSE.txt" target="_blank" rel="noopener">dav1d (BSD-2-Clause)</a>';
 

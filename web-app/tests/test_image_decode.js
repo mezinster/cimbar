@@ -265,6 +265,54 @@ test('native failure on HEIF decodes in heic-worker.js and builds a bitmap from 
   eq([bmp.src.width, bmp.src.height, bmp.src.data.length], [32, 64, 32 * 64 * 4], 'ImageData shape');
   eq(bmp.opts, undefined, 'no resize below 16 MP');
 });
+// Engines before imageOrientation 'from-image' (e.g. Chromium 97) reject the
+// options with a TypeError: the enum value is unknown, nothing was decoded.
+const enumError = () => new TypeError("The provided value 'from-image' is not a valid enum value of type ImageOrientation.");
+
+test('options rejected with a TypeError: decoded again without options', async () => {
+  const { M, log } = setup();
+  M._impl.createImageBitmap = async (src, opts) => {
+    log.bitmaps.push({ src, opts });
+    if (opts && opts.imageOrientation) throw enumError();
+    return { bitmap: true, src, opts };
+  };
+  const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' });
+  const bmp = await M.decodeImage(blob);
+  assert(bmp.src === blob, 'returns the retried bitmap');
+  eq(log.bitmaps.map((b) => b.opts), [{ imageOrientation: 'from-image' }, undefined], 'first with options, then without');
+  eq([log.workers.length, log.compiles], [0, 0], 'no worker, no compile');
+});
+test('a failure that is not a TypeError is not retried', async () => {
+  const { M, log } = setup();
+  const blob = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])], { type: 'image/png' });
+  await rejects(M.decodeImage(blob), M.PhotoDecodeError, 'undecodable PNG');
+  eq(log.bitmaps.length, 1, 'one native attempt only');
+});
+test('TypeError then a failed retry on HEIF still reaches the worker', async () => {
+  const { M, log } = setup();
+  M._impl.createImageBitmap = async (src, opts) => {
+    log.bitmaps.push({ src, opts });
+    if (src instanceof Blob) {
+      if (opts && opts.imageOrientation) throw enumError();
+      throw new Error('The source image could not be decoded.');
+    }
+    return { bitmap: true, src, opts };
+  };
+  const bmp = await M.decodeImage(heicBlob());
+  eq(log.bitmaps.slice(0, 2).map((b) => b.opts), [{ imageOrientation: 'from-image' }, undefined], 'native tried twice');
+  eq(log.workers.length, 1, 'then the libheif worker');
+  assert(bmp.src instanceof ImageData, 'bitmap made from the worker RGBA');
+});
+test('TypeError then a failed retry on a non-HEIF file rejects with PhotoDecodeError', async () => {
+  const { M } = setup();
+  M._impl.createImageBitmap = async (src, opts) => {
+    if (opts && opts.imageOrientation) throw enumError();
+    throw new Error('The source image could not be decoded.');
+  };
+  const blob = new Blob([new Uint8Array(16)], { type: 'image/png' });
+  const e = await rejects(M.decodeImage(blob), M.PhotoDecodeError, 'non-HEIF');
+  eq(e.cause && e.cause.message, 'The source image could not be decoded.', 'cause is the retry failure');
+});
 test('octet-stream HEIF still sniffed: a Blob typed application/octet-stream takes the worker path', async () => {
   const { M, log } = setup();
   await M.decodeImage(heicBlob('application/octet-stream'));
