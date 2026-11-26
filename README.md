@@ -38,7 +38,7 @@ The start screen is a hub with two choices, **Send** and **Receive**, above a li
 
 ### Sending
 
-1. Tap **Send** and choose **File** or **Text**. For a file, pick one or drop it on the picker; for text, type the message — the hint below shows its size and how many frames it will take. A text message arrives at the receiver as text, ready to copy, not as a bare file.
+1. Tap **Send** and choose **File** or **Text**. For a file, pick one or drop it on the picker, or tap **Choose photo** to open the **Optimise photo** screen: it shrinks the picture (and strips its EXIF/GPS metadata) to a frame count you set with the − / + buttons, shows the result and the transfer time, and works with HEIC photos in every browser (the browser's own decoder first, the bundled libheif otherwise). A GIF is never optimised; for text, type the message — the hint below shows its size and how many frames it will take. A text message arrives at the receiver as text, ready to copy, not as a bare file.
 2. Optionally open **Add a passphrase** and enter one. Encryption is off when the field is empty; if you use one, the receiver needs it to open the file.
 3. Optionally open **Advanced** to set the **frame speed** — `100 ms` (fast), `200 ms` (default) or `400 ms` (slow). There is no frame-size choice: every barcode is a single 608×608 px frame.
 4. Tap **Create code**. Compression is automatic: the **Details** log reports whether the file was compressed (and by how much) or left as-is, e.g. because it was already a `.zip` or JPEG.
@@ -185,6 +185,11 @@ node tests/test_rs.js               # Reed-Solomon correction
 node tests/test_compress.js         # zlib compression/decompression
 node tests/test_goldens.js          # golden GIFs vs. ground-truth sidecars
 node tests/test_text_message.js     # Text mode container and UTF-8 detection
+node tests/test_photo_fit.js        # photo optimiser maths vs. the shared fixture
+node tests/test_jpeg_metadata.js    # JPEG metadata stripping
+node tests/test_image_decode.js     # photo decoding, HEIC through vendored libheif
+node tests/test_canvas_jpeg.js      # JPEG encoder session
+node tests/test_photo_optimiser.js  # photo optimiser controller
 node tests/test_pipeline_node.js    # full GIF pipeline with length prefix
 node tests/test_i18n.js             # UI strings in seven languages
 node tests/test_browser_load.js     # page scripts in one shared global scope
@@ -239,6 +244,8 @@ Bug reports and feature requests are welcome in [GitHub issues](https://github.c
 ## Credits
 
 CimBar is inspired by [libcimbar](https://github.com/sz3/libcimbar) and [CFC](https://github.com/sz3/cfc) by sz3, the original Color Icon Matrix Barcode projects. It is a separate project, not an official cimbar release: it takes their idea — files carried by animated grids of colored symbols — and carries it in its own, independently designed format, CimBar-XL. The formats are not compatible: libcimbar/CFC barcodes do not decode here, and CimBar-XL barcodes do not decode there. The app's About screen says the same.
+
+The web app bundles an unmodified WebAssembly build of [libheif-js](https://github.com/catdad-experiments/libheif-js) 1.23.5 (`web-app/vendor/libheif/`) to decode HEIC photos on browsers that cannot: libheif and libde265 are LGPL-3.0, dav1d is BSD-2-Clause; the licence texts ship beside the files and the deployed site.
 
 ## License
 
