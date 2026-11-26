@@ -46,6 +46,19 @@ void main() {
     expect(map(640, 360, 0), const Offset(640 * scale, oy + 360 * scale));
   });
 
+  test('an upright portrait frame is not rotated again (iOS)', () {
+    // camera_avfoundation reports sensorOrientation 90 for every camera but
+    // rotates the video output to the (portrait-locked) device orientation,
+    // so its image-stream frames arrive upright: 720x1280 here. Rotating them
+    // again turned the quad 90 degrees and shrank it to 0.5625x (IMG_3003).
+    Offset up(double x, double y) => CornersOverlayPainter.mapPoint(x, y, canvas, 720, 1280, 90);
+    expect(up(0, 0), const Offset(0, 0)); // TL stays top-left
+    expect(up(720, 0), const Offset(720, 0));
+    expect(up(0, 1280), const Offset(0, 1280));
+    expect(up(720, 1280), const Offset(720, 1280));
+    expect(up(360, 640), const Offset(360, 640));
+  });
+
   test('isRotated matches the mapping the painter uses', () {
     expect(CornersOverlayPainter.isRotated(90), isTrue);
     expect(CornersOverlayPainter.isRotated(270), isTrue);

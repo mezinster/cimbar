@@ -21,6 +21,18 @@ class CornersOverlayPainter extends CustomPainter {
   /// sizing must use the same rule as this painter or the overlay drifts.
   static bool isRotated(int sensorOrientation) => sensorOrientation == 90 || sensorOrientation == 270;
 
+  /// The turn the overlay must still apply to an image-stream frame of
+  /// [sourceW]×[sourceH]. Android delivers frames in the sensor's landscape
+  /// orientation, so a 90/270 sensor needs the turn. camera_avfoundation
+  /// reports `sensorOrientation: 90` for every iOS camera but rotates its
+  /// video output to the device orientation, and Live Scan is portrait-locked,
+  /// so iOS frames arrive already upright (taller than wide): turning them
+  /// again rotated the quad 90° and shrank it. A portrait-shaped frame is
+  /// therefore taken as already upright.
+  @visibleForTesting
+  static int frameRotation(int sensorOrientation, int sourceW, int sourceH) =>
+      isRotated(sensorOrientation) && sourceH > sourceW ? 0 : sensorOrientation;
+
   /// Maps one source-frame point to the `BoxFit.contain` preview area:
   /// rotate by [sensorOrientation], then scale and center.
   /// 90 deg CW is `(x, y) -> (H - y, x)`. The previous overlay painter used
@@ -28,6 +40,7 @@ class CornersOverlayPainter extends CustomPainter {
   /// first device run.
   @visibleForTesting
   static Offset mapPoint(double x, double y, Size size, int sourceW, int sourceH, int sensorOrientation) {
+    sensorOrientation = frameRotation(sensorOrientation, sourceW, sourceH);
     final rotated = isRotated(sensorOrientation);
     final rw = rotated ? sourceH.toDouble() : sourceW.toDouble();
     final rh = rotated ? sourceW.toDouble() : sourceH.toDouble();
