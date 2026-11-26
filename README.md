@@ -52,7 +52,7 @@ A GIF carries its N source frames plus about 25% extra *repair* frames, and **Pr
 ### Receiving
 
 1. Tap **Receive**: the camera opens directly. Line the barcode up in the frame; the counter and progress bar show "r / N frames" — the rank, i.e. the number of independent frames captured so far out of the frames needed (GIF import shows the same as "Rank r / N"). It climbs on both source and repair frames and holds steady on a frame that repeats information already captured.
-2. No camera, or the permission is refused? **Load a GIF or photo instead** opens the files screen, where you can pick a CimBar GIF, or **Photograph frames** — one photo per frame, until every frame is in. The same screen is the fallback when the camera can't start.
+2. No camera, or the permission is refused? **Load a GIF or photo instead** opens the files screen, where you can pick a CimBar GIF, or **Photograph frames** — one photo per frame, until every frame is in. Photos can be HEIC in every browser: the browser's own decoder is tried first, the bundled libheif otherwise. The same screen is the fallback when the camera can't start.
 3. If the barcode is encrypted, an unlock screen asks for the passphrase *after* all frames are in — a wrong passphrase doesn't mean scanning again. Encryption is auto-detected from the recovered payload's `CB 42` magic bytes, and decompression is read from the frame header.
 4. A received file is shown with its name and size: **Save to device**, plus **Open** (for types the browser renders safely — PDF, images, plain text, audio/video) and **Share** where the browser can share files. A received text message is shown as text, with **Copy** and **Save as .txt**.
 
