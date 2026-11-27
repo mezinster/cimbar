@@ -144,5 +144,8 @@
   "shareReplaceTextConfirm": "ჩანაცვლდეს თქვენ მიერ აკრეფილი ტექსტი?",
   "shareSendInstead": "ამის ნაცვლად ამ ფოტოს გაგზავნა",
   "commonYes": "დიახ",
-  "commonNo": "არა"
+  "commonNo": "არა",
+  "wideSendEmpty": "შტრიხკოდი აქ გამოჩნდება აკრეფისას",
+  "wideResultEmpty": "დეკოდირებული ფაილი აქ გამოჩნდება",
+  "previewFullScreen": "სრული ეკრანი"
 }

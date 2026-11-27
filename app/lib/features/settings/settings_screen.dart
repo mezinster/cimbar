@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
+import '../../shared/widgets/wide_layout.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
         title: Text(l10n.settingsTitle),
         actions: const [LanguageSwitcherButton()],
       ),
-      body: ListView(
+      body: CentredColumn(child: ListView(
         children: [
           // Developer section
           Padding(
@@ -142,7 +143,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _openUrl('https://github.com/mezinster/cimbar'),
           ),
         ],
-      ),
+      )),
     );
   }
 }

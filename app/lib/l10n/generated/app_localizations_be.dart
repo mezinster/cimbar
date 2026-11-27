@@ -593,4 +593,13 @@ class AppLocalizationsBe extends AppLocalizations {
 
   @override
   String get commonNo => 'Не';
+
+  @override
+  String get wideSendEmpty => 'Штрых-код з\'явіцца тут, пакуль вы друкуеце';
+
+  @override
+  String get wideResultEmpty => 'Тут з\'явіцца дэкадаваны файл';
+
+  @override
+  String get previewFullScreen => 'На ўвесь экран';
 }

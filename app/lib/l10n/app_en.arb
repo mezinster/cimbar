@@ -345,5 +345,11 @@
   "commonYes": "Yes",
   "@commonYes": {"description": "Generic Yes button in a confirmation dialog"},
   "commonNo": "No",
-  "@commonNo": {"description": "Generic No button in a confirmation dialog"}
+  "@commonNo": {"description": "Generic No button in a confirmation dialog"},
+  "wideSendEmpty": "Your barcode appears here as you type",
+  "@wideSendEmpty": {"description": "Tablet Send screen: empty preview pane before any text or file is entered"},
+  "wideResultEmpty": "The decoded file appears here",
+  "@wideResultEmpty": {"description": "Tablet Import/Camera screens: empty result pane before anything is decoded"},
+  "previewFullScreen": "Full screen",
+  "@previewFullScreen": {"description": "Button under the tablet Send preview; opens Present (full-screen frames)"}
 }

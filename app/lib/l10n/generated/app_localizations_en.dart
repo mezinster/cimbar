@@ -563,4 +563,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonNo => 'No';
+
+  @override
+  String get wideSendEmpty => 'Your barcode appears here as you type';
+
+  @override
+  String get wideResultEmpty => 'The decoded file appears here';
+
+  @override
+  String get previewFullScreen => 'Full screen';
 }

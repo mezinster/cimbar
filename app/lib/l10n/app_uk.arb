@@ -144,5 +144,8 @@
   "shareReplaceTextConfirm": "Замінити введений текст?",
   "shareSendInstead": "Надіслати це фото",
   "commonYes": "Так",
-  "commonNo": "Ні"
+  "commonNo": "Ні",
+  "wideSendEmpty": "Штрих-код з'явиться тут, поки ви друкуєте",
+  "wideResultEmpty": "Тут з'явиться декодований файл",
+  "previewFullScreen": "На весь екран"
 }

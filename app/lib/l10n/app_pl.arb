@@ -144,5 +144,8 @@
   "shareReplaceTextConfirm": "Zastąpić wpisany tekst?",
   "shareSendInstead": "Wyślij zamiast tego to zdjęcie",
   "commonYes": "Tak",
-  "commonNo": "Nie"
+  "commonNo": "Nie",
+  "wideSendEmpty": "Kod kreskowy pojawi się tutaj podczas pisania",
+  "wideResultEmpty": "Tutaj pojawi się zdekodowany plik",
+  "previewFullScreen": "Pełny ekran"
 }

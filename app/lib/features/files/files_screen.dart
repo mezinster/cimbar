@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/widgets/wide_layout.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
@@ -34,7 +35,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         title: Text(l10n.filesTitle),
         actions: const [LanguageSwitcherButton()],
       ),
-      body: state.isLoading
+      body: CentredColumn(child: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.files.isEmpty
               ? _buildEmptyState(l10n)
@@ -150,7 +151,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                       );
                     },
                   ),
-                ),
+                )),
     );
   }
 

@@ -591,4 +591,13 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get commonNo => 'Ні';
+
+  @override
+  String get wideSendEmpty => 'Штрих-код з\'явиться тут, поки ви друкуєте';
+
+  @override
+  String get wideResultEmpty => 'Тут з\'явиться декодований файл';
+
+  @override
+  String get previewFullScreen => 'На весь екран';
 }

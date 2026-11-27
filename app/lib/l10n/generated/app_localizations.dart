@@ -959,6 +959,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No'**
   String get commonNo;
+
+  /// Tablet Send screen: empty preview pane before any text or file is entered
+  ///
+  /// In en, this message translates to:
+  /// **'Your barcode appears here as you type'**
+  String get wideSendEmpty;
+
+  /// Tablet Import/Camera screens: empty result pane before anything is decoded
+  ///
+  /// In en, this message translates to:
+  /// **'The decoded file appears here'**
+  String get wideResultEmpty;
+
+  /// Button under the tablet Send preview; opens Present (full-screen frames)
+  ///
+  /// In en, this message translates to:
+  /// **'Full screen'**
+  String get previewFullScreen;
 }
 
 class _AppLocalizationsDelegate
