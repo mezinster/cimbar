@@ -587,4 +587,13 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get commonNo => 'Nie';
+
+  @override
+  String get wideSendEmpty => 'Kod kreskowy pojawi się tutaj podczas pisania';
+
+  @override
+  String get wideResultEmpty => 'Tutaj pojawi się zdekodowany plik';
+
+  @override
+  String get previewFullScreen => 'Pełny ekran';
 }

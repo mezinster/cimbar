@@ -512,4 +512,13 @@ class AppLocalizationsKa extends AppLocalizations {
 
   @override
   String get commonNo => 'არა';
+
+  @override
+  String get wideSendEmpty => 'შტრიხკოდი აქ გამოჩნდება აკრეფისას';
+
+  @override
+  String get wideResultEmpty => 'დეკოდირებული ფაილი აქ გამოჩნდება';
+
+  @override
+  String get previewFullScreen => 'სრული ეკრანი';
 }

@@ -144,5 +144,8 @@
   "shareReplaceTextConfirm": "Yazdığınız metin değiştirilsin mi?",
   "shareSendInstead": "Bunun yerine bu fotoğrafı gönder",
   "commonYes": "Evet",
-  "commonNo": "Hayır"
+  "commonNo": "Hayır",
+  "wideSendEmpty": "Siz yazarken barkodunuz burada görünür",
+  "wideResultEmpty": "Çözümlenen dosya burada görünür",
+  "previewFullScreen": "Tam ekran"
 }

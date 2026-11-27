@@ -590,4 +590,13 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get commonNo => 'Нет';
+
+  @override
+  String get wideSendEmpty => 'Штрих-код появится здесь, пока вы печатаете';
+
+  @override
+  String get wideResultEmpty => 'Здесь появится декодированный файл';
+
+  @override
+  String get previewFullScreen => 'На весь экран';
 }

@@ -510,4 +510,13 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get commonNo => 'Hayır';
+
+  @override
+  String get wideSendEmpty => 'Siz yazarken barkodunuz burada görünür';
+
+  @override
+  String get wideResultEmpty => 'Çözümlenen dosya burada görünür';
+
+  @override
+  String get previewFullScreen => 'Tam ekran';
 }
