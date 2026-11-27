@@ -41,3 +41,7 @@ app/android/app/src/main/java/io/
 !app/test/fixtures/test_hello.gif
 site-docs/site/
 site-docs/.venv/
+
+# App Store screenshots (store-screens/capture.sh, run.sh)
+store-screens/captures/
+store-screens/shots/

@@ -76,6 +76,7 @@ class CimBarApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'CimBar Scanner',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
