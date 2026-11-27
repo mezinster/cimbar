@@ -1,5 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../shared/widgets/wide_layout.dart';
+import 'send_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/encode/send_jobs.dart';
@@ -125,9 +127,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         title: Text(l10n.tabSend),
         actions: const [LanguageSwitcherButton()],
       ),
-      body: ListView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.all(16),
+      body: adaptiveBody(
+        context,
+        right: SendPreview(passphrase: _pass, onPresent: canSend ? _present : null),
         children: [
           SegmentedButton<SendMode>(
             segments: [
