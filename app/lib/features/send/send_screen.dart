@@ -126,6 +126,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         actions: const [LanguageSwitcherButton()],
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<SendMode>(
@@ -143,6 +144,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               controller: _text,
               maxLines: 10,
               minLines: 4,
+              // iOS has no hide-keyboard key and return adds a line, so a tap
+              // anywhere outside the box (or a drag of the form) closes it.
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               decoration: InputDecoration(
                 hintText: l10n.sendTextHint,
                 border: const OutlineInputBorder(),

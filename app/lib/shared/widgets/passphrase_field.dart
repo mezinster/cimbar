@@ -32,6 +32,7 @@ class _PassphraseFieldState extends State<PassphraseField> {
           controller: widget.controller,
           enabled: widget.enabled,
           obscureText: _obscure,
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             labelText: l10n.passphrase,

@@ -82,6 +82,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         actions: const [LanguageSwitcherButton()],
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.cameraScanInstruction,

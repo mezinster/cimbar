@@ -84,7 +84,8 @@ void main() {
   testWidgets('keeps the screen awake and bright while shown, restores on back — Review Focus 4', (tester) async {
     final c = await open(tester);
     expect(c.log, containsAll(['awake:true', 'max']));
-    expect(find.textContaining('1'), findsWidgets); // frame counter
+    // The frame counter is up (its frame number depends on timing).
+    expect(find.byKey(const Key('presentCounter')), findsOneWidget);
     await tester.pageBack();
     await pumpTransition(tester);
     expect(c.log.sublist(c.log.length - 2), containsAll(['awake:false', 'restore']));
