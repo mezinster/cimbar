@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// SPIKE: tablet-width layout helpers.
@@ -20,11 +22,14 @@ class TwoPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // 440 pt for the form, but never more than 45% of the body, so at the
+    // narrowest wide windows (foldables, ~840 pt) the result pane stays at
+    // least as wide as the form.
+    return LayoutBuilder(builder: (context, constraints) => Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 440,
+          width: math.min(440, constraints.maxWidth * 0.45),
           child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(24, 16, 12, 24),
@@ -38,7 +43,7 @@ class TwoPane extends StatelessWidget {
           ),
         ),
       ],
-    );
+    ));
   }
 }
 

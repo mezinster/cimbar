@@ -92,4 +92,42 @@ void main() {
     final list = tester.widget<ListView>(find.byType(ListView));
     expect(list.keyboardDismissBehavior, ScrollViewKeyboardDismissBehavior.onDrag);
   });
+
+  testWidgets('rail fits with the keyboard up on a short wide window', (tester) async {
+    // iPad mini in landscape counts as wide; a 400-pt keyboard must not
+    // squeeze the five labelled rail destinations.
+    setWindow(tester, const Size(1133, 744));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 400);
+    tester.view.padding = const FakeViewPadding(top: 24);
+    const tabs = ['/send', '/import', '/camera', '/files', '/settings'];
+    final router = GoRouter(initialLocation: '/send', routes: [
+      ShellRoute(
+        builder: (_, _, child) => AppShell(child: child),
+        routes: [for (final t in tabs) GoRoute(path: t, builder: (_, _) => Text('page $t'))],
+      ),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(
+      routerConfig: router,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('left pane narrows at the narrowest wide window', (tester) async {
+    // At 840 pt a fixed 440-pt form would leave the result pane narrower
+    // than any phone; the right pane must keep at least the form's width.
+    await pumpBody(tester, const Size(840, 1000));
+    final left = tester.getSize(find.byType(ListView));
+    final right = tester.getTopLeft(find.text('right')).dx;
+    expect(840 - right, greaterThanOrEqualTo(left.width - 40));
+  });
+
+  testWidgets('left pane is 440 pt on a 13-inch iPad', (tester) async {
+    await pumpBody(tester, ipad13);
+    expect(tester.getSize(find.byType(ListView)).width, 440);
+  });
 }

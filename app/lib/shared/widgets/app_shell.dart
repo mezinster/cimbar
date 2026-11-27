@@ -33,6 +33,10 @@ class AppShell extends StatelessWidget {
 
     if (isWide(context)) {
       return Scaffold(
+        // The keyboard must not squeeze the rail: on a short wide window (an
+        // iPad mini in landscape) five labelled destinations no longer fit
+        // above it. Each screen's own Scaffold still resizes its body.
+        resizeToAvoidBottomInset: false,
         body: Row(children: [
           SafeArea(
             right: false,

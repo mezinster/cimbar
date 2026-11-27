@@ -33,6 +33,7 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(1032, 1376),
     required Future<EncodedPayload> Function(SendRequest) encode,
+    void Function()? onImage,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -42,7 +43,10 @@ void main() {
       overrides: [
         sendControllerProvider.overrideWith((ref) => SendController(encoder: (_) => fakePayload(1))),
         screenControlsProvider.overrideWithValue(FakeControls()),
-        sendPreviewIoProvider.overrideWithValue(PreviewIo(encode: encode, toImage: (_) async => img.clone())),
+        sendPreviewIoProvider.overrideWithValue(PreviewIo(encode: encode, toImage: (_) async {
+          onImage?.call();
+          return img.clone();
+        })),
       ],
       child: const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -132,16 +136,65 @@ void main() {
     await settlePreview(tester);
     await type(tester, 'ab');
     await settlePreview(tester);
+    // The first (now stale) encode finishes: it is not shown, and the
+    // latest input is encoded next.
+    pending[0].complete(fakePayload(5));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l10n.presentSource(1, 5)), findsNothing);
     expect(pending.length, 2);
     pending[1].complete(fakePayload(2));
     await tester.pump();
     await tester.pump();
     expect(find.text(l10n.presentSource(1, 2)), findsOneWidget);
-    pending[0].complete(fakePayload(5));
+  });
+
+  testWidgets('superseded encodes run one at a time', (tester) async {
+    // A large file must not be copied into several isolates at once.
+    final pending = <Completer<EncodedPayload>>[];
+    await pumpSend(tester, encode: (_) {
+      final c = Completer<EncodedPayload>();
+      pending.add(c);
+      return c.future;
+    });
+    for (final t in ['a', 'ab', 'abc', 'abcd']) {
+      await type(tester, t);
+      await settlePreview(tester);
+    }
+    expect(pending.length, 1, reason: 'only one encode in flight');
+    pending[0].complete(fakePayload(1));
     await tester.pump();
     await tester.pump();
-    expect(find.text(l10n.presentSource(1, 5)), findsNothing);
-    expect(find.textContaining('of 2'), findsOneWidget);
+    expect(pending.length, 2, reason: 'one re-run for the latest input, not one per change');
+    pending[1].complete(fakePayload(1));
+    await tester.pump();
+    await tester.pump();
+    expect(pending.length, 2);
+    expect(find.byType(RawImage), findsOneWidget);
+  });
+
+  testWidgets('over the frame cap shows too large instead of a preview', (tester) async {
+    await pumpSend(tester, encode: (_) async => fakePayload(maxSendFrames + 1));
+    await type(tester, 'hello');
+    await settlePreview(tester);
+    expect(find.byType(RawImage), findsNothing);
+    expect(find.text(l10n.sendTooLarge(maxSendFrames + 1, maxSendFrames)), findsOneWidget);
+  });
+
+  testWidgets('preview pauses under Present', (tester) async {
+    var images = 0;
+    await pumpSend(tester, encode: (_) async => fakePayload(3), onImage: () => images++);
+    await type(tester, 'hello');
+    await settlePreview(tester);
+    await tester.tap(find.text(l10n.previewFullScreen));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(PresentScreen), findsOneWidget);
+    final before = images;
+    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump();
+    expect(images, before, reason: 'no preview frames rendered while Present covers Send');
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('clearing input shows the empty pane', (tester) async {
