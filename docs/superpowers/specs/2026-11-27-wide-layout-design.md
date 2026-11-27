@@ -34,7 +34,7 @@ On a 13″ iPad the app showed the iPhone layout stretched edge to edge: small-l
   - *My call:* the preview **includes the passphrase**, unlike the spike, so its N matches what Present and Share GIF produce. PBKDF2 runs at most once per pause in typing.
 - **Import and Camera:** the form is on the left. The decoded result (`ResultCard`, scrollable) is on the right, with an empty pane saying "The decoded file appears here" until there's a result. On a phone the result stays under the form.
 - **Files and About:** the existing content in a centred column, at most 680 pt wide.
-- **Strings (4 new ARB keys × 7 languages):** the two empty-pane texts, "Frame {k} of {n}", and "Full screen". The prototype's "· compressed" suffix is dropped.
+- **Strings (3 new ARB keys × 7 languages):** the two empty-pane texts and "Full screen"; the frame counter reuses the existing `presentSource` ("Frame {i} of {n}"). The prototype's "· compressed" suffix is dropped.
 
 ## Testing
 
