@@ -49,6 +49,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         actions: const [LanguageSwitcherButton()],
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.selectGifFile, style: Theme.of(context).textTheme.bodyLarge),
