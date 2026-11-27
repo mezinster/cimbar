@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/widgets/wide_layout.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,14 +44,27 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     final state = ref.watch(importControllerProvider);
     final controller = ref.read(importControllerProvider.notifier);
 
+    final wide = isWide(context);
+    final resultCard = state.result == null
+        ? null
+        : ResultCard(
+            result: state.result!,
+            onOpen: () => openWithFeedback(context, () => FileService.openResult(state.result!)),
+            onExport: () => exportWithFeedback(context, () => FileService.exportBytes(state.result!.filename, state.result!.data)),
+            onShare: () => FileService.shareResult(state.result!),
+            onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
+          );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.importTitle),
         actions: const [LanguageSwitcherButton()],
       ),
-      body: ListView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.all(16),
+      body: adaptiveBody(
+        context,
+        right: resultCard != null
+            ? SingleChildScrollView(child: resultCard)
+            : EmptyPane(icon: Icons.gif_box_outlined, text: l10n.wideResultEmpty),
         children: [
           Text(l10n.selectGifFile, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
@@ -79,15 +93,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
           if (state.progress != null) ProgressCard(progress: state.progress!),
 
-          if (state.result != null) ...[
+          if (resultCard != null && !wide) ...[
             const SizedBox(height: 16),
-            ResultCard(
-              result: state.result!,
-              onOpen: () => openWithFeedback(context, () => FileService.openResult(state.result!)),
-              onExport: () => exportWithFeedback(context, () => FileService.exportBytes(state.result!.filename, state.result!.data)),
-              onShare: () => FileService.shareResult(state.result!),
-              onShareText: (t) => SharePlus.instance.share(ShareParams(text: t)),
-            ),
+            resultCard,
           ],
         ],
       ),
