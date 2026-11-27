@@ -42,7 +42,7 @@ On a 13″ iPad the app showed the iPhone layout stretched edge to edge: small-l
   - rail vs bottom bar;
   - two panes vs one column on Send, Import and Camera;
   - the result appears in the right pane on wide screens and under the form on phones;
-  - typing on Send produces a preview, and its frame count matches `estimateFrames`;
+  - typing on Send produces a preview, and its frame count matches the real encoder's N (what Present sends);
   - an iPhone in landscape stays on the phone layout.
 - Existing tests keep passing unchanged, since they run at phone size.
 - Re-run `store-screens/capture.sh` for new iPad screenshots, adjusting the capture test only if it relies on bottom-bar finders.
